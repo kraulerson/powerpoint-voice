@@ -24,12 +24,30 @@
       "branch_protection_configured",
       "branch_protection_verified",
       "pushed_initial",
-      "remote_repo_created"
+      "remote_repo_created",
+      "ci_pipeline_configured",
+      "pre_commit_hooks_installed",
+      "project_scaffolded",
+      "data_model_applied",
+      "initialization_verified"
     ],
-    "verified": false
+    "verified": true,
+    "step": 7
   },
   "phase1_architecture": {
-    "steps_completed": [],
-    "started_at": "2026-08-03T15:52:03Z"
+    "steps_completed": [
+      "architecture_selected",
+      "threat_model_complete",
+      "data_model_defined",
+      "ui_scaffolding_done",
+      "bible_synthesized"
+    ],
+    "started_at": "2026-08-03T15:52:03Z",
+    "step": 5
+  },
+  "phase1_artifacts": {
+    "data_classification": "confidential",
+    "zdr_attested": false,
+    "zdr_attestation_reason": "Exception approved by CISO (Karl Raulerson, role-played) 2026-08-03: the Confidential asset (the real deck) is never transmitted to the LLM — the LLM processes only source code and synthetic/sanitized fixtures; the real deck is used exclusively in local UAT/rehearsal on Karl's machine."
   }
 }
