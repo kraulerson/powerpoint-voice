@@ -20,7 +20,10 @@
     "started_at": null
   },
   "phase2_init": {
-    "steps_completed": [],
+    "steps_completed": [
+      "pushed_initial",
+      "remote_repo_created"
+    ],
     "verified": false
   }
 }
