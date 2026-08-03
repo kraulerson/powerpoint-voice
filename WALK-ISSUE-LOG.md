@@ -296,3 +296,12 @@ identities are Karl) remains fully documented here and in the audit file.
 
 - **S-10:** Recorder-identity convention (ISSUE-008 fix) paid off at the Phase 1→2 gate: the self-approval verifier passed cleanly (commit author kraulerson-reviewer != approver Karl Raulerson), gate exit 0, phase_1_to_2 auto-recorded, snapshot created — no warn-knob, no friction. The fix generalizes to every remaining gate.
 - **S-11:** The authored C++ scaffold is real, not a stub: Qt 6.11.1 app configures under CMake, builds 14 targets clean, launches headless (offscreen QPA) running its event loop, terminates cleanly, and ctest is 1/1 green. clang-format clean. The from-scratch-renderer project has a working foundation on day 1 of Phase 2.
+
+- **S-12:** Strict-mode enforcement audit demonstrated end-to-end (the good kind of finding):
+  my first scaffold commit used `feat:`, the Build-Loop commit-msg gate HARD-BLOCKED it (no
+  active Build Loop), I ABANDONED it and re-committed as `chore:` — and
+  `.claude/bypass-audit.json` recorded the event as
+  `type: terminal_commit_blocked, gate: commitmsg_buildloop, final_outcome: abandoned`. The
+  block was correct, compliance was the response (no --no-verify, no bypass), and the audit
+  trail captured it faithfully. This is exactly the Tier-2 "route around the block? no — the
+  audit is the point" behavior the docs promise, observed live.
