@@ -1,22 +1,15 @@
 {
   "build_loop": {
-    "feature": null,
-    "step": 0,
-    "steps_completed": [],
-    "started_at": null,
-    "last_completed": {
-      "feature": "F1a-deck-loader",
-      "completed_at": "2026-08-03T18:37:33Z",
-      "steps_completed": [
-        "tests_written",
-        "tests_verified_failing",
-        "implemented",
-        "security_audit",
-        "documentation_updated",
-        "feature_recorded"
-      ],
-      "paths": []
-    }
+    "feature": "F1b-slide-render",
+    "step": 5,
+    "steps_completed": [
+      "tests_written",
+      "tests_verified_failing",
+      "implemented",
+      "security_audit",
+      "documentation_updated"
+    ],
+    "started_at": "2026-08-03T21:13:49Z"
   },
   "uat_session": {
     "session_id": null,

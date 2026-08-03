@@ -38,6 +38,12 @@ struct LoaderLimits {
     // with millions of shapes would exhaust memory at parse time. Beyond the cap
     // the slide loads with the elements seen so far plus a warning.
     int maxShapesPerSlide = 5000;
+    // Per-text-box paragraph/run caps and per-run text length (audit R5): the
+    // shape cap alone does not bound text bodies — one box can carry millions of
+    // paragraphs/runs or a gigabyte of text. Excess is truncated.
+    int maxParagraphsPerBox = 2000;
+    int maxRunsPerParagraph = 1000;
+    int maxRunTextChars = 100000;
 };
 
 struct LoadResult {

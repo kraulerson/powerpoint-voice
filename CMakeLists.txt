@@ -28,7 +28,7 @@ endif()
 # feature during the Phase 2 Build Loop — added when the feature that needs them
 # is built, not speculatively (CLAUDE.md dependency rule).
 # ---------------------------------------------------------------------------
-find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Gui Widgets)
 qt_standard_project_setup()
 
 # OOXML parse layer (ADR-0001): libzip reads the .pptx package, pugixml parses
@@ -57,9 +57,12 @@ FetchContent_MakeAvailable(doctest)
 # ---------------------------------------------------------------------------
 add_library(pptv_core STATIC
   src/core/app_info.cpp
-  src/loader/deck_loader.cpp)
+  src/loader/deck_loader.cpp
+  src/render/slide_renderer.cpp)
 target_include_directories(pptv_core PUBLIC src)
-target_link_libraries(pptv_core PUBLIC Qt6::Core PRIVATE PkgConfig::LIBZIP PkgConfig::PUGIXML)
+# Qt6::Gui for the renderer (QImage/QPainter/QFont); libzip+pugixml for the loader.
+target_link_libraries(pptv_core PUBLIC Qt6::Core Qt6::Gui
+  PRIVATE PkgConfig::LIBZIP PkgConfig::PUGIXML)
 target_compile_definitions(pptv_core PUBLIC
   POWERPOINT_VOICE_VERSION="${PROJECT_VERSION}")
 

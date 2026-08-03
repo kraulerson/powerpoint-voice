@@ -24,16 +24,26 @@ for handoff clarity. Categories are ordered by impact severity.
   (unsigned comparison), XML descendant walk made iterative to prevent stack-overflow DoS,
   per-slide shape cap added to prevent parse-time memory exhaustion. Findings + remediation:
   `docs/security-audits/f1a-deck-loader-security-audit.md` (5-agent audit).
+- Renderer (F1b) hardened: font-size clamp (prevents a giant-glyph hang), image decode
+  allow-listed to PNG/JPEG with dimension + allocation caps (excludes CVE-prone TIFF/WebP/GIF
+  codecs), clip rect (no letterbox bleed), and per-text-box paragraph/run/text caps. Findings:
+  `docs/security-audits/f1b-slide-renderer-security-audit.md` (2-agent audit).
 
 ### Data Model
 - Added the in-memory slide model (`src/model/slide_model.hpp`): Presentation → Slide →
-  ShapeElement (TextBox | Image) / Background / LoadWarning. No persisted schema (standalone app).
+  ShapeElement (TextBox | Image | Unsupported) / Background / LoadWarning. `ImageElement` now
+  carries raw image bytes; `UnsupportedElement` carries geometry for placeholder rendering.
+  No persisted schema (standalone app).
 
 ### Added
 - **Feature F1a — Deck Loader**: `DeckLoader::load()` parses an untrusted .pptx (libzip +
   pugixml) into the slide model — text runs with font/size/weight/color, EMU positions, solid
-  backgrounds, resolved image references, and warnings for unsupported elements. Resource caps
-  enforced (file size, slide count, per-part/cumulative decompression, per-slide shapes).
+  backgrounds, resolved image references + bytes, and warnings for unsupported elements. Resource
+  caps enforced (file size, slide count, per-part/cumulative decompression, per-slide shapes,
+  per-box paragraphs/runs/text).
+- **Feature F1b — Slide Renderer**: `SlideRenderer::render()` paints a slide to a QImage —
+  backgrounds, positioned text with font/size/weight/color, images, letterboxing, and visible
+  placeholders for unsupported elements and missing/disallowed images. Pure and deterministic.
 
 ### Changed
 ### Fixed
