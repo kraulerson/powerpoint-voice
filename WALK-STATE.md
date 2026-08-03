@@ -63,44 +63,45 @@ Done (session 1):
 6. Findings 001-011 logged (see WALK-ISSUE-LOG.md). Resolved blockers: ISSUE-006 (un-block
    protocol), ISSUE-008 (recorder identity). Standing conventions in "Standing protocols" above.
 
-## Repo state (F1 COMPLETE — UAT session mandated)
+## Repo state (F1 COMPLETE + UAT SESSION 1 COMPLETE — awaiting merge)
 
-- `main` @ merged through PR #7 (F1a). current_phase=2.
-- Branch **`walk/f1b-render`** = PR **#8** (OPEN, CI GREEN both platforms). Holds **feature
-  F1b (slide renderer) complete through the full Build Loop** + test-command wiring (S-18).
-  **Karl merges PR #8 next** (audit row, sync, delete branch).
-- **test-gate is BLOCKED: 2/2 features since last test → the FIRST UAT session is required
-  before starting feature #3.** `scripts/test-gate.sh --check-batch` returns "Testing session
-  required".
+- `main` @ merged through PR #8 (F1a + F1b). current_phase=2.
+- Branch **`walk/uat-1`** = PR (to open) with **UAT session 1 complete + all 7 real-deck
+  bugs fixed** + render-preview tool. **Karl merges next** (audit row, sync, delete branch).
+- **test-gate CLEAR** (counter reset; "2 features until next testing session"). UAT session 1
+  is 9/9 steps done; BUGS.md all 7 Fixed.
 - Toolchain local: cmake 4.4.2, ninja, llvm 22, Qt 6.11.1, libzip 1.11.4, pugixml 1.16,
-  pkgconf 3.0.5. `.claude/test-command` → `scripts/run-tests.sh` (env + cmake + ctest, ~3s).
+  pkgconf 3.0.5. `.claude/test-command` → `scripts/run-tests.sh` (48 tests, ~3s).
+- **Deck fidelity tool:** `bash scripts/render-deck.sh <deck.pptx>` → `render-out/slide-NNN.png`
+  (deck stays local, gitignored). Karl to validate his REAL deck at rehearsal.
 
-## What F1 delivered (F1a + F1b)
+## What F1 + UAT-1 delivered
 
-- **F1a DeckLoader::load()** — untrusted .pptx → slide model (libzip+pugixml). 5-agent audit:
-  3 Critical + 1 High fixed test-first.
-- **F1b SlideRenderer::render()** — slide model → QImage (backgrounds, text, images,
-  letterbox, visible placeholders). 2-agent audit: 1 Critical + 2 High fixed test-first.
-- **40 tests green** both platforms (macOS + ubuntu CI). Karl's 7+7 orchestrator assertions.
-  Visual fidelity confirmed (title, table-placeholder, PNG decode, GIF→placeholder).
-- Sample render tool (uncommitted, scratchpad): `render_sample.cpp` — see build recipe in
-  WALK-ISSUE-LOG if a fresh visual is needed.
+- **F1a DeckLoader::load()** — untrusted .pptx → slide model. Now handles theme colors,
+  scheme resolution, slideLayout placeholder inheritance, group recursion, line breaks, bullets.
+- **F1b SlideRenderer::render()** — slide model → QImage via QTextLayout (word-wrap, per-run
+  color/font, line breaks, bullets), luminance-based readable-text default, visible placeholders.
+- **48 tests green** (macOS; CI to confirm ubuntu). ASan+UBSan clean. Karl's 7+7 assertions
+  + 8 UAT regressions. Visual: themed dark deck renders red accent + white plain text; multi-run RGB.
+- **The renderer now renders REAL PowerPoint decks readably** (was invisible-text on synthetic-only).
+  Documented remaining limits: theme1/default clrMap, one-level layout inheritance, no group
+  transform, inline-only bullets — refinements, not blockers.
 
 ## NEXT (in order)
 
-0. **KARL:** merge PR #8 (as kraulerson-reviewer); sync main; delete branch; audit row.
-1. **FIRST UAT SESSION (mandated, needs Karl as human tester).** Per CLAUDE.md Testing workflow:
-   `--start-uat 1` → dispatch parallel agent testers (automated/exploratory/cross-platform) →
-   generate the human test-session HTML (`tests/uat/templates/test-session-template.html`) →
-   lint it (`lint-uat-scenarios.sh`, must exit 0) → Karl tests (run the app on a real deck) →
-   consolidate bugs → triage WITH Karl (Fix Now / Defer / Won't Fix / Post-MVP) → fix Fix-Now
-   test-first → `--check-batch` passes → `--reset-counter`. Mark each uat_session step.
-   NOTE: the app has NO UI to drive the renderer yet (F7 wires load→render→screen). UAT this
-   round tests the library surface (loader+renderer) via the suite + the sample-render tool +
-   Karl loading his real deck through the sample tool locally (deck never committed).
-2. Feature order by risk after UAT: F4 number parsing → F2/F3 voice nav+control (Vosk+miniaudio
-   deps added when F2 starts) → F5 overlay → F6 keyboard parity → F7 presentation UI (wires it
-   all together: File→Open, pre-render cache off-thread per Bible §3/TM-018, project to screen).
+0. **KARL:** merge the UAT-1 PR (as kraulerson-reviewer); sync main; delete branch; audit row.
+   Optionally render your REAL deck now: `bash scripts/render-deck.sh <deck.pptx>`.
+1. **Build Loop feature F4 — "go to slide N" number parsing** (next feature, `--start-feature`).
+   Highest-value non-render feature: normalize "fifteen"/"one five"/"15" → int, range-check
+   against deck length. Pure/testable; no new deps. Karl at the test gate for ≥3 assertions.
+2. Then by risk: F2/F3 voice nav+control (add Vosk + miniaudio deps when F2 starts; grammar =
+   the 5 two-word phrases) → F5 transcript overlay + listening glyph → F6 keyboard parity →
+   F7 presentation UI (wires it together: File→Open, LoadReportView for warnings, pre-render
+   cache OFF the UI thread per Bible §3/TM-018, route to external display, dark holding exit).
+   UAT session again after every 2 features (F4+F2 → session 2, etc.).
+3. Phase 2 exit → Phase 3 (validation): needs NO open SEV-1/2 (currently clean), all MVP
+   features, CI green. Then Phase 3 five-scanner gate, six-reviewer eval, Karl's auditor
+   sign-offs (security/legal/UAT/pen-test), dual 3→4 approval, Phase 4 release to v1.0.0.
 
 ## Build / run recipe (macOS local)
 

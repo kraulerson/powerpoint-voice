@@ -5,10 +5,14 @@
 #include <QBuffer>
 #include <QColor>
 #include <QFont>
-#include <QFontMetricsF>
 #include <QImageReader>
+#include <QList>
 #include <QPainter>
+#include <QPointF>
 #include <QRectF>
+#include <QTextCharFormat>
+#include <QTextLayout>
+#include <QTextOption>
 
 namespace pptv {
 namespace {
@@ -54,45 +58,90 @@ QImage decodeGuarded(const QByteArray& data) {
     return reader.read();
 }
 
-// Draws one text box: paragraphs stacked top-to-bottom, each paragraph rendered
-// with its first run's font/color (the common single-run case; mixed-run
-// paragraphs within one box fall back to the first run — a documented text-tier
-// MVP limitation). Word-wrapped within the box width.
+// Draws one text box via QTextLayout: real per-run color/font (BUG-5),
+// word-wrap within the box (BUG-4), and U+2028 line breaks (BUG-6), with bullet
+// prefixes + list indent (BUG-7). Text with no color uses `defaultTextColor`
+// (chosen from the background luminance, BUG-1). A box with no geometry falls
+// back to a default content area of the slide (BUG-2 safety net).
 void drawTextBox(QPainter& p, const TextBox& tb, double scale, double offX, double offY,
-                 double maxFontPx) {
-    const double x = offX + tb.rect.x * scale;
-    const double y = offY + tb.rect.y * scale;
-    const double w = tb.rect.cx * scale;
-    double cursorY = y;
+                 double maxFontPx, const QColor& defaultTextColor, const QRectF& slideRect) {
+    QRectF box;
+    if (tb.rect.cx > 0 && tb.rect.cy > 0) {
+        box = QRectF(offX + tb.rect.x * scale, offY + tb.rect.y * scale, tb.rect.cx * scale,
+                     tb.rect.cy * scale);
+    } else {
+        box = slideRect.adjusted(slideRect.width() * 0.08, slideRect.height() * 0.10,
+                                 -slideRect.width() * 0.08, -slideRect.height() * 0.10);
+    }
+
+    const double indentUnit = box.width() * 0.04;
+    double cursorY = box.top();
 
     for (const Paragraph& para : tb.paragraphs) {
         if (para.runs.empty()) {
             continue;
         }
-        const TextRun& lead = para.runs.front();
+        const double indent = para.indentLevel * indentUnit;
+
+        auto fontFor = [&](const TextRun& r) {
+            QFont f;
+            if (!r.fontFamily.isEmpty()) {
+                f.setFamily(r.fontFamily);
+            }
+            f.setPixelSize(clampFontPx(r.fontSizePt * kEmuPerPoint * scale, maxFontPx));
+            f.setBold(r.bold);
+            f.setItalic(r.italic);
+            return f;
+        };
+        auto colorFor = [&](const TextRun& r) {
+            return r.color ? toQColor(*r.color) : defaultTextColor;
+        };
+
         QString text;
+        QList<QTextLayout::FormatRange> formats;
+        auto addSpan = [&](const QString& s, const QFont& f, const QColor& col) {
+            if (s.isEmpty()) {
+                return;
+            }
+            QTextLayout::FormatRange fr;
+            fr.start = static_cast<int>(text.size());
+            fr.length = static_cast<int>(s.size());
+            QTextCharFormat fmt;
+            fmt.setFont(f);
+            fmt.setForeground(col);
+            fr.format = fmt;
+            formats.append(fr);
+            text += s;
+        };
+
+        const TextRun& lead = para.runs.front();
+        if (!para.bulletChar.isEmpty()) {
+            addSpan(para.bulletChar + QLatin1Char(' '), fontFor(lead), colorFor(lead));
+        }
         for (const TextRun& r : para.runs) {
-            text += r.text;
+            addSpan(r.text, fontFor(r), colorFor(r));
         }
         if (text.isEmpty()) {
             continue;
         }
 
-        QFont font;
-        if (!lead.fontFamily.isEmpty()) {
-            font.setFamily(lead.fontFamily);
+        QTextLayout layout(text);
+        QTextOption opt;
+        opt.setWrapMode(QTextOption::WordWrap);
+        layout.setTextOption(opt);
+        layout.setFormats(formats);
+        layout.beginLayout();
+        for (;;) {
+            QTextLine line = layout.createLine();
+            if (!line.isValid()) {
+                break;
+            }
+            line.setLineWidth(box.width() - indent);
+            line.setPosition(QPointF(box.left() + indent, cursorY));
+            cursorY += line.height();
         }
-        font.setPixelSize(clampFontPx(lead.fontSizePt * kEmuPerPoint * scale, maxFontPx));
-        font.setBold(lead.bold);
-        font.setItalic(lead.italic);
-        p.setFont(font);
-        // Unspecified run color defaults to black (PowerPoint's default text color).
-        p.setPen(lead.color ? toQColor(*lead.color) : QColor(Qt::black));
-
-        const QFontMetricsF fm(font);
-        const QRectF lineRect(x, cursorY, w, fm.height());
-        p.drawText(lineRect, Qt::TextSingleLine | Qt::AlignLeft, text);
-        cursorY += fm.height();
+        layout.endLayout();
+        layout.draw(&p, QPointF(0, 0));
     }
 }
 
@@ -168,24 +217,23 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
         return img;
     }
 
-    // Background.
-    switch (slide.background.kind) {
-    case BackgroundKind::Solid:
-        p.fillRect(slideRect,
-                   slide.background.solid ? toQColor(*slide.background.solid) : QColor(Qt::white));
-        break;
-    case BackgroundKind::None:
-    case BackgroundKind::Picture: // background-picture bytes are not loaded in the text tier
-    default:
-        p.fillRect(slideRect, QColor(Qt::white)); // PowerPoint default
-        break;
+    // Background, and the default text color chosen from its luminance so text
+    // with no explicit/resolvable color stays readable (BUG-1): white on dark,
+    // black on light.
+    QColor bgColor = Qt::white; // None/Picture -> white default
+    if (slide.background.kind == BackgroundKind::Solid && slide.background.solid) {
+        bgColor = toQColor(*slide.background.solid);
     }
+    p.fillRect(slideRect, bgColor);
+    const double luma =
+        (0.299 * bgColor.red() + 0.587 * bgColor.green() + 0.114 * bgColor.blue()) / 255.0;
+    const QColor defaultTextColor = (luma < 0.5) ? QColor(Qt::white) : QColor(Qt::black);
 
     // Elements in z-order.
     for (const ShapeElement& e : slide.elements) {
         switch (e.kind) {
         case ElementKind::TextBox:
-            drawTextBox(p, e.textBox, scale, offX, offY, maxFontPx);
+            drawTextBox(p, e.textBox, scale, offX, offY, maxFontPx, defaultTextColor, slideRect);
             break;
         case ElementKind::Image: {
             const QRectF r = pxRect(e.image.rect, scale, offX, offY);

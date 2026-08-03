@@ -42,6 +42,10 @@ struct TextRun {
 
 struct Paragraph {
     std::vector<TextRun> runs;
+    // Bullet marker to prefix (empty = no bullet) and list indent level
+    // (0 = top level). Populated from <a:pPr> (BUG-7).
+    QString bulletChar;
+    int indentLevel = 0;
 };
 
 struct TextBox {

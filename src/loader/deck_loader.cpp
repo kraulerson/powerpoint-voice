@@ -164,7 +164,72 @@ RectEmu parseXfrm(const pugi::xml_node& spPr) {
     return rect;
 }
 
-TextRun parseRun(const pugi::xml_node& r, int maxChars) {
+// Theme color scheme (BUG-1): maps scheme slot names (dk1/lt1/accent1/...) to
+// concrete colors, parsed from ppt/theme/themeN.xml. Real decks color text via
+// scheme references, so without this, themed text has no color and renders
+// invisible on a dark background.
+using ThemeColors = QHash<QString, Color>;
+
+ThemeColors parseTheme(const QByteArray& xml) {
+    ThemeColors theme;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
+        return theme;
+    }
+    pugi::xml_node clrScheme = descendantLocal(doc.first_child(), "clrScheme");
+    for (pugi::xml_node c = clrScheme.first_child(); c; c = c.next_sibling()) {
+        const QString slot = localName(c.name()); // dk1, lt1, accent1, ...
+        pugi::xml_node srgb = childLocal(c, "srgbClr");
+        pugi::xml_node sys = childLocal(c, "sysClr");
+        QString hex;
+        if (srgb) {
+            hex = attrLocal(srgb, "val");
+        } else if (sys) {
+            hex = attrLocal(sys, "lastClr"); // sysClr carries a resolved lastClr
+        }
+        if (auto col = parseSrgb(hex)) {
+            theme.insert(slot, *col);
+        }
+    }
+    return theme;
+}
+
+// Resolve a <a:schemeClr val="..."> against the theme, applying the default
+// color map (tx1->dk1, bg1->lt1, tx2->dk2, bg2->lt2; others map by name).
+std::optional<Color> resolveScheme(const QString& val, const ThemeColors& theme) {
+    QString key = val;
+    if (val == QLatin1String("tx1")) {
+        key = QStringLiteral("dk1");
+    } else if (val == QLatin1String("tx2")) {
+        key = QStringLiteral("dk2");
+    } else if (val == QLatin1String("bg1")) {
+        key = QStringLiteral("lt1");
+    } else if (val == QLatin1String("bg2")) {
+        key = QStringLiteral("lt2");
+    }
+    if (theme.contains(key)) {
+        return theme.value(key);
+    }
+    return std::nullopt;
+}
+
+// Resolve a <...><a:solidFill> child (srgbClr or schemeClr) to a color.
+std::optional<Color> parseSolidFill(const pugi::xml_node& fill, const ThemeColors& theme) {
+    if (!fill) {
+        return std::nullopt;
+    }
+    pugi::xml_node srgb = childLocal(fill, "srgbClr");
+    if (srgb) {
+        return parseSrgb(attrLocal(srgb, "val"));
+    }
+    pugi::xml_node scheme = childLocal(fill, "schemeClr");
+    if (scheme) {
+        return resolveScheme(attrLocal(scheme, "val"), theme);
+    }
+    return std::nullopt;
+}
+
+TextRun parseRun(const pugi::xml_node& r, int maxChars, const ThemeColors& theme) {
     TextRun run;
     run.text = QString::fromUtf8(childLocal(r, "t").text().get()).left(maxChars);
     pugi::xml_node rPr = childLocal(r, "rPr");
@@ -179,15 +244,12 @@ TextRun parseRun(const pugi::xml_node& r, int maxChars) {
         if (latin) {
             run.fontFamily = attrLocal(latin, "typeface");
         }
-        pugi::xml_node fill = childLocal(rPr, "solidFill");
-        if (fill) {
-            run.color = parseSrgb(attrLocal(childLocal(fill, "srgbClr"), "val"));
-        }
+        run.color = parseSolidFill(childLocal(rPr, "solidFill"), theme);
     }
     return run;
 }
 
-TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim) {
+TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim, const ThemeColors& theme) {
     TextBox tb;
     tb.rect = parseXfrm(childLocal(sp, "spPr"));
     pugi::xml_node txBody = childLocal(sp, "txBody");
@@ -200,12 +262,31 @@ TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim) {
             break;
         }
         Paragraph para;
+        // Paragraph properties: list level + inline bullet marker (BUG-7).
+        pugi::xml_node pPr = childLocal(p, "pPr");
+        if (pPr) {
+            para.indentLevel = attrLocal(pPr, "lvl").toInt();
+            pugi::xml_node buChar = childLocal(pPr, "buChar");
+            pugi::xml_node buAutoNum = childLocal(pPr, "buAutoNum");
+            if (buChar) {
+                para.bulletChar = attrLocal(buChar, "char");
+            } else if (buAutoNum) {
+                para.bulletChar = QStringLiteral("•"); // numbered lists -> a dot (MVP)
+            }
+        }
         for (pugi::xml_node r = p.first_child(); r; r = r.next_sibling()) {
-            if (localName(r.name()) == QLatin1String("r")) {
-                if (static_cast<int>(para.runs.size()) >= lim.maxRunsPerParagraph) {
-                    break;
-                }
-                para.runs.push_back(parseRun(r, lim.maxRunTextChars));
+            const QString rn = localName(r.name());
+            if (static_cast<int>(para.runs.size()) >= lim.maxRunsPerParagraph) {
+                break;
+            }
+            if (rn == QLatin1String("r")) {
+                para.runs.push_back(parseRun(r, lim.maxRunTextChars, theme));
+            } else if (rn == QLatin1String("br")) {
+                // Soft line break within the paragraph (BUG-6): a U+2028 line
+                // separator, which the renderer's QTextLayout breaks on.
+                TextRun brk;
+                brk.text = QString(QChar(0x2028));
+                para.runs.push_back(std::move(brk));
             }
         }
         tb.paragraphs.push_back(std::move(para));
@@ -213,7 +294,7 @@ TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim) {
     return tb;
 }
 
-Background parseBackground(const pugi::xml_node& cSld) {
+Background parseBackground(const pugi::xml_node& cSld, const ThemeColors& theme) {
     Background bg;
     pugi::xml_node bgNode = childLocal(cSld, "bg");
     if (!bgNode) {
@@ -221,33 +302,65 @@ Background parseBackground(const pugi::xml_node& cSld) {
     }
     pugi::xml_node solid = descendantLocal(bgNode, "solidFill");
     if (solid) {
-        pugi::xml_node clr = childLocal(solid, "srgbClr");
-        if (clr) {
+        // Resolve srgbClr OR a themed schemeClr (BUG-1) so the renderer knows a
+        // themed-dark background is dark and can pick readable text.
+        if (auto c = parseSolidFill(solid, theme)) {
             bg.kind = BackgroundKind::Solid;
-            bg.solid = parseSrgb(attrLocal(clr, "val"));
+            bg.solid = c;
         }
     }
     return bg;
 }
 
-Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>& slideRels,
-                 const QString& slideDir, const LoaderLimits& lim, bool& xmlOk) {
-    Slide slide;
+// Placeholder key "type:idx" for matching a shape against layout geometry (BUG-2).
+QString placeholderKey(const pugi::xml_node& sp) {
+    pugi::xml_node ph = descendantLocal(childLocal(sp, "nvSpPr"), "ph");
+    if (!ph) {
+        return {};
+    }
+    QString type = attrLocal(ph, "type");
+    if (type.isEmpty()) {
+        type = QStringLiteral("body");
+    }
+    return type + QLatin1Char(':') + attrLocal(ph, "idx");
+}
+
+// Map placeholder key -> geometry, parsed from a slideLayout part (BUG-2). Real
+// decks put title/body position in the layout, not inline on the slide.
+QHash<QString, RectEmu> parseLayoutPlaceholders(const QByteArray& xml) {
+    QHash<QString, RectEmu> map;
     pugi::xml_document doc;
     if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
-        xmlOk = false;
-        return slide;
+        return map;
     }
-    xmlOk = true;
+    pugi::xml_node spTree = descendantLocal(doc.first_child(), "spTree");
+    for (pugi::xml_node sp = spTree.first_child(); sp; sp = sp.next_sibling()) {
+        if (localName(sp.name()) != QLatin1String("sp")) {
+            continue;
+        }
+        const QString key = placeholderKey(sp);
+        if (key.isEmpty()) {
+            continue;
+        }
+        RectEmu rect = parseXfrm(childLocal(sp, "spPr"));
+        if (rect.cx > 0 && rect.cy > 0) {
+            map.insert(key, rect);
+        }
+    }
+    return map;
+}
 
-    pugi::xml_node sld = doc.first_child(); // <p:sld>
-    pugi::xml_node cSld = childLocal(sld, "cSld");
-    slide.background = parseBackground(cSld);
-    pugi::xml_node spTree = childLocal(cSld, "spTree");
+// Forward declaration for group recursion (BUG-3).
+void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
+                      const QHash<QString, QString>& slideRels, const QString& slideDir,
+                      const LoaderLimits& lim, const ThemeColors& theme,
+                      const QHash<QString, RectEmu>& layoutPh);
 
-    for (pugi::xml_node node = spTree.first_child(); node; node = node.next_sibling()) {
-        // Per-slide shape cap (audit F1a-4): a legal-but-pathological slide with
-        // millions of shapes must not exhaust memory. Stop and warn at the cap.
+void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
+                      const QHash<QString, QString>& slideRels, const QString& slideDir,
+                      const LoaderLimits& lim, const ThemeColors& theme,
+                      const QHash<QString, RectEmu>& layoutPh) {
+    for (pugi::xml_node node = tree.first_child(); node; node = node.next_sibling()) {
         if (static_cast<int>(slide.elements.size()) >= lim.maxShapesPerSlide) {
             LoadWarning w;
             w.slideIndex = index;
@@ -262,7 +375,15 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
             if (childLocal(node, "txBody")) {
                 ShapeElement e;
                 e.kind = ElementKind::TextBox;
-                e.textBox = parseTextBox(node, lim);
+                e.textBox = parseTextBox(node, lim, theme);
+                // BUG-2: a placeholder with no inline geometry inherits position
+                // from the slide layout.
+                if (e.textBox.rect.cx <= 0 || e.textBox.rect.cy <= 0) {
+                    const QString key = placeholderKey(node);
+                    if (!key.isEmpty() && layoutPh.contains(key)) {
+                        e.textBox.rect = layoutPh.value(key);
+                    }
+                }
                 slide.elements.push_back(std::move(e));
             }
         } else if (name == QLatin1String("pic")) {
@@ -275,9 +396,14 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
                 e.image.mediaPart = resolveTarget(slideDir, slideRels.value(rid));
             }
             slide.elements.push_back(std::move(e));
-        } else if (name == QLatin1String("graphicFrame") || name == QLatin1String("grpSp") ||
-                   name == QLatin1String("cxnSp")) {
-            // Unsupported in the text+images tier — record, never render wrong.
+        } else if (name == QLatin1String("grpSp")) {
+            // Recurse into the group so its text/images render instead of a
+            // placeholder (BUG-3). Group child-coordinate transforms are not
+            // applied (MVP approximation) — positions are read from child xfrms.
+            processShapeTree(node, slide, index, slideRels, slideDir, lim, theme, layoutPh);
+        } else if (name == QLatin1String("graphicFrame") || name == QLatin1String("cxnSp")) {
+            // Genuinely unsupported (table/chart/SmartArt) -> warning + visible
+            // placeholder box.
             LoadWarning w;
             w.slideIndex = index;
             pugi::xml_node gd = descendantLocal(node, "graphicData");
@@ -295,10 +421,6 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
             const QString unsupportedType = w.elementType;
             slide.warnings.push_back(std::move(w));
 
-            // Also record a positioned placeholder element so the renderer can
-            // draw a VISIBLE marker where the unsupported content was. Its xfrm
-            // may live directly under the frame (graphicFrame) rather than in an
-            // spPr, so resolve off/ext by descendant search.
             ShapeElement ph;
             ph.kind = ElementKind::Unsupported;
             ph.unsupported.type = unsupportedType;
@@ -315,6 +437,24 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
             slide.elements.push_back(std::move(ph));
         }
     }
+}
+
+Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>& slideRels,
+                 const QString& slideDir, const LoaderLimits& lim, const ThemeColors& theme,
+                 const QHash<QString, RectEmu>& layoutPh, bool& xmlOk) {
+    Slide slide;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
+        xmlOk = false;
+        return slide;
+    }
+    xmlOk = true;
+
+    pugi::xml_node sld = doc.first_child(); // <p:sld>
+    pugi::xml_node cSld = childLocal(sld, "cSld");
+    slide.background = parseBackground(cSld, theme);
+    pugi::xml_node spTree = childLocal(cSld, "spTree");
+    processShapeTree(spTree, slide, index, slideRels, slideDir, lim, theme, layoutPh);
     return slide;
 }
 
@@ -442,6 +582,15 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         presRels = parseRels(presRelsXml);
     }
 
+    // Theme colors for resolving scheme-colored text/backgrounds (BUG-1). The
+    // common single-theme case (ppt/theme/theme1.xml) covers most decks.
+    ThemeColors theme;
+    QByteArray themeXml;
+    if (readPart(za, QStringLiteral("ppt/theme/theme1.xml"), themeXml,
+                 limits.maxPartUncompressed)) {
+        theme = parseTheme(themeXml);
+    }
+
     // Insert a placeholder slide that preserves slide numbering (audit F1a-3).
     // Silently dropping an unresolvable slide would compact the vector and make
     // "go to slide N" land on the wrong slide during a live talk.
@@ -485,8 +634,23 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
             slideRels = parseRels(slideRelsXml);
         }
 
+        // The slide's layout provides placeholder geometry (BUG-2). Find the
+        // slideLayout rel target, load it, and map its placeholders.
+        QHash<QString, RectEmu> layoutPh;
+        for (auto it = slideRels.constBegin(); it != slideRels.constEnd(); ++it) {
+            if (it.value().contains(QLatin1String("slideLayout"))) {
+                const QString layoutPart = resolveTarget(slideDir, it.value());
+                QByteArray layoutXml;
+                if (readPart(za, layoutPart, layoutXml, limits.maxPartUncompressed)) {
+                    layoutPh = parseLayoutPlaceholders(layoutXml);
+                }
+                break;
+            }
+        }
+
         bool xmlOk = true;
-        Slide slide = parseSlide(slideXml, index, slideRels, slideDir, limits, xmlOk);
+        Slide slide =
+            parseSlide(slideXml, index, slideRels, slideDir, limits, theme, layoutPh, xmlOk);
         if (!xmlOk) {
             zip_close(za);
             return fail(LoadErrorKind::MalformedXml,
