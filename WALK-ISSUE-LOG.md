@@ -362,3 +362,22 @@ identities are Karl) remains fully documented here and in the audit file.
   loudly. Fixed the test to sample a corner of the dark fill. Exactly the value of building
   cross-platform in CI from day one: a font-dependent assertion that would have been a
   mystery later got caught immediately.
+
+- **S-20:** The FIRST UAT session was the single highest-value quality event of the walk so
+  far. The unit tests + two security audits all passed, but UAT's exploratory agent-testers
+  (sanitizer / real-PowerPoint-compat / rendering) found that the renderer — green on
+  synthetic fixtures — would render Karl's REAL exec deck with INVISIBLE TEXT (theme/inherited
+  colors defaulting to black on dark slides), misplaced placeholders, hidden grouped text,
+  truncated bullets, and mono-color runs. Seven real bugs (2 SEV-1) that every prior gate
+  missed because the fixtures were too minimal. This is the exact gap UAT exists to close
+  ("passes synthetic tests" ≠ "works on real input"), and the framework's every-2-features
+  UAT mandate surfaced it before a single feature more was built. All 7 fixed test-first
+  (48 tests), sanitizer-clean, and verified in actual pixels. Strongest possible evidence
+  for the framework's UAT discipline.
+- **S-21:** UAT process enforcement worked as designed and productively: the commit gate
+  HARD-BLOCKED my mid-session commit ("UAT session in progress — complete all steps") and the
+  results_received step refused to advance without a real submission artifact (offering a
+  logged solo-attest escape I didn't need — the agent-testers' results ARE the artifact). The
+  9-step UAT checklist forced the full find→triage→remediate→gate cycle before any code landed.
+  Also: the BL-125 test-command I wired earlier now runs all 48 tests at every source commit —
+  local commit-time test enforcement is live.
