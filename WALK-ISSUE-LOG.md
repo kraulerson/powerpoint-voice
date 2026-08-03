@@ -248,3 +248,24 @@ identities are Karl) remains fully documented here and in the audit file.
   published ref append-only.
 - **Severity:** Confusion (multi-hat coordination timing; no damage).
 - **Time lost:** ~15 min (verification).
+
+## ISSUE-010 — Generated release.yml is an INVALID workflow for a discovered language; every push logs a red run (MAJOR, escalation of ISSUE-003)
+
+- **When/where:** 2026-08-03, noticed in `gh run list` — `release.yml` fails at "startup_failure"
+  on every push to any branch.
+- **Expected:** README: "Adding a new language requires one file: a CI template." Release
+  pipelines carry by-design signing TODOs but should be VALID YAML that simply no-ops until configured.
+- **Actual:** `get_release_vars()` `*)` arm substitutes literal comment text into a
+  structural field: `- uses: # TODO: Add setup action for your language`. `uses:` with a
+  comment value is not a valid step → GitHub rejects the whole workflow at parse time →
+  a red "startup_failure" run is logged on EVERY push (30834081926 etc.). It never ran a
+  release; it can't even parse.
+- **Severity:** Major (escalates ISSUE-003 from "TODO null-steps" to "invalid workflow
+  polluting the Actions history with red runs from day 1"). On a real project this is a
+  standing false alarm in the CI dashboard.
+- **Known-ledger check:** no BL/BUG entry for cpp/discovered-language release.yml invalidity.
+- **Resolution:** DEFERRED to Phase 4 per framework sequencing (release pipeline is a Phase 4
+  artifact) — will author valid C++ macOS build/sign steps then. Logged now because the red
+  runs are visible immediately and would confuse any observer. Not worked around mid-Phase-1
+  (the CI pipeline `ci.yml`, which IS the enforcement floor, is valid and green).
+- **Time lost:** ~5 min.

@@ -168,6 +168,8 @@ _Append one row per post-launch change, maintenance review, or re-approval below
 | Date | Gate / Event | Approver | Role | Decision | Reference |
 |---|---|---|---|---|---|
 | 2026-08-03 | Repo governance: branch-protection resolution (init FAIL, github driver options) | Karl Raulerson | Repository Owner | Selected documented option 2: repo made public; org-mode protection applied and verified (`scripts/check-gate.sh --repair` + `--preflight` OK) | WALK-ISSUE-LOG.md ISSUE-004; init log init-20260803-072618.log |
+| 2026-08-03 | data_classification set | reconfigure-project.sh | Orchestrator | Applied | new value: confidential (tier-crosscheck-6) |
+| 2026-08-03 | zdr_attested set | reconfigure-project.sh | Orchestrator | Applied | new value: false (reason: Exception approved by CISO (Karl Raulerson, role-played) 2026-08-03: the Confidential asset (the real deck) is never transmitted to the LLM — the LLM processes only source code and synthetic/sanitized fixtures; the real deck is used exclusively in local UAT/rehearsal on Karl's machine.) (tier-crosscheck-6) |
 
 ---
 
