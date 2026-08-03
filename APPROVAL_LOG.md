@@ -57,6 +57,18 @@ _**Append** one completed row per pre-condition to the table below — one each 
 <!-- BL-170-APPEND-DESIGN -->
 _When this gate is crossed, **append** a completed approval table directly below (above this section's closing `---`) — use the shape at the top of this file (role: Project Sponsor; artifacts to review: PRODUCT_MANIFESTO.md, Compliance Screening Matrix). Append-only: never edit a line once pushed._
 
+| Field | Value |
+|---|---|
+| **Gate** | Phase 0 → Phase 1 |
+| **Approver** | Karl Raulerson |
+| **Role** | Project Sponsor |
+| **Date** | 2026-08-03 |
+| **Method** | Interactive session approval (walk protocol; PR #4 review) |
+| **Reference** | PR #4 (walk/phase0); PRODUCT_MANIFESTO.md; docs/phase-0/frd.md, user-journey.md, data-contract.md; compliance screening PROJECT_INTAKE.md §8.4 |
+| **Artifacts reviewed** | PRODUCT_MANIFESTO.md (incl. Appendices A-D), FRD, User Journey, Data Contract, Compliance Screening Matrix |
+| **Decision** | Approved — Product Manifesto v1 with 7-feature MVP cutline and two-word command grammar; GO decision recorded per Appendix D; trademark disposition accepted per Appendix C (internal use, rename-before-external-distribution trigger); derived competency rows confirmed. |
+| **Notes** | Grammar amendment (Q1) supersedes intake single-word commands; B key dropped (Q2); all Manifesto §8 questions Q1-Q13 resolved 2026-08-03. |
+
 ---
 
 ## Phase Gate: Phase 1 → Phase 2

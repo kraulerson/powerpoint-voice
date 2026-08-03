@@ -166,3 +166,71 @@ working as designed.
   cell filled, the blank-cell predicate went to 0 and `scripts/resume.sh` flipped from the
   intake prompt to printing our customized §13 initialization prompt verbatim. Clean handshake
   between a hand-edited intake and the framework's detection.
+
+- **S-9:** ISSUE-006's resolution matured mid-walk: Karl stood up a second GitHub identity
+  (`kraulerson-reviewer`) and PR #3 was merged through a genuinely-satisfied required review
+  rather than an owner override. The org-mode protection bar is now fully operable solo-with-
+  two-hats — worth recording as the practical answer the framework docs currently lack.
+
+## ISSUE-007 — Gate-date auto-record + refused advance = self-inflicted deadlock (MAJOR)
+
+- **When/where:** 2026-08-03 ~09:35, first `process-checklist.sh --start-phase1` attempt.
+- **Expected (doc):** Project CLAUDE.md gate sequence: (1) update APPROVAL_LOG, (2) run
+  check-phase-gate.sh, (3) run entry command, (4) "Commit APPROVAL_LOG.md and
+  .claude/phase-state.json together" — i.e., committing comes AFTER the gate runs.
+- **Actual:** Run 1: gate auto-recorded `gates.phase_0_to_1=2026-08-03` from the (uncommitted)
+  approval entry, then BLOCKED on "cannot verify commit author — row not yet committed"
+  (a WARN arm that increments issues — the documented [WARN] trap). Run 2 (row now committed):
+  gate blocked on its own artifact: "[WARN] Phase 0→1 gate has date 2026-08-03 but
+  current_phase is still 0" — and the only command that advances current_phase consults the
+  gate first. Deadlock: the refused first run wrote state the gate itself rejects forever.
+- **Severity:** Major — any transient failure on a gate's first entry attempt (here: following
+  the documented commit-last order) permanently wedges the gate.
+- **Known-ledger check:** no BL/BUG entry found for auto-record-then-refuse wedging.
+- **Resolution:** single invocation `SOIF_PHASE_GATES=warn bash scripts/process-checklist.sh
+  --start-phase1` — the documented downgrade knob, printed by the gate itself and documented
+  in the User Guide Tier-1 table. Escape-hatch use, logged here per walk rules. Phase advanced
+  0→1; gate consistency on that axis restored (date + phase now agree).
+- **Time lost:** ~20 min.
+
+## ISSUE-008 — Org self-approval verifier is unsatisfiable for a solo operator; both advertised remedies are dead ends (MAJOR, blocking at every gate)
+
+- **When/where:** 2026-08-03 ~09:40, plain `check-phase-gate.sh` after Phase 1 entry.
+- **Expected (doc):** Some satisfiable path for a compliant org project to pass the Phase 0→1
+  self-approval verification. The FAIL message offers two: "Have the approver commit the
+  APPROVAL_LOG.md entry themselves, or use --force with documented justification."
+- **Actual (all verified by execution/code read, check-phase-gate.sh ~lines 870-938):**
+  1. `--force` DOES NOT EXIST: `bash scripts/check-phase-gate.sh --force` → "[FAIL] Unknown
+     argument: '--force'". The advertised escape is unimplemented.
+  2. "Approver commits it themselves" GUARANTEES the failing predicate — the check FAILs
+     precisely when commit author == approver.
+  3. The check contradicts the User Guide Tier-3 control "Approval log entries authored by
+     the approver" outright (org projects can't satisfy both).
+  4. Solo dead-end is total: author==approver → FAIL; author≠approver while ambient
+     `git config user.name` == approver → WARN "verify the commit author wasn't rewritten"
+     which ALSO increments issues (blocks); author unverifiable → blocks. With one human
+     identity, every arm blocks. Recurs at EVERY gate incl. the dual 3→4 sign-offs.
+  5. The walker reads only the FIRST Approver row per gate section, so an append-only
+     superseding entry cannot cure a failing first row.
+- **Severity:** Major (Blocker-pattern at every remaining gate without a standing resolution).
+- **Known-ledger check:** BL-055 and code-check-gates entries cover blame PRECISION
+  (wrong-author shadowing), not the unsatisfiability, the phantom --force, or the
+  remedy/predicate contradiction. Appears NEW.
+- **Resolution:** STOPPED for Karl — options presented: (A) adopt a recorder/reviewer git
+  identity for the repo so approval-row commits are authored by the reviewer persona
+  (mechanically satisfiable, two-hat reality documented here); (B) project-wide
+  SOIF_PHASE_GATES=warn (documented knob; softens Tier-1 gate to warning everywhere);
+  (C) halt and record as terminal for solo-org. Recommendation: A.
+- **Time lost:** ~35 min (code read, remedy testing, ledger check).
+
+## ISSUE-008 addendum — resolution decided and implemented (2026-08-03)
+
+Karl selected the **recorder-identity convention** (option A, plain-English "record-keeper
+hat"): the repository's git identity is now `kraulerson-reviewer` — the recorder persona that
+COMMITS what the named approver (Karl Raulerson) DECIDED. Approval rows keep the approver's
+true name; the recorder authors the commits. This satisfies every arm of the self-approval
+verifier mechanically and mirrors the framework's own recorder≠approver example (Orchestrator
+records Jane Smith's email approval). The unmerged walk/phase0 branch was rebuilt once so the
+Phase 0→1 approval row's introducing commit is recorder-authored — rebuild authorized by Karl
+as part of this decision and logged in WALK-UNBLOCK-AUDIT.md. The two-hat reality (both
+identities are Karl) remains fully documented here and in the audit file.
