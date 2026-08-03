@@ -59,6 +59,8 @@ You can fill this out using the **intake wizard** (`bash scripts/intake-wizard.s
 >
 > For `track` or `deployment` changes use `scripts/upgrade-project.sh` instead (it enforces the governance pre-conditions; reconfigure-project does not).
 
+> **Provenance note (this walk):** Filled manually (documented Manual mode) by the AI agent, seeded from the recorded product interview with Karl Raulerson (2026-08-03) and from seven judgment decisions Karl answered interactively the same day. Karl reviews and approves this document via the pull-request that lands it on `main`.
+
 ---
 
 ## 1. Project Identity
@@ -66,18 +68,16 @@ You can fill this out using the **intake wizard** (`bash scripts/intake-wizard.s
 | Field | Value |
 |---|---|
 | **Project name** | powerpoint-voice |
-| **Project codename** (if different from public name) | |
+| **Project codename** (if different from public name) | N/A |
 | **One-sentence description** | Voice-controlled presentation app: renders PowerPoint decks and responds to spoken commands |
 | **Project track** | Full |
 | **Platform type** | desktop |
 | **Platform Module** | SOI-PM-DESKTOP |
-
-> **Mobile (SOI-PM-MOBILE v1.0)** — The mobile Platform Module covers React Native (Expo), Flutter, Swift (iOS), and Kotlin (Android) with architecture patterns, offline-first guidance, code signing, app store submission, and testing.
-| **Target platforms** | _e.g., "Windows 10+, macOS 12+, Ubuntu 22.04+" or "Web (all modern browsers)" or "iOS 16+, Android 13+"_ |
+| **Target platforms** | macOS 14+ (primary — showtime machine), Windows 10+, Ubuntu 22.04+ (secondary: portable code + CI builds pre-show; full validation post-show) |
 | **Is this a personal project or organizational deployment?** | Organizational |
-| **Repository URL** (if already created) | |
-| **Git host** | _github / gitlab / bitbucket / other_ |
-| **Repository visibility** | _private / public_ (org mode forces private) |
+| **Repository URL** (if already created) | https://github.com/kraulerson/powerpoint-voice |
+| **Git host** | github |
+| **Repository visibility** | public — org-mode default (private) overridden 2026-08-03 via the github driver's documented recovery option 2; decision + protection verification recorded in APPROVAL_LOG.md (Approval History) and WALK-ISSUE-LOG.md ISSUE-004 |
 
 ---
 
@@ -85,41 +85,43 @@ You can fill this out using the **intake wizard** (`bash scripts/intake-wizard.s
 
 ### 2.1 The Problem
 
-_What specific problem does this solve? Be concrete — not "improve efficiency" but "the finance team spends 6 hours/week manually reconciling invoices from 3 systems into a single spreadsheet."_
-
 ```
-[Write the problem statement here]
+Karl presents a PowerPoint deck to executives on ~2026-08-10. Today, advancing slides
+tethers him to the laptop keyboard or a single-purpose clicker: remotes do only
+next/previous, get lost, and die; jumping directly to a specific slide ("go to slide 15")
+during Q&A means walking back to the machine and breaking the room's attention. Conference-
+room Wi-Fi cannot be trusted, so any cloud-dependent voice solution is disqualified. He
+needs hands-free, fully offline voice control of his real .pptx deck — walk the room, say
+"next" / "go to slide fifteen", and the projector obeys — reliable enough to bet a live
+executive presentation on, with a keyboard fallback for every command if voice degrades.
 ```
 
 ### 2.2 Who Has This Problem
 
 | Field | Value |
 |---|---|
-| **Primary user persona** | _Job title, technical skill level, what they're trying to accomplish_ |
-| **Secondary personas** (if any) | |
-| **How do they solve this problem today?** | _Spreadsheet, manual process, different tool, they don't_ |
-| **What's wrong with the current solution?** | |
+| **Primary user persona** | Karl Raulerson — presenter/technologist; high technical skill; goal: deliver a live executive presentation hands-free with direct slide navigation |
+| **Secondary personas** (if any) | Colleagues who present (mixed technical skill) — potential adopters at 6-12 months, internal only |
+| **How do they solve this problem today?** | Keyboard/trackpad at the laptop, or a basic presenter remote (next/previous only) |
+| **What's wrong with the current solution?** | Tethered to the machine or limited to linear next/previous; no direct jump-to-slide; remote is extra failure-prone hardware; nothing is voice-driven or robust to a no-network room |
 
 ### 2.3 Success Criteria
 
-_How will you know this project succeeded? Define measurable outcomes, not feelings._
-
 | Metric | Target | How Measured |
 |---|---|---|
-| _Example: Time spent on weekly reconciliation_ | _Reduced from 6 hours to <1 hour_ | _User self-report after 4 weeks_ |
-| | | |
-| | | |
-| | | |
+| Command recognition success (baseline 5 commands) | ≥95% of clearly-spoken commands correctly executed | 50-command scripted rehearsal run on the showtime MacBook; tally via the transcript overlay |
+| Command-to-action latency | ≤1.5 s p95 from end of utterance to slide action | Timestamped session log during the rehearsal run |
+| Network independence | 100% functionality with Wi-Fi/network disabled | Full rehearsal executed in airplane-mode/network-off |
+| Rendering fidelity (real deck) | Zero content-visible defects vs. PowerPoint reference | Karl's slide-by-slide sign-off at rehearsal (deck loaded locally only) |
+| Live use | 2026-08-10 presentation delivered with the app as primary control | It happened; keyboard fallback use counts as graceful degradation, not failure |
 
 ### 2.4 What This Is NOT
 
-_List 3-5 things that sound related but are explicitly out of scope. This prevents the agent from scope-creeping into adjacent problems._
-
-1. 
-2. 
-3. 
-4. 
-5. 
+1. Not a slide editor — no creation, editing, or export of deck content.
+2. Not a cloud/web service — no accounts, no telemetry, no network features of any kind.
+3. Not a dictation or general speech product — fixed command grammar only.
+4. Not an animation-faithful player — static slide rendering; no transitions, builds, embedded video/audio.
+5. Not a meeting assistant — no audio recording, storage, or transcription beyond the live command overlay.
 
 ---
 
@@ -129,29 +131,29 @@ _List 3-5 things that sound related but are explicitly out of scope. This preven
 
 | Field | Value |
 |---|---|
-| **Target MVP date** | |
-| **Hard deadline?** | Yes / No — _If yes, what happens if missed?_ |
-| **Orchestrator availability** | _Hours/week dedicated to this project. Be honest — "as time allows" means "unpredictable."_ |
-| **Blocked time or interleaved?** | _Dedicated half/full days, or squeezed between other work?_ |
+| **Target MVP date** | 2026-08-08 (rehearsal-ready; presentation ~2026-08-10) |
+| **Hard deadline?** | Yes — the presentation happens on ~2026-08-10 regardless. If missed: fall back to stock PowerPoint + keyboard; the walk's findings still deliver. |
+| **Orchestrator availability** | "As many as needed." (Karl, verbatim, 2026-08-03) — plan as full availability through 2026-08-09 |
+| **Blocked time or interleaved?** | Effectively blocked — this is the priority through the presentation date |
 
 ### 3.2 Budget
 
 | Field | Value |
 |---|---|
-| **Monthly infrastructure ceiling** | _Maximum acceptable hosting/tooling cost per month_ |
-| **One-time budget** (if any) | _For domain, trademark, paid tools, pen testing, etc._ |
-| **AI subscription** | _Already have / Need to provision. Consumer or commercial?_ |
-| **Who approves spending?** | _Name and role, or "self" for personal projects_ |
+| **Monthly infrastructure ceiling** | $0 — local desktop app, no hosting; GitHub free tier (approved by Karl 2026-08-03) |
+| **One-time budget** (if any) | $0 — code signing deferred post-MVP; no domain/trademark spend |
+| **AI subscription** | Already provisioned — consumer Claude subscription via Claude Code (see §5.1.1 ZDR exception; AI-path approval APPROVAL_LOG row 1) |
+| **Who approves spending?** | Karl Raulerson (Sponsor) |
 
 ### 3.3 Users
 
 | Field | Value |
 |---|---|
-| **Users at launch** | _Number and who they are_ |
-| **Users at 6 months** | |
-| **Users at 12 months** | |
-| **Internal only or external?** | Internal / External / Both |
-| **Geographic distribution** | _Single office, national, international? This drives data sovereignty._ |
+| **Users at launch** | 1 — Karl (presenting) |
+| **Users at 6 months** | ≤5 — colleagues may adopt (internal) |
+| **Users at 12 months** | ≤10 — internal colleagues |
+| **Internal only or external?** | Internal |
+| **Geographic distribution** | Single location, US — no data sovereignty concerns |
 
 ---
 
@@ -159,36 +161,31 @@ _List 3-5 things that sound related but are explicitly out of scope. This preven
 
 ### 4.1 Must-Have Features (MVP)
 
-_For each feature, define the business logic trigger and the failure state. If you can't articulate "If [condition], the system must [action]" — the feature isn't defined well enough to build._
-
 | # | Feature | Business Logic Trigger | Failure State |
 |---|---|---|---|
-| 1 | | If [condition], the system must [action] and output [result] | What happens when input is invalid, service is unavailable, or user abandons? |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-| 6 | | | |
-| 7 | | | |
-| 8 | | | |
+| 1 | PPTX load & render (text+images tier, from-scratch C++ renderer) | If the user opens a .pptx (File→Open, drag-drop, or CLI argument), the system must parse the OOXML package and render every slide — text boxes with formatting, placed images, solid/picture backgrounds — and output a pixel-stable full-screen slide view | Invalid/corrupt file → error naming the failing part; app keeps running. Unsupported slide element → visible placeholder plus a load-time warning listing every unsupported item (never a silent wrong render). File >200MB or >300 slides → reject with the stated limit. |
+| 2 | Voice navigation: "next" / "previous" | If the always-on recognizer matches "next" or "previous" while presenting, the system must advance/rewind exactly one slide within 1.5 s and show the command in the overlay | At last/first slide → no-op plus overlay notice. Low-confidence match → no action; overlay shows what was heard. Mic unavailable → persistent banner; keyboard fallback unaffected. |
+| 3 | Recognition control: "pause" / "continue" | If "pause" is matched, the system must suspend command matching (listening only for "continue"), show PAUSED in the overlay; "continue" resumes full matching | Repeated "pause"/"continue" are idempotent. Recognizer/engine crash → automatic engine restart with an overlay alert; keyboard pause toggle works regardless of engine state. |
+| 4 | "Go to slide N" with robust numbers | If "go to slide <number>" is matched and N is within the deck, the system must jump directly to slide N; accepted forms: digits ("15"), number words ("fifteen"), digit-by-digit ("one five") | N out of range → overlay "deck has M slides", no movement. Unparseable number → overlay shows heard text, no movement. |
+| 5 | Live command-transcript overlay | If any utterance is processed, the system must display the heard text and the matched command (or "no match") within 500 ms, auto-fading after ~3 s | Overlay must never obscure more than the reserved strip of the slide; an overlay rendering failure must never take down the slide view. |
+| 6 | Keyboard fallback for every command | If arrow keys / space / B / P / typed-number+Enter are pressed at any time, the system must execute the identical action to the corresponding voice command | Keyboard path is fully independent of the speech engine — it must work even when the engine is dead or paused. |
+| 7 | Presentation mode UI (minimal dark, dual-display aware) | If a presentation is started, the system must render the full-screen minimal-dark view (slide, overlay strip, slide counter) and route the slide view to the external display when one is attached | No external display → single-screen full-screen mode. Display disconnect mid-show → fall back to the laptop screen without crashing or losing position. |
 
 ### 4.2 Should-Have Features (Post-MVP v1.1)
 
-_Features that enhance the MVP but are not required for first usable release._
-
-1. 
-2. 
-3. 
-4. 
-5. 
+1. Timer / elapsed-clock in the presenter overlay (P1).
+2. Practice mode with per-command recognition accuracy stats (P1).
+3. Microphone input-device picker (P1).
+4. Presenter-notes view on the laptop with clean projector output (P2).
+5. Windows/Linux packaging and full validation (P2 — code stays portable and CI-built all along).
 
 ### 4.3 Will-Not-Have Features (Explicit Exclusions)
 
-_Things that sound related but the agent must NOT build or suggest._
-
-1. 
-2. 
-3. 
+1. Deck editing, creation, or export of any kind.
+2. Any network-dependent capability: cloud speech, accounts, telemetry, update phone-home.
+3. Free-form dictation, wake words, or any speech feature beyond the fixed command grammar.
+4. Animation/transition playback, embedded video/audio rendering.
+5. Recording or persisting any audio.
 
 ---
 
@@ -196,15 +193,11 @@ _Things that sound related but the agent must NOT build or suggest._
 
 ### 5.1 Data Inputs
 
-_What data does the user provide or the system ingest?_
-
 | Input | Data Type | Validation Rules | Sensitivity | Required? |
 |---|---|---|---|---|
-| _Example: Employee name_ | _Text_ | _2-100 chars, no special chars except hyphen/apostrophe_ | _PII_ | _Yes_ |
-| | | | | |
-| | | | | |
-| | | | | |
-| | | | | |
+| .pptx presentation file | Binary OOXML (zip) | Valid zip containing ppt/presentation.xml; ≤200MB; ≤300 slides; unsupported elements surfaced at load | Confidential (executive deck content; never leaves the machine, never committed — fixtures are synthetic/sanitized) | Yes |
+| Microphone audio | PCM stream (~16 kHz) | Processed on-device in memory only; never persisted, never transmitted | Confidential (live room audio) | Yes |
+| User settings | JSON preferences file | Schema-validated keys (overlay fade, mic device, keybindings); unknown keys rejected | Internal | No |
 
 **Sensitivity classifications:** Public, Internal, Confidential, PII, Financial, Health/Medical, Regulated
 
@@ -214,41 +207,35 @@ The **highest** classification across all rows in §5.1 is the project-level `da
 
 | Field | Value (one of) |
 |---|---|
-| **Project-level data_classification** | `public` / `internal` / `confidential` / `pii` / `financial` / `health` / `regulated` |
-| **ZDR attested (Zero Data Retention or self-hosted LLM)** | `true` / `false` |
-| **ZDR attestation reason** _(required when `zdr_attested=false` AND classification > public)_ | _Free text: written exception (e.g. "Customer SOW requires retention, risk accepted by CISO Email TKT-42")_ |
+| **Project-level data_classification** | `confidential` |
+| **ZDR attested (Zero Data Retention or self-hosted LLM)** | `false` |
+| **ZDR attestation reason** _(required when `zdr_attested=false` AND classification > public)_ | Exception approved by CISO (Karl Raulerson, role-played) 2026-08-03: the Confidential asset (the real deck) is never transmitted to the LLM — the LLM processes only source code and synthetic/sanitized fixtures; the real deck is used exclusively in local UAT/rehearsal on Karl's machine. |
 
 These three fields are captured by `scripts/intake-wizard.sh` Section 5.5, and can be corrected after-the-fact with `scripts/reconfigure-project.sh --field data_classification --new <value>` / `--field zdr_attested --new true|false`.
 
 ### 5.2 Data Outputs
 
-_What does the user receive from the system?_
-
 | Output | Format | Latency Expectation |
 |---|---|---|
-| _Example: Reconciliation report_ | _PDF download_ | _<10 seconds_ |
-| | | |
-| | | |
+| Rendered slide view | On-screen (projector/laptop) | <200 ms per slide change |
+| Command-transcript overlay | On-screen text strip | <500 ms after utterance |
+| Session command log | In-memory; optional local debug file (off by default) | N/A |
 
 ### 5.3 Third-Party Integrations
 
-_Every external API or data source the application needs to connect to._
-
 | Service | What Data We Send/Receive | Auth Method | Fallback if Unavailable | Existing Account? |
 |---|---|---|---|---|
-| | | | | |
-| | | | | |
-| | | | | |
+| None — fully offline by design | N/A | N/A | N/A | N/A |
 
 ### 5.4 Data Persistence
 
 | Question | Answer |
 |---|---|
-| **What data must persist across sessions?** | |
-| **What data can be ephemeral (browser/device only)?** | |
-| **Expected data volume at 12 months** | _Rows, storage size, or "small/medium/large"_ |
-| **Data retention requirements** | _Keep forever, X months, regulatory requirement?_ |
-| **Backup requirements** | _Daily, real-time, or "whatever the platform default is"_ |
+| **What data must persist across sessions?** | User settings (JSON) and a recent-files list (paths only, never deck content) |
+| **What data can be ephemeral (browser/device only)?** | All audio (never stored), deck content (re-read from the .pptx each open), transcript history (session-only) |
+| **Expected data volume at 12 months** | Small — <10 MB of settings/logs |
+| **Data retention requirements** | Settings until the user deletes them; no regulatory retention |
+| **Backup requirements** | None — the source .pptx is the user's own file; settings are trivially recreated |
 
 ---
 
@@ -258,29 +245,29 @@ _Every external API or data source the application needs to connect to._
 
 | Field | Value |
 |---|---|
-| **Languages you know well** | _e.g., JavaScript/TypeScript, Python, Go_ |
-| **Frameworks you've used** | _e.g., React, Next.js, Express, Django_ |
-| **Languages/frameworks you're willing to learn** | |
-| **Languages/frameworks you refuse to use** | |
-| **Database experience** | _PostgreSQL, MySQL, SQLite, MongoDB, Supabase, etc._ |
-| **DevOps experience level** | _None / Basic (can deploy to PaaS) / Intermediate / Advanced_ |
-| **Mobile development experience** | _None / Some / Experienced. Native or cross-platform?_ |
+| **Languages you know well** | Shell/bash, JavaScript/TypeScript, Python (drafted from prior work; Karl corrects at intake review if wrong) |
+| **Frameworks you've used** | CI/CD (GitHub Actions) and scripting toolchains; no prior Qt/desktop-GUI framework claimed |
+| **Languages/frameworks you're willing to learn** | C++ toolchain depth (CMake/Qt) as needed to review this project |
+| **Languages/frameworks you refuse to use** | None |
+| **Database experience** | Basic (SQLite-level); no DB required for this project |
+| **DevOps experience level** | Intermediate — comfortable with CI/CD pipelines and GitHub administration |
+| **Mobile development experience** | None — N/A for this project |
 
 ### 6.2 Competency Matrix
 
-_For each domain, answer honestly: "Can I look at the AI's output and reliably determine if it's correct?"_
+_For each domain, answer honestly: "Can I look at the AI's output and reliably determine if it's correct?"_ (Karl's answers, 2026-08-03.)
 
 | Domain | Self-Assessment | Automated Tooling Required? |
 |---|---|---|
-| Product/UX Logic | Yes / Partially / No | |
-| Frontend Code (HTML/CSS/JS) | Yes / Partially / No | |
-| Backend / API Design | Yes / Partially / No | |
-| Database Design & Queries | Yes / Partially / No | |
-| Security (Auth, Injection, IDOR) | Yes / Partially / No | |
-| DevOps / Infrastructure | Yes / Partially / No | |
-| Accessibility (WCAG) | Yes / Partially / No | |
-| Performance Optimization | Yes / Partially / No | |
-| Mobile (iOS/Android) | Yes / Partially / No | |
+| Product/UX Logic | Yes | No |
+| Frontend Code (native UI for this project) | Partially | Yes — mandatory in Phase 3 |
+| Backend / API Design | N/A — no server/API in this application | N/A |
+| Database Design & Queries | Yes (scope: local file/JSON storage only) | No |
+| Security (Auth, Injection, IDOR) | Yes | No (framework scanners still run per track) |
+| DevOps / Infrastructure | Yes | No |
+| Accessibility (WCAG) | Partially | Yes — mandatory in Phase 3 |
+| Performance Optimization | Yes | No |
+| Mobile (iOS/Android) | N/A — no mobile target | N/A |
 
 _Every "Partially" or "No" means automated tooling is mandatory in Phase 3. The agent will factor this into architecture selection and testing strategy._
 
@@ -288,76 +275,72 @@ _Every "Partially" or "No" means automated tooling is mandatory in Phase 3. The 
 
 | Field | Value |
 |---|---|
-| **Primary development machine** | _OS, specs if relevant_ |
-| **Secondary machines** (if any) | |
-| **IDE/Editor** | _VS Code, Cursor, other_ |
-| **Docker available?** | Yes / No |
-| **Node.js version** | |
-| **Python version** (if applicable) | |
-| **Claude Code installed?** | Yes / No / Need to install |
-| **AI subscription tier** | _Claude Max, Claude Enterprise, API, other_ |
+| **Primary development machine** | macOS (Darwin 25.4.0), Apple Silicon MacBook — also the showtime machine |
+| **Secondary machines** (if any) | None |
+| **IDE/Editor** | Claude Code (terminal) + system editor |
+| **Docker available?** | Yes (Colima) |
+| **Node.js version** | 25.9.0 (infrastructure tooling only) |
+| **Python version** (if applicable) | N/A for product code |
+| **Claude Code installed?** | Yes (2.1.220) |
+| **AI subscription tier** | Consumer Claude subscription (see §5.1.1 ZDR exception) |
 
 ### 6.4 Architecture Preferences & Constraints
-
-_These are preferences, not mandates. The agent will respect hard constraints but may recommend against soft preferences with justification. Fields vary by platform — fill in what applies to your project type._
 
 **All Platforms:**
 
 | Field | Value | Hard Constraint or Preference? |
 |---|---|---|
-| **Primary language** | _e.g., TypeScript, Rust, Python, Dart, C#, or "no preference"_ | |
-| **Data storage** | _e.g., SQLite, PostgreSQL, Supabase, file system, or "no preference"_ | |
-| **Authentication** | _e.g., Supabase Auth, enterprise SSO, local-only, none, or "no preference"_ | |
+| **Primary language** | C++ | **Hard constraint** (Karl, interview 2026-08-03) |
+| **Data storage** | Local filesystem + JSON settings; no database | Preference |
+| **Authentication** | None — single-user local app, no accounts | **Hard constraint** |
 
 **Web Applications:**
 
 | Field | Value | Hard Constraint or Preference? |
 |---|---|---|
-| **Frontend framework** | _e.g., Next.js, React + Vite, SvelteKit, or "no preference"_ | |
-| **Backend framework** | _e.g., Express, FastAPI, or "no preference"_ | |
-| **Hosting** | _e.g., Vercel, Railway, self-hosted, or "no preference"_ | |
+| **Frontend framework** | N/A — not a web application | N/A |
+| **Backend framework** | N/A | N/A |
+| **Hosting** | N/A | N/A |
 
 **Desktop Applications:**
 
 | Field | Value | Hard Constraint or Preference? |
 |---|---|---|
-| **UI framework** | _e.g., Tauri, Electron, Flutter Desktop, or "no preference"_ | |
-| **Packaging format** | _e.g., installer, portable executable, or "no preference"_ | |
-| **Auto-update strategy** | _e.g., built-in updater, manual download, or "no preference"_ | |
-| **Offline requirement** | _Fully offline / Offline with optional sync / Requires network_ | |
+| **UI framework** | No preference — agent proposes options in Phase 1 (cross-platform C++ toolkit expected, e.g. Qt) | Preference |
+| **Packaging format** | DMG for macOS primary; others deferred to P2 | Preference |
+| **Auto-update strategy** | Manual download (GitHub Releases) | Preference |
+| **Offline requirement** | **Fully offline** — zero network dependency at runtime, including speech recognition | **Hard constraint** (venue reliability, interview 2026-08-03) |
 
 **Mobile Applications:**
 
 | Field | Value | Hard Constraint or Preference? |
 |---|---|---|
-| **Framework** | _e.g., React Native, Flutter, Expo, native, or "no preference"_ | |
-| **Minimum OS version** | _e.g., iOS 16+, Android 13+_ | |
-| **App store distribution** | _Yes / No / Eventually_ | |
-| **Offline requirement** | _Offline tolerant (graceful errors) / Offline capable (cached reads, queued writes) / Offline first (full functionality offline)_ | |
-| **Device API requirements** | _e.g., Camera, GPS/Location, Bluetooth, NFC, Biometrics, Barcode scanner, Push notifications, Background sync_ | |
-| **Biometric authentication** | _Yes (session unlock) / Yes (primary auth) / No / "no preference"_ | |
+| **Framework** | N/A — no mobile target | N/A |
+| **Minimum OS version** | N/A | N/A |
+| **App store distribution** | N/A | N/A |
+| **Offline requirement** | N/A | N/A |
+| **Device API requirements** | N/A | N/A |
+| **Biometric authentication** | N/A | N/A |
 
 **Cross-Cutting:**
 
 | Field | Value | Hard Constraint or Preference? |
 |---|---|---|
-| **Monorepo or separate repos?** | | |
-| **Web + Desktop, Web + Mobile, or single platform?** | | |
+| **Monorepo or separate repos?** | Single repo | Preference |
+| **Web + Desktop, Web + Mobile, or single platform?** | Single platform: desktop (cross-OS targets within it) | **Hard constraint** |
 
 ### 6.5 Existing Infrastructure to Integrate With
 
-_Anything the application must connect to or comply with._
-
 | System | Details | Integration Required? |
 |---|---|---|
-| **SSO / Identity Provider** | _e.g., Okta, Azure AD, Google Workspace_ | Yes / No / N/A |
-| **Logging / SIEM** | _e.g., Datadog, Splunk, ELK_ | Yes / No / N/A |
-| **Monitoring** | _e.g., Datadog, New Relic, Grafana_ | Yes / No / N/A |
-| **Data Warehouse** | _e.g., Snowflake, Databricks, BigQuery_ | Yes / No / N/A |
-| **Backup Infrastructure** | _e.g., enterprise backup policy_ | Yes / No / N/A |
-| **CI/CD Platform** | _GitHub Actions, GitLab CI, Azure DevOps_ | Yes / No / N/A |
-| **Repository Platform** | _GitHub, GitLab, Azure DevOps_ | Yes / No / N/A |
-| **Other** | | |
+| **SSO / Identity Provider** | None | N/A |
+| **Logging / SIEM** | None — local structured logs only | N/A |
+| **Monitoring** | None — GitHub Actions CI status + local logs | N/A |
+| **Data Warehouse** | None | N/A |
+| **Backup Infrastructure** | None required (see §5.4) | N/A |
+| **CI/CD Platform** | GitHub Actions | Yes |
+| **Repository Platform** | GitHub (kraulerson/powerpoint-voice) | Yes |
+| **Other** | None | N/A |
 
 ---
 
@@ -365,14 +348,14 @@ _Anything the application must connect to or comply with._
 
 | Field | Value |
 |---|---|
-| **Pricing model** | _Freemium / Subscription / Usage-based / One-time / N/A_ |
-| **Target price point** | |
-| **Competitive price range** | |
-| **Per-user cost estimate** (hosting, API calls, storage) | |
-| **Break-even user count** | |
-| **Hosting cost ceiling at launch** | |
-| **Hosting cost ceiling at 1,000 users** | |
-| **Hosting cost ceiling at 10,000 users** | |
+| **Pricing model** | N/A — internal tool, no revenue |
+| **Target price point** | N/A |
+| **Competitive price range** | N/A |
+| **Per-user cost estimate** (hosting, API calls, storage) | $0 — fully local |
+| **Break-even user count** | N/A |
+| **Hosting cost ceiling at launch** | $0 |
+| **Hosting cost ceiling at 1,000 users** | N/A — internal ceiling is ≤10 users (§3.3) |
+| **Hosting cost ceiling at 10,000 users** | N/A |
 
 ---
 
@@ -380,61 +363,59 @@ _Anything the application must connect to or comply with._
 
 _Skip this section for personal projects. For organizational deployments, every field must be completed or marked "In Progress" with an expected completion date. Phase 0 cannot begin until all "Blocking" items are resolved._
 
-**Governance Mode:** Production / Sponsored POC / Private POC
-
-> **If POC mode:** This project operates under POC constraints — no production deployment, no real user data, no external users. Deferred pre-conditions must be resolved before production. Upgrade with: `scripts/upgrade-project.sh --to-production`
+**Governance Mode:** Production
 
 ### 8.1 Pre-Conditions
 
 | Pre-Condition | Status | Details | Blocking? |
 |---|---|---|---|
-| **AI deployment path approved by IT Security** | Not Started / In Progress / Complete | _Commercial API, Enterprise agreement, ZDR, self-hosted?_ | Yes |
-| **Insurance confirmation obtained** | Not Started / In Progress / Complete | _Cyber liability, E&O, D&O cover AI-generated code?_ | Yes |
-| **Liability entity designated** | Not Started / In Progress / Complete | _Which entity bears liability — subsidiary or parent?_ | Yes |
-| **Project sponsor assigned** | Not Started / In Progress / Complete | _Name:_ | Yes |
-| **Backup maintainer designated** | Not Started / In Progress / Complete | _Name:_ | Yes |
-| **ITSM ticket filed / portfolio registered** | Not Started / In Progress / Complete | _Ticket #:_ | Yes |
-| **Exit criteria defined** | Not Started / In Progress / Complete | _See Section 8.5 below_ | Required (not blocking — pilot prep, see Governance Framework §XIV) |
-| **Orchestrator time allocation approved** | Not Started / In Progress / Complete | _Hours/week, blocked or interleaved_ | Required (not blocking — pilot prep, see Governance Framework §XIV) |
+| **AI deployment path approved by IT Security** | Complete | Anthropic Claude via Claude Code under existing subscription terms — APPROVAL_LOG.md row 1 (Karl as CISO, 2026-08-03) | Yes |
+| **Insurance confirmation obtained** | Complete | No policies exist; risk accepted in full by owner — APPROVAL_LOG.md row 2 (Karl as broker/risk, 2026-08-03) | Yes |
+| **Liability entity designated** | Complete | Karl Raulerson (individual) — APPROVAL_LOG.md row 3 (Karl as GC, 2026-08-03) | Yes |
+| **Project sponsor assigned** | Complete | Name: Karl Raulerson — APPROVAL_LOG.md row 4 | Yes |
+| **Backup maintainer designated** | Complete | Name: Karl Raulerson (dual-hatted; weakening acknowledged) — APPROVAL_LOG.md row 5 | Yes |
+| **ITSM ticket filed / portfolio registered** | Complete | Ticket #: kraulerson/powerpoint-voice#1 — APPROVAL_LOG.md row 6 | Yes |
+| **Exit criteria defined** | Complete | See Section 8.5 below | Required (not blocking — pilot prep, see Governance Framework §XIV) |
+| **Orchestrator time allocation approved** | Complete | "As many as needed" through 2026-08-09 (Karl, 2026-08-03), effectively blocked time | Required (not blocking — pilot prep, see Governance Framework §XIV) |
 
 ### 8.2 Approval Authorities
 
 | Gate | Approver Name | Approver Role |
 |---|---|---|
-| **Phase 0 → Phase 1** (business justification) | | |
-| **Phase 1 → Phase 2** (architecture approval) | | |
-| **Phase 3 → Phase 4** (go-live approval) | | |
+| **Phase 0 → Phase 1** (business justification) | Karl Raulerson | Project Sponsor |
+| **Phase 1 → Phase 2** (architecture approval) | Karl Raulerson | Senior Technical Authority (role-played per walk protocol) |
+| **Phase 3 → Phase 4** (go-live approval) | Karl Raulerson | Application Owner AND IT Security (both sign-offs recorded separately, per walk protocol) |
 
 ### 8.3 Escalation Chain
 
 | Level | Name | Role | Contact |
 |---|---|---|---|
-| 1 (first escalation) | | | |
-| 2 | | | |
-| 3 (final authority) | | | |
+| 1 (first escalation) | Karl Raulerson | Orchestrator / Sponsor | In-session (walk protocol) |
+| 2 | Karl Raulerson | CISO (role-played) | In-session (walk protocol) |
+| 3 (final authority) | Karl Raulerson | Owner / final authority | In-session (walk protocol) |
 
 ### 8.4 Compliance Screening
 
-_Complete this screening with the project sponsor. Mark each question Yes/No and complete the action if Yes._
+_Completed with the project sponsor (Karl Raulerson), approved 2026-08-03._
 
 | Question | Yes/No | Required Action | Status |
 |---|---|---|---|
-| Does this application process data used in financial reporting? | | Route through SOX IT general controls | |
-| Does this application handle payment card data (even masked)? | | PCI scoping assessment required | |
-| Does this application collect personal data from users in multiple states or internationally? | | Legal review for applicable privacy laws | |
-| Are any users or subsidiaries in the EU? | | EU AI Act classification + data sovereignty assessment | |
-| Does any subsidiary operate in a sanctioned jurisdiction? | | OFAC screening | |
-| Is data subject to records retention requirements? | | Define retention periods and deletion procedures | |
-| Will the deployed application include AI-powered features for end users? | | EU AI Act classification for deployed product | |
-| Does your organization require penetration testing for all production applications? | | Schedule pen test for Phase 3 | |
+| Does this application process data used in financial reporting? | No | N/A | N/A |
+| Does this application handle payment card data (even masked)? | No | N/A | N/A |
+| Does this application collect personal data from users in multiple states or internationally? | No | N/A | N/A |
+| Are any users or subsidiaries in the EU? | No | N/A | N/A |
+| Does any subsidiary operate in a sanctioned jurisdiction? | No | N/A | N/A |
+| Is data subject to records retention requirements? | No | N/A | N/A |
+| Will the deployed application include AI-powered features for end users? | Yes | EU AI Act classification for deployed product | Complete — on-device speech recognition; no EU users/nexus (§3.3), outside territorial scope; note recorded here per sponsor approval 2026-08-03 |
+| Does your organization require penetration testing for all production applications? | Yes | Schedule pen test for Phase 3 | Planned — Full track mandates it; scheduled as part of Phase 3 validation |
 
 ### 8.5 Exit Criteria
 
 | Outcome | Definition | Decision Maker |
 |---|---|---|
-| **Success** (proceed to scale) | _e.g., "MVP deployed, handoff test passed, actual hours within 20% of estimate"_ | |
-| **Conditional** (proceed with modifications) | _e.g., "MVP works but took 2x projected hours — evaluate methodology adjustments"_ | |
-| **Failure** (stop) | _e.g., "Quality unacceptable, security findings unresolvable, or Orchestrator unable to evaluate AI output"_ | |
+| **Success** (proceed to scale) | App used as primary control in the 2026-08-10 executive presentation; §2.3 rehearsal criteria met; framework process completed to v1.0.0 | Karl Raulerson |
+| **Conditional** (proceed with modifications) | App rehearsal-ready but a criterion partially missed (e.g., recognition 90-95%) — present keyboard-primary with voice assist; remediate post-show | Karl Raulerson |
+| **Failure** (stop) | Rendering or recognition unreliable at the 2026-08-08 rehearsal — fall back to stock PowerPoint; walk findings still delivered | Karl Raulerson |
 
 ---
 
@@ -442,13 +423,13 @@ _Complete this screening with the project sponsor. Mark each question Yes/No and
 
 | Field | Value |
 |---|---|
-| **Accessibility requirements** | _WCAG AA, Section 508, organizational standard, or "Lighthouse ≥90"_ |
-| **Color vision deficiency considerations** | _Yes / No — If yes: never rely on color alone for meaning. Use shape, position, text labels, patterns, or icons._ |
-| **Supported browsers** | _e.g., "last 2 versions of Chrome, Firefox, Safari, Edge" or "Chrome only (internal tool)"_ |
-| **Mobile responsive required?** | Yes / No |
-| **Supported devices** | _Desktop only, desktop + tablet, desktop + tablet + phone_ |
-| **Branding / style guide** | _URL or description, or "none — agent's discretion"_ |
-| **Dark mode required?** | Yes / No / Nice-to-have |
+| **Accessibility requirements** | WCAG AA-equivalent for a native desktop app: full keyboard operability (already a Must-Have), text contrast ≥4.5:1 in overlay/UI, visible focus states |
+| **Color vision deficiency considerations** | Yes — never rely on color alone for meaning; pair color with text/icon/position |
+| **Supported browsers** | N/A — native desktop application |
+| **Mobile responsive required?** | No |
+| **Supported devices** | Desktop only (laptop + external display/projector) |
+| **Branding / style guide** | None — minimal dark aesthetic per interview; agent's discretion within it |
+| **Dark mode required?** | Yes — minimal dark IS the design (§interview); no light theme in MVP |
 
 ---
 
@@ -458,45 +439,61 @@ _Complete this screening with the project sponsor. Mark each question Yes/No and
 
 | Field | Value |
 |---|---|
-| **Notification preferences for alerts** | _Email, SMS, Slack, PagerDuty, other_ |
-| **Uptime expectation** | _"Best effort" / 99.9% / 99.99%+ (if 99.99%+, this project is not a Solo Orchestrator candidate)_ |
-| **Environment strategy** | _Production only, or dev + staging + production?_ |
+| **Notification preferences for alerts** | GitHub email notifications for CI failures; in-app surfacing for runtime errors (local app, no paging) |
+| **Uptime expectation** | Best effort — local desktop application |
+| **Environment strategy** | Production only (plus local dev builds) |
 
 **Web Applications:**
 
 | Field | Value |
 |---|---|
-| **Domain name** (if already acquired) | |
-| **SSL certificate** | _Platform-provided auto-SSL or organizational cert?_ |
-| **Maintenance window preferences** | _Any restrictions on deployment timing?_ |
+| **Domain name** (if already acquired) | N/A |
+| **SSL certificate** | N/A |
+| **Maintenance window preferences** | N/A |
 
 **Desktop Applications:**
 
 | Field | Value |
 |---|---|
-| **Distribution channels** | _GitHub Releases, direct download, Homebrew, winget, Snap/Flatpak, app stores, other_ |
-| **Code signing** | _Required now / Deferred to post-MVP / Not needed_ |
-| **Code signing certificates** (if required) | _Already have / Need to acquire. Apple Developer ($99/yr), Windows EV cert ($200-500/yr)_ |
-| **Auto-update mechanism** | _Framework built-in / Manual download / Package manager / Deferred_ |
-| **Minimum supported OS versions** | _e.g., Windows 10+, macOS 12+, Ubuntu 22.04+_ |
-| **Installer format preferences** | _e.g., MSI, NSIS exe, DMG, AppImage, or "whatever the framework defaults to"_ |
+| **Distribution channels** | GitHub Releases |
+| **Code signing** | Deferred to post-MVP (unsigned local build acceptable for own-machine showtime use) |
+| **Code signing certificates** (if required) | Need to acquire when un-deferred (Apple Developer $99/yr; Windows EV later) — recorded in Tooling Configuration deferred list |
+| **Auto-update mechanism** | Manual download |
+| **Minimum supported OS versions** | macOS 14+ (primary); Windows 10+, Ubuntu 22.04+ (secondary targets) |
+| **Installer format preferences** | DMG (macOS); others deferred to P2 |
 
 **Mobile Applications:**
 
 | Field | Value |
 |---|---|
-| **Distribution** | _App Store / Google Play / Both / Enterprise sideload_ |
-| **Developer accounts** | _Already have / Need to create. Apple ($99/yr), Google ($25 one-time)_ |
-| **Beta testing** | _TestFlight (iOS), Play internal track (Android), both_ |
+| **Distribution** | N/A |
+| **Developer accounts** | N/A |
+| **Beta testing** | N/A |
 
 ---
 
 ## 11. Known Risks & Concerns
 
-_Anything the agent should know that doesn't fit elsewhere. Technical debt you're aware of going in, political sensitivities, dependencies on other projects, timing constraints, previous failed attempts at solving this problem, etc._
-
 ```
-[Write any additional context here]
+1. SCHEDULE RISK — FORMALLY LOGGED PER INTERVIEW COMMITMENT: Karl chose a from-scratch
+   C++ OOXML renderer over the recommended embedded-LibreOffice engine, against the
+   developer's explicit fidelity/schedule warning (interview, 2026-08-03). Mitigations:
+   renderer scope fenced to the text+images tier (§4.1-1); unsupported elements always
+   render visible placeholders (never silent drift); rendering fidelity is a rehearsal
+   success criterion (§2.3); terminal fallback is stock PowerPoint (§8.5).
+2. Hard immovable deadline: the presentation occurs ~2026-08-10 regardless of readiness.
+3. Deck fonts unknown (interview: "not sure") — design defensively for embedded and
+   custom fonts; font substitution must be visible, never silent.
+4. Solo-organization governance friction: every merge to main requires Karl's audited
+   manual un-block (WALK-UNBLOCK-AUDIT.md; WALK-ISSUE-LOG ISSUE-006).
+5. Dual-purpose project: full-rigor framework dogfood walk — findings logging
+   (WALK-ISSUE-LOG.md) adds overhead at every phase.
+6. cpp is a framework language extension (ISSUE-001/002/003): the CI pipeline was
+   authored by the walker; the release pipeline requires manual C++ configuration in
+   Phase 4.
+7. Speech input quality risk: built-in MacBook mic in a conference room (distance,
+   acoustics). Mitigations: grammar-constrained on-device recognition, transcript overlay
+   for instant diagnosis, keyboard fallback for every command.
 ```
 
 ---
@@ -505,11 +502,11 @@ _Anything the agent should know that doesn't fit elsewhere. Technical debt you'r
 
 | Field | Value |
 |---|---|
-| **Testing interval** | _Every N features (default: 2). How many features to build before pausing for a UAT testing session._ |
-| **Bug tracking tool** | GitHub Issues / Linear / Jira / BUGS.md / Other: ______ |
-| **Human tester count** | _Default: 1 (you, the developer). If >1, testers receive a test template per session._ |
-| **Beta tester coordination** (if >1 tester) | _How to reach testers (email, Slack, Discord). How they receive builds (TestFlight, staging URL, GitHub pre-release, download link)._ |
-| **Bug severity SLAs** (Full UAT level only) | SEV-1: ___h / SEV-2: ___d / SEV-3: ___d _(default: SEV-1 24h, SEV-2 7d, SEV-3 best effort)_ |
+| **Testing interval** | Every 2 features (default) |
+| **Bug tracking tool** | GitHub Issues |
+| **Human tester count** | 1 (Karl) |
+| **Beta tester coordination** (if >1 tester) | N/A — single tester |
+| **Bug severity SLAs** (Full UAT level only) | SEV-1: 24h / SEV-2: 7d / SEV-3: best effort (defaults) |
 
 > **How this is used:** The agent pauses construction every N features to run a UAT testing session. Agent testers run automated, exploratory, and cross-platform tests in parallel while you test manually. Bugs are compiled, triaged, and fixed before construction resumes. See Steps 2.7-2.9 in the Builder's Guide.
 
@@ -539,7 +536,7 @@ architecture, code, and documentation within the constraints I set.
 ATTACHED:
 1. Project Intake Template (this document) — your primary constraint
 2. Solo Orchestrator Builder's Guide v1.0 — your process reference
-3. Platform Module: [WEB / DESKTOP / MOBILE] — your platform-specific
+3. Platform Module: DESKTOP — your platform-specific
    reference for architecture, tooling, testing, and distribution
 
 DOCUMENT RELATIONSHIP:
@@ -579,13 +576,15 @@ RULES:
   immediately — do not silently work around it.
 
 ACCESSIBILITY (from Section 9):
-[Copy any specific requirements here, e.g., "Color vision deficiency:
-never rely on color alone for meaning. Use shape, position, text labels,
-patterns, or icons."]
+Color vision deficiency: never rely on color alone for meaning — pair
+color with text, icons, or position. Full keyboard operability for every
+function (this is also Must-Have feature 6). Text contrast >= 4.5:1 in
+the overlay and all UI chrome. Visible focus states.
 
-PROJECT TRACK: [Light / Standard / Full]
-PLATFORM: [Web / Desktop / Mobile / Other]
-TARGET PLATFORMS: [e.g., Windows 10+, macOS 12+, Ubuntu 22.04+]
+PROJECT TRACK: Full
+PLATFORM: Desktop
+TARGET PLATFORMS: macOS 14+ (primary — showtime), Windows 10+,
+Ubuntu 22.04+ (secondary: portable + CI-built now, validated post-show)
 
 BEGIN: Execute Phase 0, Step 0.1 using the "With Intake — Validation
 Prompt" path from the Builder's Guide. Use Sections 2 and 4 of the
@@ -602,17 +601,17 @@ recommended addition.
 
 ## Checklist Before Starting
 
-- [ ] Every field is filled in or explicitly marked N/A
-- [ ] Must-Have features all have business logic triggers (If X, then Y)
-- [ ] Must-Have features all have failure states defined
-- [ ] Will-Not-Have list has at least 3 items
-- [ ] Data sensitivity classifications are assigned to all inputs
-- [ ] Competency Matrix is completed honestly
-- [ ] Budget constraints are realistic (not aspirational)
-- [ ] Timeline includes Orchestrator availability, not just calendar dates
-- [ ] For organizational deployments: all Section 8 "Blocking" items are Complete
-- [ ] Success/failure exit criteria are defined and a decision-maker is named
-- [ ] This document has been saved as `PROJECT_INTAKE.md` in the project repository
+- [x] Every field is filled in or explicitly marked N/A
+- [x] Must-Have features all have business logic triggers (If X, then Y)
+- [x] Must-Have features all have failure states defined
+- [x] Will-Not-Have list has at least 3 items
+- [x] Data sensitivity classifications are assigned to all inputs
+- [x] Competency Matrix is completed honestly
+- [x] Budget constraints are realistic (not aspirational)
+- [x] Timeline includes Orchestrator availability, not just calendar dates
+- [x] For organizational deployments: all Section 8 "Blocking" items are Complete
+- [x] Success/failure exit criteria are defined and a decision-maker is named
+- [x] This document has been saved as `PROJECT_INTAKE.md` in the project repository
 
 ---
 
@@ -621,6 +620,7 @@ recommended addition.
 | Version | Date | Changes |
 |---|---|---|
 | 1.0 | 2026-04-02 | Initial release. |
+| 1.1 | 2026-08-03 | Filled completely (Manual mode) from the recorded product interview + Karl's seven interactive judgment decisions; §13 customized; pending Karl's review via PR. |
 
 ---
 
@@ -654,4 +654,3 @@ recommended addition.
 |---|---|---|
 | Apple Developer Program (Desktop) | 4 | code_signing |
 | EV Code Signing Certificate (Windows) | 4 | code_signing |
-

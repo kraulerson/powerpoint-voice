@@ -158,3 +158,11 @@ prepares PR + green CI, stops, Karl merges in the GitHub UI, entry appended. ISS
 severity stands as logged (the framework still has no documented solo-org story); the
 walk is un-blocked by explicit, audited human authority — which is the walk protocol
 working as designed.
+
+- **S-7:** The authored cpp CI went green on its first live run (PR #2: `test` 36s, `sast`
+  26s) — guarded build steps skipped cleanly pre-scaffold; gitleaks, governance checks, and
+  the Semgrep container job all ran. The ISSUE-002 workaround is validated in CI, not just locally.
+- **S-8:** Manual-mode intake fill worked exactly as the state machine expects: with every
+  cell filled, the blank-cell predicate went to 0 and `scripts/resume.sh` flipped from the
+  intake prompt to printing our customized §13 initialization prompt verbatim. Clean handshake
+  between a hand-edited intake and the framework's detection.
