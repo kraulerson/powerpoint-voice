@@ -63,32 +63,42 @@ Done (session 1):
 6. Findings 001-011 logged (see WALK-ISSUE-LOG.md). Resolved blockers: ISSUE-006 (un-block
    protocol), ISSUE-008 (recorder identity). Standing conventions in "Standing protocols" above.
 
-## Repo state at checkpoint (end of session 1)
+## Repo state (F1a complete — awaiting merge)
 
-- `main` @ `2de8c29` (PR #6 merged: Phase 1 + scaffold). current_phase=2. CI green on
-  macOS+ubuntu. Scaffold builds + ctest 1/1.
-- Branch **`walk/audit-s12`** (pushed, UN-merged) holds one bookkeeping commit `38052bf`
-  (PR #6 audit row 5 + smooth note S-12). **This branch is the BASE for the F1 feature work**
-  — continue F1 on it and PR the combined thing (batches Karl's merge). Do NOT separately
-  merge audit-s12.
+- `main` @ `2de8c29` (PR #6 merged). current_phase=2.
+- Branch **`walk/audit-s12`** = PR **#7** (OPEN, CI GREEN both platforms). Holds: session-1
+  audit bookkeeping (S-12) + **feature F1a (deck loader) complete through the full Build Loop**
+  + the pkg-config CI fix. **Karl merges PR #7 next** (append WALK-UNBLOCK-AUDIT row on merge,
+  sync main, delete branch). Build Loop for F1a is CLOSED; F1a recorded (1/2 to next UAT).
+- Toolchain now installed locally: cmake 4.4.2, ninja, llvm 22, Qt 6.11.1, libzip 1.11.4,
+  pugixml 1.16, pkgconf 3.0.5. Build recipe below UPDATED (needs PKG_CONFIG_PATH).
+
+## What F1a delivered
+
+`DeckLoader::load()` — untrusted .pptx → in-memory slide model (libzip+pugixml). 17 tests
+(incl. Karl's 7 gate assertions + 4 security-audit regressions). 5-agent security audit found
+& fixed 3 Critical + 1 High test-first (see docs/security-audits/f1a-deck-loader-security-audit.md).
+The Manifesto's F1 is HALF done: parsing is F1a; **rendering the slide model to pixels is F1b** (next).
 
 ## NEXT (in order)
 
-1. **Build Loop feature F1 — PPTX load & render (highest risk first), on branch walk/audit-s12.** Per CLAUDE.md Build
+0. **KARL:** merge PR #7 (as kraulerson-reviewer); sync main; delete branch; audit row.
+1. **Build Loop feature F1b — slide RENDER (slide model → QPixmap via QPainter/QTextLayout).** Per CLAUDE.md Build
    Loop: `--start-feature`, tests FIRST (RED) — Karl writes ≥3 assertions at the test gate —
    verify failing, implement (GREEN), security audit (5 parallel agents), docs, `--record-feature`.
-   F1 needs new deps: libzip 1.11 + pugixml 1.15 (add via FetchContent when F1 starts).
-   Commit type `feat:` is now valid once a Build Loop is active.
-3. UAT session after every 2 features (test-gate.sh). SEV-1/2 block Phase 2→3.
-4. Feature order by risk: F1 render → F4 number parsing → F2/F3 voice nav+control → F5 overlay
-   → F6 keyboard parity → F7 presentation-mode UI. (F6 keyboard is independent of the speech
-   engine — good early-integration anchor.)
+   Carry the Bible §3 pre-render-off-thread decision (TM-018) + the F1a-5 non-positive-slide-size
+   guard obligation. F1a+F1b together = 2 features → triggers the first UAT session.
+2. UAT session after F1b (test-gate.sh --check-batch). SEV-1/2 block Phase 2→3.
+3. Remaining feature order by risk: F4 number parsing → F2/F3 voice nav+control (Vosk) → F5
+   overlay → F6 keyboard parity → F7 presentation-mode UI. (F6 keyboard is independent of the
+   speech engine — good early-integration anchor.) Vosk + miniaudio deps get added when F2 starts.
 
 ## Build / run recipe (macOS local)
 
 ```
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 export CMAKE_PREFIX_PATH="$(brew --prefix qt)"
+export PKG_CONFIG_PATH="$(brew --prefix libzip)/lib/pkgconfig:$(brew --prefix pugixml)/lib/pkgconfig"
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 (cd build && ctest --output-on-failure)
