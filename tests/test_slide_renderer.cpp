@@ -297,3 +297,66 @@ TEST_CASE("audit R5: per-box paragraph count is capped") {
     REQUIRE(r.presentation.slides[0].elements.size() >= 1);
     CHECK(r.presentation.slides[0].elements[0].textBox.paragraphs.size() == 50);
 }
+
+// ===========================================================================
+// UAT SESSION 1 REMEDIATION — renderer real-deck fidelity (BUG-1/4/5).
+// ===========================================================================
+
+// BUG-1 — a run with NO resolvable color renders READABLE (white) on a dark
+// background, never black-on-dark (invisible).
+TEST_CASE("BUG-1: uncolored text renders readable on a dark background") {
+    LoadResult r = DeckLoader::load(fixture("good_theme.pptx"));
+    REQUIRE(r.ok);
+    QImage img = SlideRenderer::render(r.presentation, 0, W, H);
+    // The "Plain" (no-color) run sits ~y 2e6 of 6.858e6 -> ~29% down. Its text
+    // must produce light pixels on the dark (#1E2430) themed background.
+    bool found_light = false;
+    for (int y = 200; y < 320 && !found_light; ++y) {
+        for (int x = 80; x < 700 && !found_light; ++x) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.red() > 180 && c.green() > 180 && c.blue() > 180) {
+                found_light = true;
+            }
+        }
+    }
+    CHECK(found_light);
+}
+
+// BUG-5 — a paragraph with red/green/blue runs shows ALL three colors, not just
+// the first run's.
+TEST_CASE("BUG-5: multi-run paragraph renders each run's color") {
+    LoadResult r = DeckLoader::load(fixture("good_multiruns.pptx"));
+    REQUIRE(r.ok);
+    QImage img = SlideRenderer::render(r.presentation, 0, W, H);
+    bool red = false, green = false, blue = false;
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.red() > 150 && c.green() < 90 && c.blue() < 90)
+                red = true;
+            if (c.green() > 150 && c.red() < 90 && c.blue() < 90)
+                green = true;
+            if (c.blue() > 150 && c.red() < 90 && c.green() < 90)
+                blue = true;
+        }
+    }
+    CHECK(red);
+    CHECK(green);
+    CHECK(blue);
+}
+
+// BUG-4 — long text WRAPS onto multiple lines instead of being truncated to one.
+// The text box is tall and narrow, so wrapped content reaches well below the
+// first line's height.
+TEST_CASE("BUG-4: long text wraps onto multiple lines") {
+    LoadResult r = DeckLoader::load(fixture("good_longtext.pptx"));
+    REQUIRE(r.ok);
+    QImage img = SlideRenderer::render(r.presentation, 0, W, H);
+    // Box: off y=500000 of 6.858e6 -> ~52px top; a single line would be < ~80px
+    // tall. Wrapped text must paint light pixels well below that (y > 160).
+    const QRgb black = qRgb(0, 0, 0);
+    int topBand = countNonBackground(img, 0, 40, W, 130, black);
+    int lowerBand = countNonBackground(img, 0, 160, W, 400, black);
+    CHECK(topBand > 0);
+    CHECK(lowerBand > 0); // wrapped continuation exists below the first line
+}

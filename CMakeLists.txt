@@ -77,6 +77,10 @@ set_target_properties(powerpoint_voice PROPERTIES
   WIN32_EXECUTABLE ON
   MACOSX_BUNDLE ON)
 
+# Headless dev/UAT utility: render a deck's slides to PNGs for fidelity checks.
+add_executable(render_preview tools/render_preview.cpp)
+target_link_libraries(render_preview PRIVATE pptv_core Qt6::Gui)
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------

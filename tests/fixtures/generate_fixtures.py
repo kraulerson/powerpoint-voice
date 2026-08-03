@@ -410,6 +410,226 @@ def build_good_missing_image():
     write_zip("good_missing_image.pptx", parts)
 
 
+def theme_xml():
+    slots = {
+        "dk1": "1E2430", "lt1": "FFFFFF", "dk2": "101114", "lt2": "EEEEEE",
+        "accent1": "FF0000", "accent2": "00FF00", "accent3": "0000FF",
+        "accent4": "FFFF00", "accent5": "FF00FF", "accent6": "00FFFF",
+        "hlink": "0563C1", "folHlink": "954F72",
+    }
+    scheme = "".join(f'<a:{k}><a:srgbClr val="{v}"/></a:{k}>' for k, v in slots.items())
+    return (
+        XML_DECL
+        + f'<a:theme xmlns:a="{A}" name="T"><a:themeElements>'
+        + f'<a:clrScheme name="C">{scheme}</a:clrScheme>'
+        + "<a:fontScheme name=\"F\"/><a:fmtScheme name=\"S\"/>"
+        + "</a:themeElements></a:theme>"
+    )
+
+
+def scheme_run_sp(text, x, y, cx, cy, scheme, size=3600):
+    return (
+        "<p:sp><p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        "</p:spPr><p:txBody><a:p><a:r>"
+        f'<a:rPr sz="{size}"><a:solidFill><a:schemeClr val="{scheme}"/></a:solidFill></a:rPr>'
+        f"<a:t>{text}</a:t></a:r></a:p></p:txBody></p:sp>"
+    )
+
+
+def nocolor_run_sp(text, x, y, cx, cy, size=3600):
+    return (
+        "<p:sp><p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        f'</p:spPr><p:txBody><a:p><a:r><a:rPr sz="{size}"/>'
+        f"<a:t>{text}</a:t></a:r></a:p></p:txBody></p:sp>"
+    )
+
+
+def multirun_sp(x, y, cx, cy, size=3600):
+    def run(t, hexc):
+        return (
+            f'<a:r><a:rPr sz="{size}"><a:solidFill><a:srgbClr val="{hexc}"/></a:solidFill></a:rPr>'
+            f"<a:t>{t}</a:t></a:r>"
+        )
+    runs = run("RRRR", "FF0000") + run("GGGG", "00FF00") + run("BBBB", "0000FF")
+    return (
+        "<p:sp><p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        f"</p:spPr><p:txBody><a:p>{runs}</a:p></p:txBody></p:sp>"
+    )
+
+
+def linebreak_sp(x, y, cx, cy):
+    return (
+        "<p:sp><p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        '</p:spPr><p:txBody><a:p>'
+        '<a:r><a:rPr sz="3600"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr>'
+        "<a:t>Q3</a:t></a:r><a:br/>"
+        '<a:r><a:rPr sz="3600"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr>'
+        "<a:t>FY26</a:t></a:r></a:p></p:txBody></p:sp>"
+    )
+
+
+def bullet_sp(x, y, cx, cy):
+    return (
+        "<p:sp><p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        '</p:spPr><p:txBody>'
+        '<a:p><a:pPr lvl="1"><a:buChar char="•"/></a:pPr>'
+        '<a:r><a:rPr sz="2400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr>'
+        "<a:t>bullet item</a:t></a:r></a:p></p:txBody></p:sp>"
+    )
+
+
+def title_ph_no_xfrm(text):
+    # A title placeholder shape with NO inline xfrm (position inherited from layout).
+    return (
+        "<p:sp><p:nvSpPr><p:cNvPr id=\"2\" name=\"Title\"/><p:cNvSpPr/>"
+        '<p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>'
+        "<p:spPr/><p:txBody><a:p><a:r>"
+        '<a:rPr sz="4400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr>'
+        f"<a:t>{text}</a:t></a:r></a:p></p:txBody></p:sp>"
+    )
+
+
+def layout_xml():
+    # A slideLayout defining the title placeholder's geometry.
+    title = (
+        '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr/>'
+        '<p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>'
+        '<p:spPr><a:xfrm><a:off x="600000" y="400000"/>'
+        '<a:ext cx="11000000" cy="1500000"/></a:xfrm></p:spPr>'
+        "<p:txBody><a:p/></p:txBody></p:sp>"
+    )
+    return (
+        XML_DECL
+        + f'<p:sldLayout xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld><p:spTree>{title}</p:spTree></p:cSld></p:sldLayout>"
+    )
+
+
+def group_sp(text, x, y, cx, cy):
+    inner = scheme_run_sp(text, x, y, cx, cy, "lt1")  # white text via theme
+    return f"<p:grpSp><p:grpSpPr/>{inner}</p:grpSp>"
+
+
+def build_good_theme():
+    # Themed dark background + scheme-colored text + a no-color run. Exercises
+    # BUG-1: scheme colors resolve; uncolored text stays visible on dark.
+    bg = '<p:bg><p:bgPr><a:solidFill><a:schemeClr val="dk1"/></a:solidFill></p:bgPr></p:bg>'
+    body = scheme_run_sp("Accent", 800000, 500000, 6000000, 1000000, "accent1") + nocolor_run_sp(
+        "Plain", 800000, 2000000, 6000000, 1000000
+    )
+    slide = (
+        XML_DECL
+        + f'<p:sld xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld>{bg}<p:spTree>{body}</p:spTree></p:cSld></p:sld>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/theme/theme1.xml": theme_xml(),
+        "ppt/slides/slide1.xml": slide,
+    }
+    write_zip("good_theme.pptx", parts)
+
+
+def build_good_layout():
+    slide = (
+        XML_DECL
+        + f'<p:sld xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld><p:spTree>{title_ph_no_xfrm('Inherited Title')}</p:spTree></p:cSld></p:sld>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide,
+        "ppt/slides/_rels/slide1.xml.rels": XML_DECL
+        + f'<Relationships xmlns="{PR}"><Relationship Id="rId1" Type="{R}/slideLayout" '
+        + 'Target="../slideLayouts/slideLayout1.xml"/></Relationships>',
+        "ppt/slideLayouts/slideLayout1.xml": layout_xml(),
+    }
+    write_zip("good_layout.pptx", parts)
+
+
+def build_good_group():
+    bg = '<p:bg><p:bgPr><a:solidFill><a:srgbClr val="000000"/></a:solidFill></p:bgPr></p:bg>'
+    slide = (
+        XML_DECL
+        + f'<p:sld xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld>{bg}<p:spTree>{group_sp('Grouped', 800000, 800000, 6000000, 1000000)}"
+        + "</p:spTree></p:cSld></p:sld>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/theme/theme1.xml": theme_xml(),
+        "ppt/slides/slide1.xml": slide,
+    }
+    write_zip("good_group.pptx", parts)
+
+
+def build_good_multiruns():
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [multirun_sp(800000, 2500000, 10000000, 1500000)], bg_hex="000000"
+        ),
+    }
+    write_zip("good_multiruns.pptx", parts)
+
+
+def build_good_linebreak():
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [linebreak_sp(800000, 500000, 10000000, 3000000)], bg_hex="000000"
+        ),
+    }
+    write_zip("good_linebreak.pptx", parts)
+
+
+def build_good_bullets():
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [bullet_sp(800000, 1000000, 10000000, 1000000)], bg_hex="000000"
+        ),
+    }
+    write_zip("good_bullets.pptx", parts)
+
+
+def build_good_longtext():
+    long_line = "This is a long sentence that will not fit on a single line and must wrap"
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [text_sp(long_line, 500000, 500000, 4000000, 4000000, size=3200)], bg_hex="000000"
+        ),
+    }
+    write_zip("good_longtext.pptx", parts)
+
+
 def build_good_hugefont():
     # An absurd declared font size (audit R1) — must render without hanging/OOM.
     parts = {
@@ -489,4 +709,11 @@ if __name__ == "__main__":
     build_good_gif_image()
     build_good_overflow()
     build_good_manypara()
+    build_good_theme()
+    build_good_layout()
+    build_good_group()
+    build_good_multiruns()
+    build_good_linebreak()
+    build_good_bullets()
+    build_good_longtext()
     print("fixtures written to", HERE)

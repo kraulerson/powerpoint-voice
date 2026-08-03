@@ -319,3 +319,80 @@ TEST_CASE("audit F1a-4: per-slide shape cap is enforced with a warning") {
     CHECK(r.presentation.slides[0].elements.size() == 50);
     CHECK_FALSE(r.presentation.warnings.empty());
 }
+
+// ===========================================================================
+// UAT SESSION 1 REMEDIATION — real-deck compatibility (BUG-1..7).
+// ===========================================================================
+
+namespace {
+const TextRun& firstRun(const Slide& s, int elem = 0) {
+    return s.elements[elem].textBox.paragraphs[0].runs[0];
+}
+} // namespace
+
+// BUG-1 — a run colored via <a:schemeClr> resolves against the theme (accent1 = red).
+TEST_CASE("BUG-1: scheme-colored text resolves to the theme color") {
+    LoadResult r = DeckLoader::load(fixture("good_theme.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    const TextRun& run = firstRun(r.presentation.slides[0], 0);
+    REQUIRE(run.color.has_value());
+    CHECK(int(run.color->r) == 0xFF);
+    CHECK(int(run.color->g) == 0x00);
+    CHECK(int(run.color->b) == 0x00);
+    CHECK(r.presentation.slides[0].background.kind == BackgroundKind::Solid);
+    REQUIRE(r.presentation.slides[0].background.solid.has_value());
+    CHECK(int(r.presentation.slides[0].background.solid->r) == 0x1E);
+}
+
+// BUG-2 — a placeholder with no inline geometry inherits position from the layout.
+TEST_CASE("BUG-2: placeholder position is inherited from the slide layout") {
+    LoadResult r = DeckLoader::load(fixture("good_layout.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    REQUIRE(r.presentation.slides[0].elements.size() == 1);
+    const RectEmu& rect = r.presentation.slides[0].elements[0].textBox.rect;
+    CHECK(rect.x == 600000);
+    CHECK(rect.y == 400000);
+    CHECK(rect.cx == 11000000);
+}
+
+// BUG-3 — text inside a group is extracted (not replaced by a placeholder box).
+TEST_CASE("BUG-3: grouped text is extracted, not hidden by a placeholder") {
+    LoadResult r = DeckLoader::load(fixture("good_group.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    bool found_text = false;
+    for (const ShapeElement& e : r.presentation.slides[0].elements) {
+        if (e.kind == ElementKind::TextBox && !e.textBox.paragraphs.empty() &&
+            !e.textBox.paragraphs[0].runs.empty() &&
+            e.textBox.paragraphs[0].runs[0].text == QStringLiteral("Grouped")) {
+            found_text = true;
+        }
+    }
+    CHECK(found_text);
+}
+
+// BUG-6 — a soft line break becomes a U+2028 separator run.
+TEST_CASE("BUG-6: line break is preserved as a separator") {
+    LoadResult r = DeckLoader::load(fixture("good_linebreak.pptx"));
+    REQUIRE(r.ok);
+    const std::vector<TextRun>& runs =
+        r.presentation.slides[0].elements[0].textBox.paragraphs[0].runs;
+    bool has_break = false;
+    for (const TextRun& run : runs) {
+        if (run.text.contains(QChar(0x2028))) {
+            has_break = true;
+        }
+    }
+    CHECK(has_break);
+}
+
+// BUG-7 — a bulleted paragraph carries its bullet marker and indent level.
+TEST_CASE("BUG-7: bullet marker and indent level are parsed") {
+    LoadResult r = DeckLoader::load(fixture("good_bullets.pptx"));
+    REQUIRE(r.ok);
+    const Paragraph& para = r.presentation.slides[0].elements[0].textBox.paragraphs[0];
+    CHECK(para.bulletChar == QStringLiteral("•"));
+    CHECK(para.indentLevel == 1);
+}
