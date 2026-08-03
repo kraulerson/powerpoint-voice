@@ -11,3 +11,4 @@ Karl did, and why. This file is append-only; entries are never edited once pushe
 | # | Date | PR | What was blocked | Human action | Reason / notes |
 |---|---|---|---|---|---|
 | 1 | 2026-08-03 | #2 (governance records: pre-conditions rows 1-6, protection-resolution event, walk logs, ISSUE-006) | Merge refused: 1 approving review required; solo account cannot self-approve; enforce_admins active | PENDING — Karl to approve/merge in GitHub UI | First application of the standing protocol; see WALK-ISSUE-LOG.md ISSUE-006 |
+| 2 | 2026-08-03 | #2 | (completes row 1) | DONE — merged by kraulerson at 13:55:15Z, merge commit 01a0d047 | Verified via gh pr view; protocol worked end-to-end on first use |

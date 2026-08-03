@@ -21,6 +21,8 @@
   },
   "phase2_init": {
     "steps_completed": [
+      "branch_protection_configured",
+      "branch_protection_verified",
       "pushed_initial",
       "remote_repo_created"
     ],
