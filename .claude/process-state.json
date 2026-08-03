@@ -24,9 +24,15 @@
       "branch_protection_configured",
       "branch_protection_verified",
       "pushed_initial",
-      "remote_repo_created"
+      "remote_repo_created",
+      "ci_pipeline_configured",
+      "pre_commit_hooks_installed",
+      "project_scaffolded",
+      "data_model_applied",
+      "initialization_verified"
     ],
-    "verified": false
+    "verified": true,
+    "step": 7
   },
   "phase1_architecture": {
     "steps_completed": [

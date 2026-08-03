@@ -1,7 +1,7 @@
 {
   "project": "powerpoint-voice",
   "framework_version": "1.0",
-  "current_phase": 1,
+  "current_phase": 2,
   "track": "full",
   "deployment": "organizational",
   "poc_mode": null,
@@ -9,9 +9,10 @@
   "review_gate_enforced": true,
   "gates": {
     "phase_0_to_1": "2026-08-03",
-    "phase_1_to_2": null,
+    "phase_1_to_2": "2026-08-03",
     "phase_2_to_3": null,
     "phase_3_to_4": null,
-    "phase_0_to_1_by": "Karl Raulerson <kraulerson@gmail.com>"
+    "phase_0_to_1_by": "Karl Raulerson <kraulerson@gmail.com>",
+    "phase_1_to_2_by": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>"
   }
 }

@@ -1,0 +1,5 @@
+# Extra apt packages the ubuntu CI runner installs before configuring the build.
+# One package per line; '#' comments allowed. Read by .github/workflows/ci.yml.
+# Qt 6 Widgets (ADR-0001) + the GL headers its widgets module links against.
+qt6-base-dev
+libgl1-mesa-dev

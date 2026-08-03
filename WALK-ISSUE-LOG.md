@@ -269,3 +269,30 @@ identities are Karl) remains fully documented here and in the audit file.
   runs are visible immediately and would confuse any observer. Not worked around mid-Phase-1
   (the CI pipeline `ci.yml`, which IS the enforcement floor, is valid and green).
 - **Time lost:** ~5 min.
+
+## ISSUE-011 — Phase 2 --verify-init lockfile check has no C++/CMake entry; project_scaffolded un-auto-verifiable (MINOR)
+
+- **When/where:** 2026-08-03, `process-checklist.sh --verify-init` after building the scaffold.
+- **Expected (doc):** User Guide: --verify-init "auto-detects completed steps by inspecting
+  your environment (git remote, CI pipeline, scaffold, hooks)." The scaffold genuinely exists
+  (a Qt6 app that configures, builds, launches headless, and passes ctest — proven locally).
+- **Actual:** `[FAIL] project_scaffolded — no lockfile found (package-lock.json yarn.lock
+  pnpm-lock.yaml Pipfile.lock poetry.lock Cargo.lock go.sum pubspec.lock Package.resolved
+  gradle.lockfile packages.lock.json)`. None of these are C++. A CMake project's dependency
+  pins live in CMakeLists.txt itself (FetchContent GIT_TAG = exact tag/commit pins) — the
+  desktop Platform Module even documents gradle.lockfile for JVM but nothing for CMake/C++,
+  the one language the framework advertises as the drop-in extension example.
+- **Severity:** Minor (a real, buildable scaffold exists; only the auto-detection heuristic
+  doesn't fit C++). Consistent with the ISSUE-002 family: C++ is a first-class advertised
+  extension but several tooling touchpoints assume a lockfile-bearing ecosystem.
+- **Known-ledger check:** no BL/BUG entry for a C++ lockfile in verify-init.
+- **Resolution:** used the documented individual-step path (`--complete-step
+  phase2_init:project_scaffolded`) — legitimate per the User Guide ("When the agent completes
+  Phase 2 initialization steps individually… the system auto-sets phase2_init.verified = true
+  once all steps are marked complete"). The dependency pins ARE present and exact in
+  CMakeLists.txt (doctest v2.4.11 by tag; Qt via find_package with a 6.2 floor; further deps
+  pinned as features add them). NOT a bypass — the real artifact exists and was verified.
+- **Time lost:** ~5 min.
+
+- **S-10:** Recorder-identity convention (ISSUE-008 fix) paid off at the Phase 1→2 gate: the self-approval verifier passed cleanly (commit author kraulerson-reviewer != approver Karl Raulerson), gate exit 0, phase_1_to_2 auto-recorded, snapshot created — no warn-knob, no friction. The fix generalizes to every remaining gate.
+- **S-11:** The authored C++ scaffold is real, not a stub: Qt 6.11.1 app configures under CMake, builds 14 targets clean, launches headless (offscreen QPA) running its event loop, terminates cleanly, and ctest is 1/1 green. clang-format clean. The from-scratch-renderer project has a working foundation on day 1 of Phase 2.
