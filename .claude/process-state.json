@@ -3,7 +3,20 @@
     "feature": null,
     "step": 0,
     "steps_completed": [],
-    "started_at": null
+    "started_at": null,
+    "last_completed": {
+      "feature": "F1a-deck-loader",
+      "completed_at": "2026-08-03T18:37:33Z",
+      "steps_completed": [
+        "tests_written",
+        "tests_verified_failing",
+        "implemented",
+        "security_audit",
+        "documentation_updated",
+        "feature_recorded"
+      ],
+      "paths": []
+    }
   },
   "uat_session": {
     "session_id": null,

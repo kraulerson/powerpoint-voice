@@ -296,3 +296,42 @@ identities are Karl) remains fully documented here and in the audit file.
 
 - **S-10:** Recorder-identity convention (ISSUE-008 fix) paid off at the Phase 1→2 gate: the self-approval verifier passed cleanly (commit author kraulerson-reviewer != approver Karl Raulerson), gate exit 0, phase_1_to_2 auto-recorded, snapshot created — no warn-knob, no friction. The fix generalizes to every remaining gate.
 - **S-11:** The authored C++ scaffold is real, not a stub: Qt 6.11.1 app configures under CMake, builds 14 targets clean, launches headless (offscreen QPA) running its event loop, terminates cleanly, and ctest is 1/1 green. clang-format clean. The from-scratch-renderer project has a working foundation on day 1 of Phase 2.
+
+- **S-12:** Strict-mode enforcement audit demonstrated end-to-end (the good kind of finding):
+  my first scaffold commit used `feat:`, the Build-Loop commit-msg gate HARD-BLOCKED it (no
+  active Build Loop), I ABANDONED it and re-committed as `chore:` — and
+  `.claude/bypass-audit.json` recorded the event as
+  `type: terminal_commit_blocked, gate: commitmsg_buildloop, final_outcome: abandoned`. The
+  block was correct, compliance was the response (no --no-verify, no bypass), and the audit
+  trail captured it faithfully. This is exactly the Tier-2 "route around the block? no — the
+  audit is the point" behavior the docs promise, observed live.
+
+- **S-13:** The mandated per-feature security audit EARNED ITS KEEP on the very first real
+  feature. Five parallel specialist agents against the untrusted-.pptx parser found 3 Critical
+  + 1 High that would otherwise have shipped: a ZIP64 integer-wrap that bypassed the zip-bomb
+  caps into a heap overflow, a recursive stack-overflow crash on nested XML, a silent
+  slide-drop that would have sent "go to slide N" to the WRONG slide in a live exec talk, and
+  a shape-flood OOM. All fixed test-first with regression tests bound to finding IDs. This is
+  the framework's core value proposition (TDD + per-feature audit catching AI blind spots)
+  working exactly as advertised — the silent-slide-drop in particular is the kind of
+  plausible-looking bug that passes casual review and fails catastrophically live.
+- **S-14:** The security_audit Build-Loop step is artifact-gated: it REFUSED to mark complete
+  until docs/security-audits/f1a-deck-loader-security-audit.md existed with a machine-readable
+  "0 Open findings" summary, and it correctly refuses the force-override to non-interactive
+  agents ("HUMAN ONLY… do NOT retry… ESCALATE"). I produced the real artifact rather than
+  escalating. An audit the gate can't read is treated as a failing audit — good design.
+
+## ISSUE-012 — commit-msg TDD gate is a hard block on Production tier but did NOT fire on a large feat: with tests (SMOOTH-adjacent note, not a defect)
+
+- **When/where:** 2026-08-03, F1a feat: commit (caa34ab).
+- **Note:** The BL-072 TDD-ordering gate (hard block on Production) passed the F1a commit
+  because the commit shipped implementation WITH its tests (test_deck_loader.cpp staged
+  alongside deck_loader.cpp) — exactly the co-location the gate checks for. Recording as a
+  positive: the gate's heuristic (test file present with impl) matched genuine TDD here. NOT
+  a finding — the gate behaved correctly; logged so the walk report can note the TDD gate
+  passing a real test-first feature (vs. the earlier chore: scaffold which correctly needed
+  no test).
+
+- **S-15:** First real cross-platform CI divergence and it was a genuine project issue (not a framework finding): ubuntu splits libzip CLI tools out of libzip-dev, and libzip's CMake targets file asserts /usr/bin/zipcmp exists, so find_package(libzip) errored on ubuntu though it passed on macOS (brew bundles the tools). Fixed by adding libzip-tools to .github/ci-deps-apt.txt. The ci-deps-apt.txt mechanism I built into the cpp.yml template made this a one-line fix — the extension pattern held up under a real cross-distro packaging quirk.
+
+- **S-15 follow-up:** The libzip fix evolved: libzip-tools does not exist as an Ubuntu package, so the robust fix was to locate libzip AND pugixml via **pkg-config** (IMPORTED_TARGET) instead of each library's CMake config — pkg-config finds them cleanly on both brew and apt without the tools-target assertion. Required installing pkgconf locally (standard dev tool) and adding pkg-config to CI apt deps. Local build recipe now needs PKG_CONFIG_PATH for the brew kegs.
