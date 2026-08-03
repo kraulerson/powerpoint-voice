@@ -63,11 +63,18 @@ Done (session 1):
 6. Findings 001-011 logged (see WALK-ISSUE-LOG.md). Resolved blockers: ISSUE-006 (un-block
    protocol), ISSUE-008 (recorder identity). Standing conventions in "Standing protocols" above.
 
+## Repo state at checkpoint (end of session 1)
+
+- `main` @ `2de8c29` (PR #6 merged: Phase 1 + scaffold). current_phase=2. CI green on
+  macOS+ubuntu. Scaffold builds + ctest 1/1.
+- Branch **`walk/audit-s12`** (pushed, UN-merged) holds one bookkeeping commit `38052bf`
+  (PR #6 audit row 5 + smooth note S-12). **This branch is the BASE for the F1 feature work**
+  — continue F1 on it and PR the combined thing (batches Karl's merge). Do NOT separately
+  merge audit-s12.
+
 ## NEXT (in order)
 
-1. **KARL (open):** merge the Phase-1+scaffold gate PR (`walk/phase1`) as kraulerson-reviewer;
-   append WALK-UNBLOCK-AUDIT row on merge; sync main; delete branch.
-2. **Build Loop feature F1 — PPTX load & render (highest risk first).** Per CLAUDE.md Build
+1. **Build Loop feature F1 — PPTX load & render (highest risk first), on branch walk/audit-s12.** Per CLAUDE.md Build
    Loop: `--start-feature`, tests FIRST (RED) — Karl writes ≥3 assertions at the test gate —
    verify failing, implement (GREEN), security audit (5 parallel agents), docs, `--record-feature`.
    F1 needs new deps: libzip 1.11 + pugixml 1.15 (add via FetchContent when F1 starts).
@@ -96,4 +103,9 @@ CI deps for ubuntu are in `.github/ci-deps-apt.txt` (qt6-base-dev, libgl1-mesa-d
 - Repo git identity = `kraulerson-reviewer` (recorder); approver rows name Karl Raulerson.
 - Init log: `.solo-orchestrator/init-20260803-072618.log`. Walk memory pointer:
   `~/.claude/projects/.../memory/powerpoint-voice-walk.md`.
-- Time spent session 1: ~2h wall clock (interview → Phase 2 scaffold).
+- Time spent session 1: ~2h15m wall clock (interview → Phase 2 scaffold + green cross-platform CI).
+- Findings tally at checkpoint: 11 issues (ISSUE-001…011) + 2 observations, 12 smooth notes.
+  Blocker-class resolved: ISSUE-006 (un-block protocol), ISSUE-008 (recorder identity).
+  Major open-as-findings (framework, not fix targets): ISSUE-002 (generate_ci ships other.yml),
+  ISSUE-007 (gate deadlock), ISSUE-010 (invalid release.yml), ISSUE-008. Deferred project work:
+  ISSUE-003/010 (release.yml C++ steps → Phase 4).
