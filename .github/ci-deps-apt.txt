@@ -3,9 +3,6 @@
 # Qt 6 Widgets (ADR-0001) + the GL headers its widgets module links against.
 qt6-base-dev
 libgl1-mesa-dev
+pkg-config
 libzip-dev
-# libzip-tools: Ubuntu splits the libzip CLI (zipcmp/zipmerge/ziptool) out of
-# libzip-dev, but libzip's installed CMake targets file asserts /usr/bin/zipcmp
-# exists — so find_package(libzip) errors without it. Not used at runtime.
-libzip-tools
 libpugixml-dev

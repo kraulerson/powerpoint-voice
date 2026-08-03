@@ -333,3 +333,5 @@ identities are Karl) remains fully documented here and in the audit file.
   no test).
 
 - **S-15:** First real cross-platform CI divergence and it was a genuine project issue (not a framework finding): ubuntu splits libzip CLI tools out of libzip-dev, and libzip's CMake targets file asserts /usr/bin/zipcmp exists, so find_package(libzip) errored on ubuntu though it passed on macOS (brew bundles the tools). Fixed by adding libzip-tools to .github/ci-deps-apt.txt. The ci-deps-apt.txt mechanism I built into the cpp.yml template made this a one-line fix — the extension pattern held up under a real cross-distro packaging quirk.
+
+- **S-15 follow-up:** The libzip fix evolved: libzip-tools does not exist as an Ubuntu package, so the robust fix was to locate libzip AND pugixml via **pkg-config** (IMPORTED_TARGET) instead of each library's CMake config — pkg-config finds them cleanly on both brew and apt without the tools-target assertion. Required installing pkgconf locally (standard dev tool) and adding pkg-config to CI apt deps. Local build recipe now needs PKG_CONFIG_PATH for the brew kegs.

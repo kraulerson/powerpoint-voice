@@ -32,10 +32,14 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup()
 
 # OOXML parse layer (ADR-0001): libzip reads the .pptx package, pugixml parses
-# the XML parts. System packages (brew on macOS, apt libzip-dev/libpugixml-dev
-# on the ubuntu CI runner) — both ship CMake config packages.
-find_package(libzip REQUIRED)
-find_package(pugixml REQUIRED)
+# the XML parts. Located via pkg-config (not each project's CMake config): on
+# Ubuntu, libzip's installed CMake targets file asserts the libzip CLI tools
+# (/usr/bin/zipcmp) exist, but they are not packaged — so find_package(libzip)
+# hard-errors there. pkg-config finds the library + headers cleanly on both
+# brew (macOS) and apt (Ubuntu) without dragging in the tools.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
+pkg_check_modules(PUGIXML REQUIRED IMPORTED_TARGET pugixml)
 
 # Test framework: doctest (MIT), header-only, pinned by exact tag.
 include(FetchContent)
@@ -55,7 +59,7 @@ add_library(pptv_core STATIC
   src/core/app_info.cpp
   src/loader/deck_loader.cpp)
 target_include_directories(pptv_core PUBLIC src)
-target_link_libraries(pptv_core PUBLIC Qt6::Core PRIVATE libzip::zip pugixml::pugixml)
+target_link_libraries(pptv_core PUBLIC Qt6::Core PRIVATE PkgConfig::LIBZIP PkgConfig::PUGIXML)
 target_compile_definitions(pptv_core PUBLIC
   POWERPOINT_VOICE_VERSION="${PROJECT_VERSION}")
 
