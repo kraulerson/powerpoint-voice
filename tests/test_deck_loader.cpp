@@ -83,6 +83,10 @@ TEST_CASE("resolves an embedded image to its media part") {
             found_image = true;
             CHECK(e.image.mediaPart == QStringLiteral("ppt/media/image1.png"));
             CHECK(e.image.rect.cx == 2000000);
+            // F1b: the raw (still-encoded) image bytes are loaded for the renderer,
+            // and they are a real PNG (starts with the PNG signature).
+            CHECK_FALSE(e.image.imageData.isEmpty());
+            CHECK(e.image.imageData.startsWith("\x89PNG"));
         }
     }
     CHECK(found_image);

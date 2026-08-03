@@ -63,35 +63,44 @@ Done (session 1):
 6. Findings 001-011 logged (see WALK-ISSUE-LOG.md). Resolved blockers: ISSUE-006 (un-block
    protocol), ISSUE-008 (recorder identity). Standing conventions in "Standing protocols" above.
 
-## Repo state (F1a complete — awaiting merge)
+## Repo state (F1 COMPLETE — UAT session mandated)
 
-- `main` @ `2de8c29` (PR #6 merged). current_phase=2.
-- Branch **`walk/audit-s12`** = PR **#7** (OPEN, CI GREEN both platforms). Holds: session-1
-  audit bookkeeping (S-12) + **feature F1a (deck loader) complete through the full Build Loop**
-  + the pkg-config CI fix. **Karl merges PR #7 next** (append WALK-UNBLOCK-AUDIT row on merge,
-  sync main, delete branch). Build Loop for F1a is CLOSED; F1a recorded (1/2 to next UAT).
-- Toolchain now installed locally: cmake 4.4.2, ninja, llvm 22, Qt 6.11.1, libzip 1.11.4,
-  pugixml 1.16, pkgconf 3.0.5. Build recipe below UPDATED (needs PKG_CONFIG_PATH).
+- `main` @ merged through PR #7 (F1a). current_phase=2.
+- Branch **`walk/f1b-render`** = PR **#8** (OPEN, CI GREEN both platforms). Holds **feature
+  F1b (slide renderer) complete through the full Build Loop** + test-command wiring (S-18).
+  **Karl merges PR #8 next** (audit row, sync, delete branch).
+- **test-gate is BLOCKED: 2/2 features since last test → the FIRST UAT session is required
+  before starting feature #3.** `scripts/test-gate.sh --check-batch` returns "Testing session
+  required".
+- Toolchain local: cmake 4.4.2, ninja, llvm 22, Qt 6.11.1, libzip 1.11.4, pugixml 1.16,
+  pkgconf 3.0.5. `.claude/test-command` → `scripts/run-tests.sh` (env + cmake + ctest, ~3s).
 
-## What F1a delivered
+## What F1 delivered (F1a + F1b)
 
-`DeckLoader::load()` — untrusted .pptx → in-memory slide model (libzip+pugixml). 17 tests
-(incl. Karl's 7 gate assertions + 4 security-audit regressions). 5-agent security audit found
-& fixed 3 Critical + 1 High test-first (see docs/security-audits/f1a-deck-loader-security-audit.md).
-The Manifesto's F1 is HALF done: parsing is F1a; **rendering the slide model to pixels is F1b** (next).
+- **F1a DeckLoader::load()** — untrusted .pptx → slide model (libzip+pugixml). 5-agent audit:
+  3 Critical + 1 High fixed test-first.
+- **F1b SlideRenderer::render()** — slide model → QImage (backgrounds, text, images,
+  letterbox, visible placeholders). 2-agent audit: 1 Critical + 2 High fixed test-first.
+- **40 tests green** both platforms (macOS + ubuntu CI). Karl's 7+7 orchestrator assertions.
+  Visual fidelity confirmed (title, table-placeholder, PNG decode, GIF→placeholder).
+- Sample render tool (uncommitted, scratchpad): `render_sample.cpp` — see build recipe in
+  WALK-ISSUE-LOG if a fresh visual is needed.
 
 ## NEXT (in order)
 
-0. **KARL:** merge PR #7 (as kraulerson-reviewer); sync main; delete branch; audit row.
-1. **Build Loop feature F1b — slide RENDER (slide model → QPixmap via QPainter/QTextLayout).** Per CLAUDE.md Build
-   Loop: `--start-feature`, tests FIRST (RED) — Karl writes ≥3 assertions at the test gate —
-   verify failing, implement (GREEN), security audit (5 parallel agents), docs, `--record-feature`.
-   Carry the Bible §3 pre-render-off-thread decision (TM-018) + the F1a-5 non-positive-slide-size
-   guard obligation. F1a+F1b together = 2 features → triggers the first UAT session.
-2. UAT session after F1b (test-gate.sh --check-batch). SEV-1/2 block Phase 2→3.
-3. Remaining feature order by risk: F4 number parsing → F2/F3 voice nav+control (Vosk) → F5
-   overlay → F6 keyboard parity → F7 presentation-mode UI. (F6 keyboard is independent of the
-   speech engine — good early-integration anchor.) Vosk + miniaudio deps get added when F2 starts.
+0. **KARL:** merge PR #8 (as kraulerson-reviewer); sync main; delete branch; audit row.
+1. **FIRST UAT SESSION (mandated, needs Karl as human tester).** Per CLAUDE.md Testing workflow:
+   `--start-uat 1` → dispatch parallel agent testers (automated/exploratory/cross-platform) →
+   generate the human test-session HTML (`tests/uat/templates/test-session-template.html`) →
+   lint it (`lint-uat-scenarios.sh`, must exit 0) → Karl tests (run the app on a real deck) →
+   consolidate bugs → triage WITH Karl (Fix Now / Defer / Won't Fix / Post-MVP) → fix Fix-Now
+   test-first → `--check-batch` passes → `--reset-counter`. Mark each uat_session step.
+   NOTE: the app has NO UI to drive the renderer yet (F7 wires load→render→screen). UAT this
+   round tests the library surface (loader+renderer) via the suite + the sample-render tool +
+   Karl loading his real deck through the sample tool locally (deck never committed).
+2. Feature order by risk after UAT: F4 number parsing → F2/F3 voice nav+control (Vosk+miniaudio
+   deps added when F2 starts) → F5 overlay → F6 keyboard parity → F7 presentation UI (wires it
+   all together: File→Open, pre-render cache off-thread per Bible §3/TM-018, project to screen).
 
 ## Build / run recipe (macOS local)
 

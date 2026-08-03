@@ -6,3 +6,6 @@ libgl1-mesa-dev
 pkg-config
 libzip-dev
 libpugixml-dev
+# fonts-dejavu-core: the renderer tests paint real text; the headless CI runner
+# ships no fonts otherwise, so text would render empty and the pixel checks fail.
+fonts-dejavu-core

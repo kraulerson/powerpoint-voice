@@ -106,9 +106,13 @@ def pic_sp(rid, x, y, cx, cy):
 
 
 def table_graphicframe():
-    # An unsupported element (a table) — the loader must record a warning + skip.
+    # An unsupported element (a table) WITH geometry — the loader records a
+    # warning AND an Unsupported placeholder element at this rect so the renderer
+    # can draw a visible marker there.
     return (
-        "<p:graphicFrame><a:graphic>"
+        "<p:graphicFrame>"
+        '<p:xfrm><a:off x="2000000" y="3000000"/><a:ext cx="6000000" cy="2000000"/></p:xfrm>'
+        "<a:graphic>"
         f'<a:graphicData uri="{A.replace("/main", "/table")}">'
         "<a:tbl><a:tr><a:tc><a:txBody><a:p><a:r><a:t>cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl>"
         "</a:graphicData></a:graphic></p:graphicFrame>"
@@ -131,6 +135,45 @@ def slide_rels(image_target=None):
     if image_target:
         rel = f'<Relationship Id="rId1" Type="{R}/image" Target="{image_target}"/>'
     return XML_DECL + f'<Relationships xmlns="{PR}">{rel}</Relationships>'
+
+
+def tiny_gif():
+    """A minimal valid 1x1 GIF89a — a format the renderer's allow-list rejects."""
+    return bytes(
+        [
+            0x47, 0x49, 0x46, 0x38, 0x39, 0x61,  # GIF89a
+            0x01, 0x00, 0x01, 0x00,              # 1x1
+            0x80, 0x00, 0x00,                    # global color table, 2 colors
+            0xFF, 0x00, 0x00,                    # color 0: red
+            0x00, 0x00, 0x00,                    # color 1: black
+            0x2C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,  # image descriptor
+            0x02, 0x02, 0x44, 0x01, 0x00,        # LZW data
+            0x3B,                                # trailer
+        ]
+    )
+
+
+def multi_para_sp(n, x, y, cx, cy):
+    # One text box with n paragraphs, each one run — for the per-box paragraph cap.
+    paras = "".join(
+        f'<a:p><a:r><a:rPr sz="1800"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>'
+        f"</a:rPr><a:t>line{i}</a:t></a:r></a:p>"
+        for i in range(n)
+    )
+    return (
+        "<p:sp><p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        f"</p:spPr><p:txBody>{paras}</p:txBody></p:sp>"
+    )
+
+
+def graphicframe_at(x, y, cx, cy):
+    return (
+        "<p:graphicFrame>"
+        f'<p:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></p:xfrm>'
+        f'<a:graphic><a:graphicData uri="{A.replace("/main", "/table")}"><a:tbl/>'
+        "</a:graphicData></a:graphic></p:graphicFrame>"
+    )
 
 
 def tiny_png():
@@ -329,6 +372,105 @@ def build_many_shapes():
     write_zip("many_shapes.pptx", parts)
 
 
+def build_good_fontsizes():
+    # Two slides, same wide text in the same box on a black background, at very
+    # different point sizes — the large one must paint more text pixels (F1b
+    # font-size fidelity). Black bg so non-black pixels == text.
+    def slide(sz):
+        return slide_xml(
+            [text_sp("WWWWWW", 838200, 2000000, 10515600, 2000000, size=sz, bold=True)],
+            bg_hex="000000",
+        )
+
+    parts = {
+        "[Content_Types].xml": content_types(2),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(2),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(2),
+        "ppt/slides/slide1.xml": slide(6000),  # 60pt
+        "ppt/slides/slide2.xml": slide(2000),  # 20pt
+    }
+    write_zip("good_fontsizes.pptx", parts)
+
+
+def build_good_missing_image():
+    # A picture whose media part is ABSENT — imageData stays empty and the
+    # renderer must draw a visible "missing image" placeholder (F1b), not crash.
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [pic_sp("rId1", 3000000, 2000000, 4000000, 3000000)]
+        ),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        # ppt/media/image1.png deliberately absent
+    }
+    write_zip("good_missing_image.pptx", parts)
+
+
+def build_good_hugefont():
+    # An absurd declared font size (audit R1) — must render without hanging/OOM.
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [text_sp("BIG", 838200, 200000, 10515600, 6000000, size=5160000)], bg_hex="000000"
+        ),
+    }
+    write_zip("good_hugefont.pptx", parts)
+
+
+def build_good_gif_image():
+    # A picture whose bytes are a GIF — a format outside the PNG/JPEG allow-list
+    # (audit R2). Must render a placeholder, not invoke the GIF decoder.
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([pic_sp("rId1", 3000000, 2000000, 4000000, 3000000)]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": tiny_gif(),  # GIF bytes behind a .png name
+    }
+    write_zip("good_gif_image.pptx", parts)
+
+
+def build_good_overflow():
+    # An unsupported element positioned partly OUTSIDE the slide (negative off) —
+    # without a clip rect its placeholder box would bleed into the letterbox (R4).
+    slide = (
+        XML_DECL
+        + f'<p:sld xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + "<p:cSld><p:spTree>"
+        + graphicframe_at(-3000000, -3000000, 6000000, 6000000)
+        + "</p:spTree></p:cSld></p:sld>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide,
+    }
+    write_zip("good_overflow.pptx", parts)
+
+
+def build_good_manypara():
+    # One text box with many paragraphs — for the per-box paragraph cap (R5).
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([multi_para_sp(500, 838200, 200000, 10515600, 6000000)]),
+    }
+    write_zip("good_manypara.pptx", parts)
+
+
 if __name__ == "__main__":
     build_good_text()
     build_good_image()
@@ -341,4 +483,10 @@ if __name__ == "__main__":
     build_drop_missing_rel()
     build_drop_missing_part()
     build_many_shapes()
+    build_good_fontsizes()
+    build_good_missing_image()
+    build_good_hugefont()
+    build_good_gif_image()
+    build_good_overflow()
+    build_good_manypara()
     print("fixtures written to", HERE)

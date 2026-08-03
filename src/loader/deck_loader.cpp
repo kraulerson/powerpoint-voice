@@ -164,9 +164,9 @@ RectEmu parseXfrm(const pugi::xml_node& spPr) {
     return rect;
 }
 
-TextRun parseRun(const pugi::xml_node& r) {
+TextRun parseRun(const pugi::xml_node& r, int maxChars) {
     TextRun run;
-    run.text = QString::fromUtf8(childLocal(r, "t").text().get());
+    run.text = QString::fromUtf8(childLocal(r, "t").text().get()).left(maxChars);
     pugi::xml_node rPr = childLocal(r, "rPr");
     if (rPr) {
         const QString sz = attrLocal(rPr, "sz");
@@ -187,7 +187,7 @@ TextRun parseRun(const pugi::xml_node& r) {
     return run;
 }
 
-TextBox parseTextBox(const pugi::xml_node& sp) {
+TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim) {
     TextBox tb;
     tb.rect = parseXfrm(childLocal(sp, "spPr"));
     pugi::xml_node txBody = childLocal(sp, "txBody");
@@ -195,10 +195,17 @@ TextBox parseTextBox(const pugi::xml_node& sp) {
         if (localName(p.name()) != QLatin1String("p")) {
             continue;
         }
+        // Per-box paragraph/run caps (audit R5): bound unbounded text bodies.
+        if (static_cast<int>(tb.paragraphs.size()) >= lim.maxParagraphsPerBox) {
+            break;
+        }
         Paragraph para;
         for (pugi::xml_node r = p.first_child(); r; r = r.next_sibling()) {
             if (localName(r.name()) == QLatin1String("r")) {
-                para.runs.push_back(parseRun(r));
+                if (static_cast<int>(para.runs.size()) >= lim.maxRunsPerParagraph) {
+                    break;
+                }
+                para.runs.push_back(parseRun(r, lim.maxRunTextChars));
             }
         }
         tb.paragraphs.push_back(std::move(para));
@@ -224,7 +231,7 @@ Background parseBackground(const pugi::xml_node& cSld) {
 }
 
 Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>& slideRels,
-                 const QString& slideDir, int maxShapes, bool& xmlOk) {
+                 const QString& slideDir, const LoaderLimits& lim, bool& xmlOk) {
     Slide slide;
     pugi::xml_document doc;
     if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
@@ -241,12 +248,12 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
     for (pugi::xml_node node = spTree.first_child(); node; node = node.next_sibling()) {
         // Per-slide shape cap (audit F1a-4): a legal-but-pathological slide with
         // millions of shapes must not exhaust memory. Stop and warn at the cap.
-        if (static_cast<int>(slide.elements.size()) >= maxShapes) {
+        if (static_cast<int>(slide.elements.size()) >= lim.maxShapesPerSlide) {
             LoadWarning w;
             w.slideIndex = index;
             w.elementType = QStringLiteral("shape-cap");
-            w.detail =
-                QStringLiteral("slide has more than %1 shapes; remainder skipped").arg(maxShapes);
+            w.detail = QStringLiteral("slide has more than %1 shapes; remainder skipped")
+                           .arg(lim.maxShapesPerSlide);
             slide.warnings.push_back(std::move(w));
             break;
         }
@@ -255,7 +262,7 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
             if (childLocal(node, "txBody")) {
                 ShapeElement e;
                 e.kind = ElementKind::TextBox;
-                e.textBox = parseTextBox(node);
+                e.textBox = parseTextBox(node, lim);
                 slide.elements.push_back(std::move(e));
             }
         } else if (name == QLatin1String("pic")) {
@@ -285,7 +292,27 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
                 w.elementType = name;
             }
             w.detail = uri.isEmpty() ? name : uri;
+            const QString unsupportedType = w.elementType;
             slide.warnings.push_back(std::move(w));
+
+            // Also record a positioned placeholder element so the renderer can
+            // draw a VISIBLE marker where the unsupported content was. Its xfrm
+            // may live directly under the frame (graphicFrame) rather than in an
+            // spPr, so resolve off/ext by descendant search.
+            ShapeElement ph;
+            ph.kind = ElementKind::Unsupported;
+            ph.unsupported.type = unsupportedType;
+            pugi::xml_node off = descendantLocal(node, "off");
+            pugi::xml_node ext = descendantLocal(node, "ext");
+            if (off) {
+                ph.unsupported.rect.x = attrLocal(off, "x").toLongLong();
+                ph.unsupported.rect.y = attrLocal(off, "y").toLongLong();
+            }
+            if (ext) {
+                ph.unsupported.rect.cx = attrLocal(ext, "cx").toLongLong();
+                ph.unsupported.rect.cy = attrLocal(ext, "cy").toLongLong();
+            }
+            slide.elements.push_back(std::move(ph));
         }
     }
     return slide;
@@ -459,12 +486,22 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         }
 
         bool xmlOk = true;
-        Slide slide =
-            parseSlide(slideXml, index, slideRels, slideDir, limits.maxShapesPerSlide, xmlOk);
+        Slide slide = parseSlide(slideXml, index, slideRels, slideDir, limits, xmlOk);
         if (!xmlOk) {
             zip_close(za);
             return fail(LoadErrorKind::MalformedXml,
                         QStringLiteral("slide part '%1' is malformed").arg(slidePart));
+        }
+        // Load raw image bytes for each resolved picture (decoded at render, F1b).
+        // Governed by the same per-part cap; a media part over the cap or absent
+        // leaves imageData empty and the renderer draws a missing-image placeholder.
+        for (ShapeElement& e : slide.elements) {
+            if (e.kind == ElementKind::Image && !e.image.mediaPart.isEmpty()) {
+                QByteArray bytes;
+                if (readPart(za, e.image.mediaPart, bytes, limits.maxPartUncompressed)) {
+                    e.image.imageData = std::move(bytes);
+                }
+            }
         }
         for (const LoadWarning& w : slide.warnings) {
             pres.warnings.push_back(w);

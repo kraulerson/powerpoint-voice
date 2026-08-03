@@ -32,4 +32,30 @@ Image PIXELS are not decoded here (F1b). Malformed EMU/font-size attributes defa
 
 ---
 
+## Feature F1b: Slide Renderer
+
+**Phase Built:** 2
+**Status:** Complete
+**Summary:** Renders a parsed slide to a pixel image (`SlideRenderer::render` → QImage) — the
+second half of MVP feature F1. Draws solid backgrounds, text with declared font/size/weight/
+color at the correct EMU positions, embedded images, and VISIBLE placeholder boxes for
+unsupported elements and missing/disallowed images. Scales the slide uniformly with black
+letterbox bars and clips all content to the slide. A pure, deterministic, headless function
+(no file/thread/display) — the off-thread pre-render orchestration is F7's job.
+**Key Interfaces:** `src/render/slide_renderer.hpp` (`SlideRenderer::render`); see
+`docs/api and interfaces/slide-renderer.md`. Also extends F1a's model with `ImageElement.imageData`
+and `UnsupportedElement`, and the loader to load image bytes + record positioned placeholders.
+**Related ADRs:** ADR-0001 (QPainter/QImage rendering choice).
+**Test Coverage:** Unit + pixel tests — 23 renderer cases (`tests/test_slide_renderer.cpp`):
+backgrounds, text color/size/position, images, letterbox, placeholders, Karl's 7 orchestrator
+assertions, and 4 security-audit regressions. Runs under a headless QGuiApplication (offscreen).
+**Security:** `docs/security-audits/f1b-slide-renderer-security-audit.md` — 2-agent audit; 1
+Critical (font-size hang) + 2 High (untrusted image-codec allow-list, unbounded text) fixed
+test-first, plus clip/pixel/size hardening.
+**Known Limitations:** A text box with mixed-format runs renders with the first run's font
+(single-run is the common case). Background PICTURES aren't rendered (fill white). Cross-machine
+pixel-determinism is not guaranteed (font substitution) — relevant only to a future shared cache.
+
+---
+
 <!-- Copy the section above for each new feature. Number sequentially. -->

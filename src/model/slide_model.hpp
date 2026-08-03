@@ -3,6 +3,7 @@
 #include <optional>
 #include <vector>
 
+#include <QByteArray>
 #include <QString>
 
 // In-memory domain model produced by the deck loader (Project Bible §5,
@@ -48,15 +49,25 @@ struct TextBox {
     std::vector<Paragraph> paragraphs;
 };
 
-// A picture placed on a slide. The pixels are NOT decoded here — the loader
-// resolves the relationship to the media part path; decoding is the render
-// layer's job (F1b), keeping the parse layer free of image codecs.
+// A picture placed on a slide. The loader resolves the relationship to the
+// media part path and loads its raw (still-encoded) bytes; the render layer
+// (F1b) decodes them with QImage. Decoding is deliberately NOT done in the
+// parse layer, keeping image-codec exposure out of the untrusted-XML walk.
 struct ImageElement {
     RectEmu rect;
-    QString mediaPart; // e.g. "ppt/media/image1.png"
+    QString mediaPart;    // e.g. "ppt/media/image1.png"
+    QByteArray imageData; // raw encoded bytes (PNG/JPEG/...); decoded at render
 };
 
-enum class ElementKind { TextBox, Image };
+// An element the text+images tier cannot render faithfully (table/chart/SmartArt).
+// It keeps its geometry so the renderer can draw a VISIBLE placeholder box in the
+// right spot — the Manifesto's "visible placeholder, never a silent wrong render".
+struct UnsupportedElement {
+    RectEmu rect;
+    QString type; // "table" / "chart" / "smartArt" / raw tag
+};
+
+enum class ElementKind { TextBox, Image, Unsupported };
 
 // A single z-ordered element on a slide. A tagged struct (rather than a variant)
 // keeps test assertions and field access straightforward.
@@ -64,6 +75,7 @@ struct ShapeElement {
     ElementKind kind = ElementKind::TextBox;
     TextBox textBox;
     ImageElement image;
+    UnsupportedElement unsupported;
 };
 
 enum class BackgroundKind { None, Solid, Picture };
