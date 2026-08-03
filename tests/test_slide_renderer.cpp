@@ -97,7 +97,9 @@ TEST_CASE("a placeholder slide renders a dark surface, not white") {
     Slide ph;
     ph.placeholder = true;
     QImage img = SlideRenderer::render(ph, 12192000, 6858000, W, H);
-    const QColor c = img.pixelColor(W / 2, H / 2);
+    // Sample a corner of the slide, away from the centered "Slide unavailable"
+    // text (whose glyph coverage at the exact center is font-dependent).
+    const QColor c = img.pixelColor(60, 60);
     // Dark placeholder (well below mid-gray), never the white default.
     CHECK(c.red() < 60);
     CHECK(c.green() < 60);
