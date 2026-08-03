@@ -349,3 +349,16 @@ identities are Karl) remains fully documented here and in the audit file.
   background, correctly sized/positioned; unsupported table → labeled placeholder box;
   images decode and scale. The from-scratch-renderer bet (intake §11 risk 1) has a working,
   security-hardened text+images foundation. Full suite 40/40 on macOS; CI to confirm ubuntu.
+
+- **S-18:** The framework's BL-125 project-test gate surfaced a real setup gap on a source
+  commit — "no test command configured, PROJECT TESTS NOT ENFORCED" — nudging me to wire up
+  local commit-time test enforcement. Closed it: authored scripts/run-tests.sh (env + cmake
+  build + ctest, 40 tests in ~3s incremental) and pointed .claude/test-command at it. Now the
+  commit gate actually runs the suite, not just the presence-of-a-test-file heuristic. A
+  helpful, non-blocking nudge that improved the project's own rigor.
+- **S-19:** CI-caught cross-platform test fragility (a positive): the placeholder-slide test
+  sampled the exact slide center, which hit the 'Slide unavailable' glyph under Ubuntu's
+  DejaVu font but fell on background under macOS's — macOS passed by luck, ubuntu CI failed
+  loudly. Fixed the test to sample a corner of the dark fill. Exactly the value of building
+  cross-platform in CI from day one: a font-dependent assertion that would have been a
+  mystery later got caught immediately.
