@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-03 ~08:15 MDT (session 1)
+**Last updated:** 2026-08-03 ~10:05 MDT (session 1)
 **A fresh session must be able to continue from this file alone. Karl says "continue".**
 
 ## What this is
@@ -24,9 +24,14 @@ enforcement bypasses ever; escape hatches only where documented and always logge
 
 ## Standing protocols
 
-1. **Merges to main:** agent prepares PR + green CI, STOPS; Karl approves/merges in the
-   GitHub UI; every un-block appended to WALK-UNBLOCK-AUDIT.md (his explicit ruling,
-   resolves ISSUE-006). Batch bookkeeping commits into milestone PRs to respect his time.
+1. **Merges to main:** agent prepares PR + green CI, STOPS; Karl approves/merges via his
+   `kraulerson-reviewer` account; every un-block appended to WALK-UNBLOCK-AUDIT.md (resolves
+   ISSUE-006). Batch bookkeeping commits into milestone PRs to respect his time.
+1b. **Recorder identity (resolves ISSUE-008):** repo git identity is `kraulerson-reviewer`
+   (user.name/email set repo-locally) — the recorder persona commits what approver Karl
+   Raulerson decides. NEVER commit an APPROVAL_LOG approver row under author "Karl Raulerson"
+   (the self-approval verifier blocks every solo arm; see ISSUE-008). All future gates use
+   this convention.
 2. **Project CLAUDE.md is binding** (session version check, phase-entry commands own
    `current_phase`, pending-approval sentinel for structured decisions, escalate-to-user
    instead of bypass suggestions, docs-only commits bypass Build Loop gate).
@@ -36,7 +41,7 @@ enforcement bypasses ever; escape hatches only where documented and always logge
 
 ## Current position
 
-**Pre-Phase-0, intake COMPLETE, awaiting Karl's intake review + merge of PR (branch `walk/intake`).**
+**PHASE 1 ENTERED (current_phase=1, gate exit 0, snapshot phase-0-to-1_2026-08-03). Awaiting Karl's merge of PR #4 (branch walk/phase0); then Phase 1 architecture work begins: 3 architecture options → Karl selects → STRIDE threat model → data model → UI scaffold spec → Project Bible → Senior Technical Authority gate. Phase 0 complete: Manifesto approved (Sponsor, 2026-08-03), ISSUE-007/008 logged and resolved (warn-knob single use; recorder identity).**
 
 Done (session 1):
 1. Product interview + 7 interactive judgment decisions → PROJECT_INTAKE.md fully filled
