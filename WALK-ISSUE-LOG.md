@@ -148,3 +148,13 @@ Severity scale: Blocker / Major / Minor / Confusion. Smooth notes logged too.
 - **Resolution:** STOPPED for Karl's decision (options: second controlled account as
   reviewer / real second person / other). To be recorded here + APPROVAL_LOG history once made.
 - **Time lost:** ~25 min (diagnosis, doc/ledger search, empirical PR proof).
+
+## ISSUE-006 addendum — resolution decided (2026-08-03)
+
+Karl's decision, verbatim intent: he has the ability to approve merges in GitHub and will
+push blocked merges forward himself; every such un-block must be logged in an audit file.
+Implemented as the standing protocol in **WALK-UNBLOCK-AUDIT.md** (append-only): agent
+prepares PR + green CI, stops, Karl merges in the GitHub UI, entry appended. ISSUE-006
+severity stands as logged (the framework still has no documented solo-org story); the
+walk is un-blocked by explicit, audited human authority — which is the walk protocol
+working as designed.
