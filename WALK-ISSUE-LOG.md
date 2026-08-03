@@ -99,3 +99,62 @@ Severity scale: Blocker / Major / Minor / Confusion. Smooth notes logged too.
 - **S-4:** The branch-protection failure path: loud, non-zero exit, precise remediation
   commands, and the driver prints the three real-world options with costs. A failing gate
   that explains itself.
+
+## OBSERVATION-005 — Dual-hatted backup maintainer accepted (control weakening, by declared decision)
+
+- **When/where:** 2026-08-03 ~07:45, organizational pre-condition 5.
+- **What:** The framework's backup-maintainer control assumes a second human who validates
+  HANDOFF.md independently in Phase 4. Karl designated himself dual-hatted (no second human
+  in this walk). Recorded verbatim in APPROVAL_LOG.md row 5 with the weakening acknowledged.
+  Not a framework defect — a deployment-reality note for the walk report: solo users on the
+  organizational path will hit this same slot with no framework guidance for the
+  "organization of one" case.
+- **Severity:** Confusion (doc gap at most).
+- **Time lost:** none.
+
+## SMOOTH NOTES (continued)
+
+- **S-5:** Recovery loop for ISSUE-004 was exactly as documented: `gh repo edit --visibility public`
+  (Karl's decision, driver option 2) → `scripts/check-gate.sh --repair` (skipped already-done
+  steps, re-applied protection) → `--preflight` → "Ready: protection verified for org mode."
+  First try, no friction. The stepwise-resume design of the repair script is genuinely good.
+- **S-6:** All 6 organizational pre-conditions presented to and decided by Karl individually,
+  recorded verbatim in APPROVAL_LOG.md (append-only rows) + GitHub issue #1 as the ITSM record.
+  The pre-conditions table's append-only design with numbered rows was easy to comply with.
+
+## ISSUE-006 — Org-mode protection + solo GitHub account = unmergeable main; no documented recovery (BLOCKER, workaround pending human decision)
+
+- **When/where:** 2026-08-03 ~07:50, first push after `check-gate.sh --repair` applied org-mode protection.
+- **Expected (doc):** Project CLAUDE.md §Branch Protection: *"Until then, the Orchestrator
+  creates and merges their own PRs with phase gate review at milestones."* Builder's Guide
+  1432: *"commit … push → open PR"* — the framework clearly intends a PR flow the solo
+  Orchestrator can complete.
+- **Actual:** Org protection bar (applied by the framework's own driver: `enforce_admins:
+  true`, `required_approving_review_count: 1`, strict checks) makes that impossible solo:
+  1. `git push` → `GH006 … Changes must be made through a pull request` (direct push sealed).
+  2. PR #2 opened; `gh pr merge 2 --merge` → *"not mergeable: the base branch policy
+     prohibits the merge"* (exit 1). GitHub forbids self-approval of one's own PR; there is
+     no second collaborator; `--admin` is both walk-forbidden and neutralized by enforce_admins.
+  3. Attestation hatches (`github_free_tier`, `gitlab_free_tier_approvals`) cover
+     protection-UNAVAILABLE only — checked `scripts/check-gate.sh` (BL-002 block) and the
+     backlog; nothing covers review-UNSATISFIABLE. Governance Framework §178-182
+     ("No self-approval") confirms the design assumes ≥2 humans.
+- **Severity:** **Blocker** (all merges to main frozen; governance records commit `ecea92c`
+  stranded on branch `walk/governance-records`). Practical workaround exists but requires a
+  human decision (second reviewer account), hence Blocker-with-workaround, not permanent.
+- **Known-ledger check:** no BL/BUG entry found for the solo-account org-mode review dead-end.
+  Appears NEW — and is exactly the class of issue a first full-rigor validation should surface:
+  the org path was designed for real orgs; the "organization of one" case has no documented story.
+- **Resolution:** STOPPED for Karl's decision (options: second controlled account as
+  reviewer / real second person / other). To be recorded here + APPROVAL_LOG history once made.
+- **Time lost:** ~25 min (diagnosis, doc/ledger search, empirical PR proof).
+
+## ISSUE-006 addendum — resolution decided (2026-08-03)
+
+Karl's decision, verbatim intent: he has the ability to approve merges in GitHub and will
+push blocked merges forward himself; every such un-block must be logged in an audit file.
+Implemented as the standing protocol in **WALK-UNBLOCK-AUDIT.md** (append-only): agent
+prepares PR + green CI, stops, Karl merges in the GitHub UI, entry appended. ISSUE-006
+severity stands as logged (the framework still has no documented solo-org story); the
+walk is un-blocked by explicit, audited human authority — which is the walk protocol
+working as designed.
