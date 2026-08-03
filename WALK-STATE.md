@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-03 ~07:40 MDT (session 1)
+**Last updated:** 2026-08-03 ~08:15 MDT (session 1)
 **A fresh session must be able to continue from this file alone. Karl says "continue".**
 
 ## What this is
@@ -17,62 +17,65 @@ enforcement bypasses ever; escape hatches only where documented and always logge
 - Framework clone: `../solo-orchestrator` @ `6417a25` (HTTPS, 2026-08-03)
 - deployment=organizational · gov_mode=production (NO POC) · track=full · enforcement=strict
 - platform=desktop · language=cpp (extension: `templates/pipelines/ci/github/cpp.yml`
-  authored as NEW file in clone — the documented extension point; nothing else touched)
-- git host=github · repo `kraulerson/powerpoint-voice` (private — forced by org mode) ·
-  project dir `/Users/karl/Documents/Claude Projects/powerpoint-voice/powerpoint-voice`
+  authored as NEW file in clone — documented extension point; nothing else touched)
+- host=github · repo `kraulerson/powerpoint-voice` — now PUBLIC (Karl's decision resolving
+  ISSUE-004 via the driver's documented option 2), org-mode branch protection LIVE and
+  preflight-verified: main takes PRs only, 1 required review, enforce_admins on.
 
-## Product decisions from the Karl interview (feed intake; already confirmed)
+## Standing protocols
 
-- Commands v1: baseline five ONLY — next, previous, pause, continue, "go to slide N"
-- Input: .pptx loaded directly; **from-scratch C++ native renderer** (Karl's explicit choice
-  over embedded-LibreOffice recommendation — schedule risk to be formally logged in intake §11)
-- Renderer must-support tier: **text + images** (text boxes, placed images, solid/picture
-  backgrounds); fonts UNKNOWN → design defensively for embedded/custom fonts
-- Reliability (all four): on-device speech (zero network); live transcript overlay; keyboard
-  fallback for every command; robust number recognition ("fifteen"/"one five"/"15", range checks)
-- UI: minimal dark, slides own the screen. Venue: MacBook + built-in mic + projector, assume no Wi‑Fi
-- Priority ladder: P0 = 5 commands + 4 reliability + pptx load/render + dark UI on macOS;
-  P1 = timer, practice mode; P2 = presenter notes, Win/Linux packaging
-- Platforms: C++ portable, CI builds all three; pre-showtime validation macOS-only
-- Public repo was Karl's wish → overridden by org-mode forced-private (see ISSUE-004);
-  real deck NEVER committed (synthetic + sanitized fixtures only)
+1. **Merges to main:** agent prepares PR + green CI, STOPS; Karl approves/merges in the
+   GitHub UI; every un-block appended to WALK-UNBLOCK-AUDIT.md (his explicit ruling,
+   resolves ISSUE-006). Batch bookkeeping commits into milestone PRs to respect his time.
+2. **Project CLAUDE.md is binding** (session version check, phase-entry commands own
+   `current_phase`, pending-approval sentinel for structured decisions, escalate-to-user
+   instead of bypass suggestions, docs-only commits bypass Build Loop gate).
+3. Product decisions from the interview + Karl's 7 intake judgment answers are recorded in
+   PROJECT_INTAKE.md — that file is now the single product-truth source (supersedes the
+   interview capture that used to live in this file).
 
 ## Current position
 
-**Phase: pre-Phase-0. Init done (with findings). STOPPED at a Karl decision.**
+**Pre-Phase-0, intake COMPLETE, awaiting Karl's intake review + merge of PR (branch `walk/intake`).**
 
-Done:
-1. Product interview complete (answers above).
-2. Framework cloned; README + full User Guide read.
-3. `cpp.yml` authored at documented extension point (ISSUE-001 path note).
-4. `init.sh --non-interactive` run: project scaffolded, repo created+pushed (private),
-   83/83 verify-install checks pass, exit 2 — branch protection failed on free-tier
-   private repo (ISSUE-004; framework printed 3 documented options).
-5. ISSUE-002 (Major): generated ci.yml was other.yml skeleton, not cpp.yml —
-   worked around by copying the cpp template into the PROJECT's .github/workflows/ci.yml.
-6. ISSUE-003 (Minor): release.yml language placeholders are TODO null-steps for cpp; deferred to Phase 4.
-7. WALK-ISSUE-LOG.md started (4 issues, 4 smooth notes).
+Done (session 1):
+1. Product interview + 7 interactive judgment decisions → PROJECT_INTAKE.md fully filled
+   (Manual mode; 0 blank cells; `scripts/resume.sh` now prints the §13 init prompt —
+   state machine agrees intake is done, Phase 0 not started).
+2. Framework cloned @6417a25; README + full User Guide read; cpp.yml extension authored.
+3. Init run (org/production/full/cpp/desktop): project + repo + hooks + 83/83 verify checks.
+4. Findings logged: ISSUE-001 (doc path), **ISSUE-002 Major** (generate_ci ships other.yml
+   for discovered language — worked around by copying cpp.yml into project ci.yml; validated
+   green in CI), ISSUE-003 (release.yml TODO null-steps for cpp — Phase 4 item),
+   ISSUE-004 (org+free-tier protection dead-end — resolved: repo public, protection live),
+   OBSERVATION-005 (dual-hatted backup maintainer), **ISSUE-006 Blocker** (solo org-mode
+   unmergeable main — resolved by Karl's standing un-block protocol + WALK-UNBLOCK-AUDIT.md).
+5. Governance: 6 org pre-conditions APPROVED by Karl (APPROVAL_LOG rows 1-6; ITSM = issue #1);
+   PR #2 merged by Karl (audit rows 1-2).
+6. Data governance: classification=confidential, zdr_attested=false, exception wording
+   approved verbatim by Karl (intake §5.1.1) — needed for the Phase 1→2 gate.
 
 ## NEXT (in order)
 
-1. **KARL DECISION (open):** branch protection — the three documented options from the
-   github driver: (a) GitHub Pro $4/mo, (b) make repo public (matches his interview wish;
-   framework driver offers it explicitly), (c) attest manually (`--branch-protection-attested`
-   / `scripts/check-gate.sh --repair` flow). Record decision + run repair + verify with
-   `scripts/check-gate.sh --preflight`.
-2. **KARL SIGN-OFFS:** the 6 organizational pre-conditions (User Guide §1.2) — AI deployment
-   path, insurance, liability entity, sponsor, backup maintainer, ITSM. Each presented
-   individually with evidence; recorded in APPROVAL_LOG.md / PROJECT_INTAKE.md §8. ALL must
-   be Resolved before Phase 0.
-3. Post-init auth checks (claude OK; `snyk auth` status to verify).
-4. Intake: `bash scripts/intake-wizard.sh` (or non-interactive equivalent), seeded from the
-   interview capture above; confirm judgment questions with Karl.
-5. `bash scripts/resume.sh` → Phase 0 kickoff per its printed prompt.
+1. **KARL (open):** review PROJECT_INTAKE.md on the `walk/intake` PR — especially §6.1
+   (technical profile: DRAFTED from context, flagged for his correction), §2 (problem/
+   success criteria as written for him), §4.1 (the 7 must-haves) — then approve/merge
+   (append audit row on merge).
+2. Run session-start obligation: `bash scripts/check-versions.sh` (project CLAUDE.md
+   requires it; report results before phase work).
+3. **Phase 0 kickoff:** use the §13 prompt (printed by `bash scripts/resume.sh`) with the
+   Builder's Guide (`docs/reference/builders-guide.md`) + desktop Platform Module
+   (`docs/platform-modules/desktop.md`). Follow Builder's Guide Phase 0 steps 0.1-0.4 with
+   the "With Intake" prompts; personas per CLAUDE.md table (0.2 = Skeptical PM).
+4. Phase 0 output: PRODUCT_MANIFESTO.md → present evidence to Karl → his Sponsor approval
+   → append Phase 0→1 gate entry to APPROVAL_LOG.md → `scripts/check-phase-gate.sh` →
+   `scripts/process-checklist.sh --start-phase1`.
+5. Also pending: trademark search (Standard+ Phase 0 duty) — do during Phase 0.
 
 ## Session practicalities
 
-- Commit walk logs as you go (docs-only commits bypass the Build Loop gate by design —
-  .md/.yml staged together qualify). NEVER pipe git commit; verify each with `git log -1`.
-- Direct pushes to main currently possible (no protection yet); once protection lands in
-  org mode, expect PR + 1 approving review required — plan the workflow accordingly.
-- Init log: `.solo-orchestrator/init-20260803-072618.log`.
+- NEVER pipe git commit; verify every commit with `git log -1`. Docs-only commits pass the
+  gate; source commits need the Build Loop.
+- Init log: `.solo-orchestrator/init-20260803-072618.log`. Walk memory pointer:
+  `~/.claude/projects/.../memory/powerpoint-voice-walk.md`.
+- Time spent session 1 so far: ~1h05m wall clock (interview → intake complete).
