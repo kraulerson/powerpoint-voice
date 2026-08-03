@@ -234,3 +234,17 @@ records Jane Smith's email approval). The unmerged walk/phase0 branch was rebuil
 Phase 0→1 approval row's introducing commit is recorder-authored — rebuild authorized by Karl
 as part of this decision and logged in WALK-UNBLOCK-AUDIT.md. The two-hat reality (both
 identities are Karl) remains fully documented here and in the audit file.
+
+## OBSERVATION-009 — PR #4 merged early (at Draft state); benign outcome, split verified
+
+- **When/where:** 2026-08-03 15:48:42Z; noticed when `gh pr close 4` reported "already merged".
+- **What:** Karl (reviewer account) merged PR #4 while the gate-approval commits were still
+  being re-landed locally. Verified by parents of merge b10e572: second parent is 8fc6d4e
+  (artifacts only, Manifesto Status: Draft); the Karl-authored approval commits cb5d9dd/82ad56f
+  are NOT in main (merge-base checks). Net effect: main carries only the Draft artifacts, and
+  PR #5 (walk/phase0-recorder) delivers the complete recorder-authored approval + phase
+  advance on exactly that base — no conflict, no self-approval poison on main. The denied
+  force-push turned out to be the right protection: the replacement-branch path left every
+  published ref append-only.
+- **Severity:** Confusion (multi-hat coordination timing; no damage).
+- **Time lost:** ~15 min (verification).
