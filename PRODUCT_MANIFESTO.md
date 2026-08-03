@@ -11,9 +11,9 @@
   Do not alter headings or remove sections. Add content within the placeholders.
 -->
 
-**Status:** Draft
-**Approved By:** Pending — Karl Raulerson (Project Sponsor)
-**Approval Date:** Pending Phase 0 → Phase 1 gate
+**Status:** Approved
+**Approved By:** Karl Raulerson (Project Sponsor)
+**Approval Date:** 2026-08-03
 **Phase Gate:** Phase 0 → Phase 1
 
 ---
@@ -331,6 +331,6 @@ Signals 1-2 are first-party commissioning evidence — appropriate for an intern
 
 ### Go/No-Go decision (Step 1.1)
 
-- **Decision:** Pending — presented for Karl's GO at the Phase 0 → Phase 1 gate
-- **Decided by:** Karl Raulerson (Orchestrator/Sponsor)
-- **Rationale:** To be recorded with the gate approval: a commissioned internal tool with a dated live-use deadline and committed sponsor time constitutes the positive signal; the fallback (stock PowerPoint) bounds the downside.
+- **Decision:** GO — 2026-08-03
+- **Decided by:** Karl Raulerson (Orchestrator/Sponsor), at the Phase 0 → Phase 1 gate ("Approved as proposed")
+- **Rationale:** A commissioned internal tool with a dated live-use deadline (~2026-08-10) and committed sponsor time ("as many hours as needed") constitutes the positive signal; signals 1-2 are first-party and re-fetched; the fallback (stock PowerPoint) bounds the downside.

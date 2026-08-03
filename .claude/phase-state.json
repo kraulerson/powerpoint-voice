@@ -8,9 +8,10 @@
   "compliance_ready": false,
   "review_gate_enforced": true,
   "gates": {
-    "phase_0_to_1": null,
+    "phase_0_to_1": "2026-08-03",
     "phase_1_to_2": null,
     "phase_2_to_3": null,
-    "phase_3_to_4": null
+    "phase_3_to_4": null,
+    "phase_0_to_1_by": "Karl Raulerson <kraulerson@gmail.com>"
   }
 }
