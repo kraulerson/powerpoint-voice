@@ -40,6 +40,12 @@ _**Append** one completed row per pre-condition to the table below — one each 
 
 | # | Pre-Condition | Approver | Role | Date | Method | Reference | Notes |
 |---|---|---|---|---|---|---|---|
+| 1 | AI deployment path approved | Karl Raulerson | IT Security / CISO (role-played per walk protocol) | 2026-08-03 | Interactive session approval | WALK-STATE.md (session 1) | "AI deployment path approved: Anthropic Claude via Claude Code under the account's existing subscription terms; no self-hosting or ZDR addendum required for this project." |
+| 2 | Insurance coverage confirmed | Karl Raulerson | Insurance Broker / Risk Management (role-played per walk protocol) | 2026-08-03 | Interactive session approval | WALK-STATE.md (session 1) | "Broker confirmation: no cyber/E&O/D&O policies exist for this deployment; risk of AI-generated-code incidents is accepted in full by the owner." |
+| 3 | Liability entity designated | Karl Raulerson | Legal / General Counsel (role-played per walk protocol) | 2026-08-03 | Interactive session approval | WALK-STATE.md (session 1) | "Liability entity designation: Karl Raulerson (individual). No corporate entity involved." |
+| 4 | Project sponsor assigned | Karl Raulerson | Executive Sponsor | 2026-08-03 | Interactive session approval | PROJECT_INTAKE.md §8 | Sponsor: Karl Raulerson (business owner of the executive presentation; approves budget and phase gates). |
+| 5 | Backup maintainer designated | Karl Raulerson | Technical Lead | 2026-08-03 | Interactive session approval | PROJECT_INTAKE.md §8 | Backup maintainer: Karl Raulerson, dual-hatted (no second human available in this walk). Control-weakening acknowledged; logged as walk observation. Phase 4 handoff validation to be performed by Karl from a clean clone. |
+| 6 | ITSM project registered | Karl Raulerson | ITSM / PMO (role-played per walk protocol) | 2026-08-03 | GitHub issue | kraulerson/powerpoint-voice#1 | Portfolio registration issue with sponsor, track, deployment, go-live target. |
 
 ---
 
@@ -149,6 +155,7 @@ _Append one row per post-launch change, maintenance review, or re-approval below
 
 | Date | Gate / Event | Approver | Role | Decision | Reference |
 |---|---|---|---|---|---|
+| 2026-08-03 | Repo governance: branch-protection resolution (init FAIL, github driver options) | Karl Raulerson | Repository Owner | Selected documented option 2: repo made public; org-mode protection applied and verified (`scripts/check-gate.sh --repair` + `--preflight` OK) | WALK-ISSUE-LOG.md ISSUE-004; init log init-20260803-072618.log |
 
 ---
 

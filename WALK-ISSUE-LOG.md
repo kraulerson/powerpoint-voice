@@ -99,3 +99,25 @@ Severity scale: Blocker / Major / Minor / Confusion. Smooth notes logged too.
 - **S-4:** The branch-protection failure path: loud, non-zero exit, precise remediation
   commands, and the driver prints the three real-world options with costs. A failing gate
   that explains itself.
+
+## OBSERVATION-005 — Dual-hatted backup maintainer accepted (control weakening, by declared decision)
+
+- **When/where:** 2026-08-03 ~07:45, organizational pre-condition 5.
+- **What:** The framework's backup-maintainer control assumes a second human who validates
+  HANDOFF.md independently in Phase 4. Karl designated himself dual-hatted (no second human
+  in this walk). Recorded verbatim in APPROVAL_LOG.md row 5 with the weakening acknowledged.
+  Not a framework defect — a deployment-reality note for the walk report: solo users on the
+  organizational path will hit this same slot with no framework guidance for the
+  "organization of one" case.
+- **Severity:** Confusion (doc gap at most).
+- **Time lost:** none.
+
+## SMOOTH NOTES (continued)
+
+- **S-5:** Recovery loop for ISSUE-004 was exactly as documented: `gh repo edit --visibility public`
+  (Karl's decision, driver option 2) → `scripts/check-gate.sh --repair` (skipped already-done
+  steps, re-applied protection) → `--preflight` → "Ready: protection verified for org mode."
+  First try, no friction. The stepwise-resume design of the repair script is genuinely good.
+- **S-6:** All 6 organizational pre-conditions presented to and decided by Karl individually,
+  recorded verbatim in APPROVAL_LOG.md (append-only rows) + GitHub issue #1 as the ITSM record.
+  The pre-conditions table's append-only design with numbered rows was easy to comply with.
