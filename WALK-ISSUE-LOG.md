@@ -331,3 +331,5 @@ identities are Karl) remains fully documented here and in the audit file.
   a finding — the gate behaved correctly; logged so the walk report can note the TDD gate
   passing a real test-first feature (vs. the earlier chore: scaffold which correctly needed
   no test).
+
+- **S-15:** First real cross-platform CI divergence and it was a genuine project issue (not a framework finding): ubuntu splits libzip CLI tools out of libzip-dev, and libzip's CMake targets file asserts /usr/bin/zipcmp exists, so find_package(libzip) errored on ubuntu though it passed on macOS (brew bundles the tools). Fixed by adding libzip-tools to .github/ci-deps-apt.txt. The ci-deps-apt.txt mechanism I built into the cpp.yml template made this a one-line fix — the extension pattern held up under a real cross-distro packaging quirk.
