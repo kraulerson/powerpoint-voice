@@ -3,3 +3,5 @@
 # Qt 6 Widgets (ADR-0001) + the GL headers its widgets module links against.
 qt6-base-dev
 libgl1-mesa-dev
+libzip-dev
+libpugixml-dev

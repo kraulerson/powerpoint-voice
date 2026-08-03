@@ -31,6 +31,12 @@ endif()
 find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup()
 
+# OOXML parse layer (ADR-0001): libzip reads the .pptx package, pugixml parses
+# the XML parts. System packages (brew on macOS, apt libzip-dev/libpugixml-dev
+# on the ubuntu CI runner) — both ship CMake config packages.
+find_package(libzip REQUIRED)
+find_package(pugixml REQUIRED)
+
 # Test framework: doctest (MIT), header-only, pinned by exact tag.
 include(FetchContent)
 FetchContent_Declare(doctest
@@ -46,9 +52,10 @@ FetchContent_MakeAvailable(doctest)
 # Library target (app logic — testable without the GUI event loop)
 # ---------------------------------------------------------------------------
 add_library(pptv_core STATIC
-  src/core/app_info.cpp)
+  src/core/app_info.cpp
+  src/loader/deck_loader.cpp)
 target_include_directories(pptv_core PUBLIC src)
-target_link_libraries(pptv_core PUBLIC Qt6::Core)
+target_link_libraries(pptv_core PUBLIC Qt6::Core PRIVATE libzip::zip pugixml::pugixml)
 target_compile_definitions(pptv_core PUBLIC
   POWERPOINT_VOICE_VERSION="${PROJECT_VERSION}")
 
