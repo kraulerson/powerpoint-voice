@@ -1,0 +1,646 @@
+{
+  "frameworkVersion": "4.3.0",
+  "frameworkCommit": "0396a1a",
+  "frameworkRepo": "kraulerson/claude-dev-framework",
+  "localClonePath": "~/.claude-dev-framework",
+  "lastSyncDate": "2026-08-03T07:26:45Z",
+  "profile": "desktop-app",
+  "profileInherits": [
+    "_base"
+  ],
+  "files": {},
+  "activeRules": [
+    "evaluate-before-implement",
+    "plan-before-code",
+    "test-per-bugfix",
+    "test-strategy",
+    "naming-conventions",
+    "context-management",
+    "session-discipline",
+    "superpowers-workflow",
+    "verify-after-complete",
+    "plan-closure",
+    "version-bump",
+    "changelog-update",
+    "future-scalability"
+  ],
+  "activeHooks": [
+    "session-start",
+    "compliance-reinforce",
+    "config-guard",
+    "enforce-evaluate",
+    "enforce-superpowers",
+    "stop-checklist",
+    "session-end",
+    "marker-tracker",
+    "marker-guard",
+    "enforce-plan-tracking",
+    "enforce-context7",
+    "verification-gate",
+    "pre-commit-checks",
+    "branch-safety"
+  ],
+  "projectConfig": {
+    "_base": {
+      "sourceExtensions": [
+        ".py",
+        ".js",
+        ".ts",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".swift"
+      ],
+      "protectedBranches": [
+        "main"
+      ]
+    },
+    "branches": []
+  },
+  "discovery": {
+    "branch:HEAD\nmain": {
+      "purpose": "main development branch",
+      "devOS": "Darwin",
+      "targetPlatform": "Darwin desktop",
+      "buildTools": "cpp"
+    },
+    "futurePlatforms": null,
+    "discoveryDate": "2026-08-03",
+    "lastReviewDate": "2026-08-03"
+  },
+  "host": "github",
+  "mode": "org",
+  "remote_url": "",
+  "deployment": "organizational",
+  "poc_mode": null,
+  "enforcement_level": "strict",
+  "soloFrameworkCommit": "6417a255bf155dceff92f937b9eb699737ae2361",
+  "currency": {
+    "schemaVersion": 1,
+    "soloFrameworkPath": "/Users/karl/Documents/Claude Projects/powerpoint-voice/solo-orchestrator",
+    "files": {
+      "scripts/check-gate.sh": {
+        "sha256": "90dcfd18cc831dfce66d18686a011f17067a8357a3c9a434d7fb6145307c63ee",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/check-maintenance.sh": {
+        "sha256": "61006b43304556a0cb61f549d52f5653256035b882c590e8631321b0b0aab8e4",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/check-phase-gate.sh": {
+        "sha256": "c92f0d3c905a88c534cc51efb29a4860b15cf810e015b0b7bb0c76ec8b230696",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/check-updates.sh": {
+        "sha256": "ba007f2a74f487b42dc1d877b4f1528ae4083b1827a8bfd1c0d653f5fa28d5c0",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/check-versions.sh": {
+        "sha256": "1a0a49609d63eec23299636f72078682289bd6cf040e359a418c469995d8ce94",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/detect-out-of-band-commits.sh": {
+        "sha256": "30c126264eaa8a1b1f748a0cdf7d6b0e72c8370ae41e32b0eeb2befbb93b8b19",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/escalate-to-user.sh": {
+        "sha256": "c2ab390c385768fadbafb92fe29fbe37c8f5fcc7d4c4268d43782ef42c032f90",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/hooks/bypass-detector.sh": {
+        "sha256": "024d0fba2bf1fc7a59f8435388725b6d1a2185e481922c62d8659c0e6eaddcc2",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/hooks/record-claude-commit.sh": {
+        "sha256": "99312b016bb25950dba550b03576d18145be994bbc9aff804d7251c8a2ba5814",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/host-drivers/bitbucket.sh": {
+        "sha256": "afe24d322ce66063f55010e16113bb5e992d8a3a0f2d29b44b43acd160b53fe9",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/host-drivers/github.sh": {
+        "sha256": "cf8a8d83be1cf0e6d9479dc4aad154ef7bc052ec1c0860e93d8a7aadd300b62f",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/host-drivers/gitlab.sh": {
+        "sha256": "a2f02855d2baf5e55d86e4280f7f5dc583ac581ad1d814a4febfe3020db8a9b3",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/install-filesystem-gates.sh": {
+        "sha256": "1f5c0ecfc5c1d54e265bd9146cb24ee063e8ad82cf68a54db4dd11ad8400a6fa",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/intake-wizard.sh": {
+        "sha256": "72628c7de67bf941cad070b4dd755ddd72cf9e97e720e85a1e81e76d2f396fcd",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/bypass-audit.sh": {
+        "sha256": "7b9465ca7dfc68d02984b46f38c5a6f44803ddb041a696e36f849be2dff84826",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/bypass-patterns.sh": {
+        "sha256": "001c3c742a7ccec2561c148cf11f04968fca820e2c6986d39284491c50d504a1",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/cdf-refresh.sh": {
+        "sha256": "2dbbb90fba03bdf1420fc3fc8171ff69d8c0ebee9c99ec4ea855f9c1791c4faa",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/currency-manifest.sh": {
+        "sha256": "fbbecdee8a6270cbc4b45c62ae8e52e2c96a30b2019eaeb3e11a5eee87fca28d",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/enforcement-level.sh": {
+        "sha256": "c72bb000fa8d08320fbc6e86375a4895df2a021d6d8e0fb4591584600bd892b9",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/freshness-detect.sh": {
+        "sha256": "a46473cc1b2c78973a8361d33e66a0f3adcbed8496a9b2cef3deaf72d3c7f541",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/gate-principles.sh": {
+        "sha256": "891897c78da7ab04d1e2f812c5ccd97c4633798ee569732da4d414edcbb7d76b",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/helpers-core.sh": {
+        "sha256": "e1f804a79e677fb1824a6e549c17a1cdadf0d6d6fc9ba1e03fe8002d8f2f90ef",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/helpers-full.sh": {
+        "sha256": "af8114eef11bbf41920841cbe274cfad92bde5ee358ab138aa422f62d9e3ff43",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/helpers.sh": {
+        "sha256": "b62c4dac04312793ab4853c4038b171cdc9898b50db67dd05eab150fc3229ea5",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/hook-templates.sh": {
+        "sha256": "2b48f6b28d4eecc150cc43cf47729ea1a60d31239f4dfe0be87ed64fbacaaa52",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/host-errors.sh": {
+        "sha256": "863464c6c38c247015f1cb60c5072dc4420f05985187dead964d7863e5e6f6f9",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/host.sh": {
+        "sha256": "05c313743100509cf35d71239e0bfccb0c9cfbfd6d875b90746971524bee781b",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/phase2-state.sh": {
+        "sha256": "06476b41d9bef41dd20a2ba6a77ba840937fb3e29d1abbdd21b1626295dfd7dc",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/plan-staging.sh": {
+        "sha256": "081e433f3932543590750e5a69478f986d0afd524874eadd8637363204f5fe4e",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/render-project-docs.sh": {
+        "sha256": "7236e531e359bf4a491e5d802b3e1db0ec2ee10441a33c3f6fca62c0b40d3f81",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/scaffold-shipped-set.sh": {
+        "sha256": "74efd7ed6a0d46399d922cc5747ac5a255d29cea8aa798ae4e0ad44564b010cd",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lib/tdd-classify.sh": {
+        "sha256": "870681e44520380f991e8150bf3e6c5d44068cab4a176174883b181d4a369e9d",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lint-backlog-references.sh": {
+        "sha256": "02c8a3df0bbbfaa22bee4dcbf9eb32bd597b962a8713e9443143dd925639aa92",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lint-counter-antipattern.sh": {
+        "sha256": "b2715918ebf038deacb2b90d14d85766b669decf02ca5bbf8b110d209d43102a",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lint-fixture-envelopes.sh": {
+        "sha256": "ccd03a486f7381ffa9ccf2204ae3c144c7cee165f6b4eb4103f58144954baf16",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lint-review-manifest.sh": {
+        "sha256": "26744c595eb8d25119a78c8ec53b550e69fea286ce26c25ceb4d7c8c5a3e88af",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/lint-uat-scenarios.sh": {
+        "sha256": "60a1f2dd6f4c04ede5db2fc4ffcf2b53c50e4d47a6c24726b7bfee7a4151062c",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/pending-approval.sh": {
+        "sha256": "cb0c5c6248260752d13313da4b1ad5e1a5ad67cdbc238b1db6096213b978ecd3",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/pre-commit-gate.sh": {
+        "sha256": "f3c9b2c5ff03acc4bedcad9b3b0c354f05c36521c7e148997d8ffdb3c148dcf6",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/process-checklist.sh": {
+        "sha256": "314462b196ea7e193c09e417f705ad1d68c35b19ca83e2dd3807daac922255dc",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/reconfigure-project.sh": {
+        "sha256": "0a18d61d8261646ff4c5153f2560cd904006e74eeb7cfb9bea8faf8dd6479bd7",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/resolve-tools.sh": {
+        "sha256": "ced3cbdf172536c236bdd8bb14179e0cc3da46535831432994a511415646a678",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/resume.sh": {
+        "sha256": "99114f002b79ab86c3ea97647eca7392980cb9ff71494d5a093587c447987f82",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/run-phase3-validation.sh": {
+        "sha256": "21ca68f316dc145c14bc1ce7c8430ea1cc4766bb07b5462b1a13eeb5b003a427",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/session-end-qdrant-reminder.sh": {
+        "sha256": "2dd93f5e35e7a56350bf5ee06810e27f5ebfca855ba79c11cf7f81f6f69f6352",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/session-freshness-check.sh": {
+        "sha256": "fbc2e27cb569cfc226b455eddbd27a53f47cba51059171bf875edbb5ce740bee",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/session-intake-check.sh": {
+        "sha256": "4778bfb721cc66ee8a2bcd342ae860a91d43ddcdf697382a9948999c2b220ef3",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/session-mcp-gate.sh": {
+        "sha256": "6060ba44fcb98d6f4644ac954cfd9e399580c8c016729fbf612f1d8b7a974bb3",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/session-test-gate-check.sh": {
+        "sha256": "040429113f96051316a5abaaa3dfb25d1803948acc2f6716917d438c0d85a67e",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/session-version-check.sh": {
+        "sha256": "00743bbf9ac797c1ca66d0ddbec67d347f4c31e52f99f6dd7943054cbb9474a7",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/test-gate.sh": {
+        "sha256": "6906fb7f9c69398533a89f0ce905d3cd24de9b222f5c5ecbdbcbeb5dd1d3687f",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/track-tool-usage.sh": {
+        "sha256": "c906e2bc2b6316095471a795cf3358d69873fc825acc0c6a1fb9f5e90a3135ea",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/upgrade-project.sh": {
+        "sha256": "f5e41634e300051414f2e72e0d8d9abf6064afff93b932d8da70862ede7543c4",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/validate.sh": {
+        "sha256": "ad78b4f4268c8cf29b0e89538afb17497d99429dd3c5e24bf4437204a8a09f62",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      "scripts/verify-install.sh": {
+        "sha256": "6797e7979a52a240242e102745412351a94c2b187653e3bf9c43f0d49897a7f9",
+        "mode": "755",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/grill-with-docs/NOTICE": {
+        "sha256": "4e0a70516b6da98dc4039b02113e43e2ca73cdef43e2954a0b4c4d2e7b224590",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/grill-with-docs/SKILL.md": {
+        "sha256": "43001c01f569ecc096b201d131ec6f7da8fdc646ba8cb75584858d5aaf214afa",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/session-handoff/NOTICE": {
+        "sha256": "f203314a5521950a477e8e1a35ddeca6f0102b40f68603f8f2ed28cf4516dfc7",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/session-handoff/SKILL.md": {
+        "sha256": "4e1ab3b5f62f4499c9708fef5ccb4ac719c8ccdbd99fcec317ecf82eca1d520c",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/sweep-triage/SKILL.md": {
+        "sha256": "96695ef5abf6bb89927a25aa1917ba6a75828b81a2d97f75c953ad7f5f43ccb7",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/zoom-out/NOTICE": {
+        "sha256": "f43a002eb4ef073b39a470eb5a7bcda1743db837749007584b6bd3d29344e689",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      ".claude/skills/zoom-out/SKILL.md": {
+        "sha256": "7291923d0b455b9ba3b3f617968fdb05f42cc107648e29d4827b03aed74a7c4e",
+        "mode": "644",
+        "class": "M",
+        "state": "current"
+      },
+      "docs/reference/builders-guide.md": {
+        "sha256": "e8b6fb0c471daa23f503d3c02a2d46386fb909e4a2a2822aaee82e0306b926be",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "docs/reference/cli-setup-addendum.md": {
+        "sha256": "fe57d0014bf4056630fd485f955e8fe2167ca3d2945ac6bd8a2e2147d3d4d84a",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "docs/reference/executive-review.md": {
+        "sha256": "35232cbe2f2316808acd9a07f151d1d40af18b59d973631c6c8109939f82be1d",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "docs/reference/governance-framework.md": {
+        "sha256": "4927028bd3d5cb61ad985d7a0564ae8d57635d2b4f343630d96c67cfbdfd4c39",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "docs/reference/security-scan-guide.md": {
+        "sha256": "a5d16f56db0e51875605f5f42136a7b87ac60d79d0f964a03d5be692487c5e5d",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "docs/reference/uat-authoring-guide.md": {
+        "sha256": "254adef0cd99c18f20675c4dcb60efed7b1c293f41cd241fe9e11160f77b0014",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "docs/reference/user-guide.md": {
+        "sha256": "6cd1d83126d84fa66f94cd68810d557d32b31c5076af1b95f41e9e8142a803a7",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/adr.tmpl": {
+        "sha256": "6f9f92b4a7e3c3e0525d66c151b65bf50728e35f3e8fb10132ad084342065ba8",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/archive-readme.tmpl": {
+        "sha256": "f5c49e5109068c8354e84c756bc1de8766b1d7d489c7d6e575f61d6b2f413779",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/bugs.tmpl": {
+        "sha256": "65d9d7fc576a529b008a9c08b8ae3b8fc096d623553c9b1d2a16270db48e871c",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/changelog.tmpl": {
+        "sha256": "dc56692656e9fa515897d2c0f2f510a98680ad2c159a013b0ad1eaefdbc692fd",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/data-contract.tmpl": {
+        "sha256": "1acf29ae06e8d6969d82e4f8af4e17de18a8abe11603221f2e7faff4b3567e9f",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/doc-index.tmpl": {
+        "sha256": "4b0a4a2f2afc71dd71f3717f3f524a77662956cb588525670cd688cb8907bdbc",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/features.tmpl": {
+        "sha256": "fc6b001cbd5861bd5d37d54768d16207581f87e417a4bce37a1ab8e164c0af01",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/frd.tmpl": {
+        "sha256": "2fa02c18b92f050f2293fa727d1216365e7ac940d7b9ec7724bc87270d118687",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/handoff-test-results.tmpl": {
+        "sha256": "fec344897f05b36fb89ea77e2fe8c82393a699dc976fd67c56c65e0abfd7ec98",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/handoff.tmpl": {
+        "sha256": "5baca2a3e0b20233b6b0c3050c7bc8731ea16dd1caa61dfddd56c741ffd3db55",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/identifiers.tmpl": {
+        "sha256": "7fdfdf4fbe7466a9aeff05d46faa3ced71662cca9aa419ed373effc753a4200c",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/incident-response.tmpl": {
+        "sha256": "16b5db8c4a08bf6ca2e7f940aa7d0e775e5c59d10ac4c7af83b5ad73c5ee2bc1",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/release-notes.tmpl": {
+        "sha256": "e64b1c7cb3e33861efa9dfcddff9b870552f2181d62539345ba31ac18ac0bb18",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/rollback-test.tmpl": {
+        "sha256": "4e914abb2ea717e762a9dbef0833bfd433e829c11814088f9dc9e40aa457aaf0",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/security-audit-findings.tmpl": {
+        "sha256": "138eb091242627b9a68292d78dd05cbbb8e33d17713aa2f26ae4c43a5fe7a814",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/security.tmpl": {
+        "sha256": "4d8ce931de2e567ce41dba21d4b4b220f7292eae12312b488406f04a4a5bab8c",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/threat-model-validation.tmpl": {
+        "sha256": "18896f5073c6d6cbb864bfa79e99034f7288c0d7790ea821492214697809ea73",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "templates/generated/user-journey.tmpl": {
+        "sha256": "1787bc736bc6988d91d453ee6e01baf2e4729493b7a76ee6b49719c894685b60",
+        "mode": "644",
+        "class": "T",
+        "state": "current"
+      },
+      "PROJECT_INTAKE.md": {
+        "sha256": "9ac2d1d21abe52c670b1530234a2b526c5f6c14c20b01c0efa4b3789ec8aca3f",
+        "mode": "644",
+        "class": "A1",
+        "state": "current"
+      },
+      "CLAUDE.md": {
+        "sha256": "cd5cf39d0130d0c2056c340343a53b79c23a44839fdf852d9bfbdf478bbdbdcc",
+        "mode": "644",
+        "class": "A1",
+        "state": "current"
+      }
+    },
+    "renderBases": {
+      "A1": {
+        "PROJECT_INTAKE.md": {
+          "templateSha": "fa5fad808b83b56bbfde6a41b9444d4bfa9d5d8bb3e72931d00627a6ceebe1b6",
+          "outputSha": "9ac2d1d21abe52c670b1530234a2b526c5f6c14c20b01c0efa4b3789ec8aca3f"
+        },
+        "CLAUDE.md": {
+          "templateSha": "8b20bb96f539f9049bde1329710ddd2fb16ca995e3741490b8aa8b63d3e40352",
+          "outputSha": "cd5cf39d0130d0c2056c340343a53b79c23a44839fdf852d9bfbdf478bbdbdcc"
+        }
+      },
+      "A2": {
+        "PROJECT_BIBLE.md": {
+          "templateSha": "1c64825361ef2f410578f85d0425f45ba0e4f487616a6e7b3ad1ba1be2e3c3fe"
+        },
+        "PRODUCT_MANIFESTO.md": {
+          "templateSha": "977dc6a05c13d61ea8d2121ec62e9ed5420ee48ea9659f720deccc4c67ff6395"
+        }
+      }
+    },
+    "hooks": {
+      "commit-msg": "present",
+      "pre-commit": "present"
+    },
+    "mcpProbe": {
+      "context7": "present"
+    }
+  }
+}

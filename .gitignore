@@ -1,0 +1,109 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.pip-cache/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage/
+playwright-report/
+# BL-169: root-anchored — the unanchored form also matched docs/test-results/,
+# silently keeping the Phase-3 evidence the 3→4 gate REQUIRES out of git (the
+# gate then fails on every fresh CI checkout while passing locally). Only the
+# runner's own root-level output dir is ignored; docs/test-results/ is tracked
+# except the transient phase3/ scanner workdir (BL-140).
+/test-results/
+docs/test-results/phase3/
+
+# Debug
+*.log
+npm-debug.log*
+
+# Secrets (belt and suspenders with gitleaks)
+*.pem
+*.key
+*.p12
+*.jks
+*.pfx
+*.keystore
+credentials.json
+service-account.json
+terraform.tfvars
+terraform.tfvars.json
+.npmrc
+
+# Development Guardrails framework migration backup
+# (init.sh removes this after a successful install; ignored as a safety net
+# in case a future flow leaves it behind)
+.claude-backup/
+
+# SYNC SIBLINGS (BL-174) — the two `.claude/*.txt` sidecar ignore lines below
+# (.claude/last-checked-commit.txt and .claude/last-gate-pass.txt) have TWO
+# writers and no mechanical lockstep check: this template, which reaches a
+# project only through init.sh's generate_gitignore(), and the idempotent
+# upgrade-path backfill marked `# BL-174-GITIGNORE-BACKFILL` in
+# scripts/upgrade-project.sh's `_run_idempotent_backfill`, which appends the
+# same two exact lines to an ALREADY-scaffolded project. Change one, change the
+# other IN THE SAME COMMIT — the backfill matches with `grep -qxF`, so an edit
+# here that is not mirrored there silently stops upgraded projects from ever
+# receiving the line (which is the BL-174 defect itself, reintroduced). Same
+# convention as the `# BL-084-TIER-KEY` SYNC-SIBLINGS predicate.
+#
+# BL-030 operational state — the detection baseline file. Not project
+# content. Updated by scripts/detect-out-of-band-commits.sh on every
+# SessionStart and by scripts/reconfigure-project.sh / init.sh after
+# state mutations. Tracking it (a) dirtied the working tree on every
+# detector run, and (b) made init.sh impossible to finish with a clean
+# tree, because the file can never point to its own commit hash.
+.claude/last-checked-commit.txt
+
+# BL-161 operational state — the terminal-commit gate-ran receipt. Written by
+# .git/hooks/framework-gate.sh on every CLEAN strict-mode terminal commit as proof
+# the gate reached its PASS terminal. Not project content, and (like its sibling
+# above) it can never point at its own commit — tracking it left the working tree
+# perpetually one row/line dirty on the final commit of every session
+# (Dogfood-4 F-DF4-007). The audit trail of REAL events (bypass / blocked /
+# out-of-band / enforcement-level) still lives in the TRACKED .claude/bypass-audit.json.
+.claude/last-gate-pass.txt
+
+# BL-109 freshness detector cache (session-start Currency System state)
+.claude/cache/
+
+# Desktop build artifacts
+src-tauri/target/
+release/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.msi
+
+# Solo Orchestrator logs
+.solo-orchestrator/

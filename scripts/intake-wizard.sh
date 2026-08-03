@@ -1,0 +1,2375 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Solo Orchestrator — Intake Wizard
+# Guides users through filling out PROJECT_INTAKE.md interactively.
+#
+# Usage:
+#   scripts/intake-wizard.sh                  # Start or choose mode
+#   scripts/intake-wizard.sh --resume         # Resume from last save point
+#   scripts/intake-wizard.sh --upgrade-to-production  # Upgrade POC to production
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/helpers.sh"
+
+# audit tests-full-known-bugs-2 (closure): allow this file to be sourced
+# by tests without triggering the wizard's project-root discovery,
+# CWD anchor, and main() loop. The guard `return 0 2>/dev/null` succeeds
+# only when the script is being sourced — in normal `bash intake-wizard.sh`
+# invocations it errors out, the negation flips, and the original setup
+# block runs unchanged. This unblocks tests/known-bugs-test-suite.sh from
+# replicating save_answer / init_progress / save_section / _request_pause
+# inline; the tests can now source the file and exercise the real
+# functions, closing the regression-coverage gap the audit cited.
+#
+# PR #104 verifier follow-up (Wave 4 minor #4): the probe was previously
+# the unscoped global `_intake_wizard_sourced`, which leaked into the
+# caller's variable namespace. Renamed to `__SOLO_INTAKE_WIZARD_SOURCED__`
+# (caps + double-underscore prefix is the project convention for
+# module-private globals).
+__SOLO_INTAKE_WIZARD_SOURCED__=0
+(return 0 2>/dev/null) && __SOLO_INTAKE_WIZARD_SOURCED__=1
+
+if [ "$__SOLO_INTAKE_WIZARD_SOURCED__" -ne 1 ]; then
+  # UAT 2026-04-25 fix (U-N): refuse to operate inside the framework repo.
+  guard_not_in_framework || exit 1
+
+  # UAT 2026-04-26 fix (U-G / T1-D): walk up from CWD looking for .claude/.
+  # The previous implementation hardcoded PROJECT_ROOT="$SCRIPT_DIR/.." which
+  # resolved to the framework dir when invoked via bash $FRAMEWORK/scripts/
+  # intake-wizard.sh, breaking --upgrade-deployment / --to-sponsored-poc /
+  # --to-private-poc / --resume. Same shape as scripts/upgrade-project.sh's
+  # find_project_root().
+  find_project_root_for_intake() {
+    local dir="$PWD"
+    while [ "$dir" != "/" ]; do
+      if [ -f "$dir/.claude/phase-state.json" ]; then
+        echo "$dir"
+        return 0
+      fi
+      dir="$(dirname "$dir")"
+    done
+    return 1
+  }
+  if PROJECT_ROOT="$(find_project_root_for_intake)"; then
+    :
+  else
+    print_fail "Could not find project root (no .claude/phase-state.json in CWD or parents)."
+    print_info "Run intake-wizard.sh from your project directory."
+    exit 1
+  fi
+
+  # All passthrough exec's below use relative `scripts/...` paths, and several
+  # wizard sections write into the project's working files. Anchor CWD to the
+  # resolved project root so those paths are unambiguous regardless of where
+  # the wizard was invoked from.
+  cd "$PROJECT_ROOT"
+fi
+
+# Templates ship with the framework, not the project. Defining this
+# outside the sourced/standalone branch keeps the constant available
+# to functions that tests may reach for (e.g. render_intake_file).
+FRAMEWORK_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# When sourced for unit tests PROJECT_ROOT isn't resolved (no walk to a
+# .claude/phase-state.json from the test's CWD). Default to empty so the
+# top-level assignment doesn't trip `set -u` in the test harness; tests
+# override PROGRESS_FILE/INTAKE_FILE before calling save_answer etc.
+PROGRESS_FILE="${PROJECT_ROOT:-}/.claude/intake-progress.json"
+INTAKE_FILE="${PROJECT_ROOT:-}/PROJECT_INTAKE.md"
+# BL-204-PREFILL: the framework manifest is where the git host chosen during
+# init already lives. Declared beside PROGRESS_FILE (and overridable the same
+# way) so run_section_1_repo_setup can be exercised in isolation by tests.
+MANIFEST_FILE="${MANIFEST_FILE:-${PROJECT_ROOT:-}/.claude/manifest.json}"
+SUGGESTIONS_DIR="$FRAMEWORK_ROOT/templates/intake-suggestions"
+
+# Project context (loaded from progress file or phase-state.json)
+PROJECT_NAME="${PROJECT_NAME:-}"
+PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-}"
+PLATFORM="${PLATFORM:-}"
+TRACK="${TRACK:-}"
+DEPLOYMENT="${DEPLOYMENT:-}"
+LANGUAGE="${LANGUAGE:-}"
+POC_MODE="${POC_MODE:-}"
+LAST_SECTION=0
+COMPLETED_SECTIONS=""
+
+# ================================================================
+# UTILITY: Prompt for text input with optional default
+# ================================================================
+# Audit code-intake-wizard-5: every prompt helper short-circuits at
+# entry if the pause sentinel is already set, so once the user types
+# "pause" no further read calls fire in the same section. Combined
+# with the sentinel-check in save_answer, this prevents the empty-
+# string overwrites that the audit cited (one save_answer per
+# remaining prompt corrupting another previously-saved key).
+prompt_input() {
+  if [ -f "${_PAUSE_FILE:-/dev/null/sentinel-cannot-exist}" ]; then
+    echo ""
+    return
+  fi
+  local prompt="$1"
+  local default="${2:-}"
+  local result
+  if [ -n "$default" ]; then
+    read -rp "$(echo -e "  ${BOLD}$prompt${NC} [$default]: ")" result # lint-raw-read-prompt: allow intake-wizard.sh defines its own prompt_input with pause-file semantics (overrides lib/helpers.sh::prompt_input); this IS the wizard's centralized prompt helper
+    result="${result:-$default}"
+  else
+    read -rp "$(echo -e "  ${BOLD}$prompt${NC}: ")" result # lint-raw-read-prompt: allow intake-wizard.sh defines its own prompt_input with pause-file semantics (overrides lib/helpers.sh::prompt_input); this IS the wizard's centralized prompt helper
+  fi
+  if [ "$result" = "pause" ] || [ "$result" = "PAUSE" ] || [ "$result" = "Pause" ]; then
+    _request_pause
+    echo ""
+    return
+  fi
+  echo "$result"
+}
+
+# ================================================================
+# UTILITY: Prompt for numbered choice
+# ================================================================
+prompt_choice() {
+  if [ -f "${_PAUSE_FILE:-/dev/null/sentinel-cannot-exist}" ]; then
+    echo ""
+    return
+  fi
+  local prompt="$1"
+  shift
+  local options=("$@")
+  echo -e "  ${BOLD}$prompt${NC}" >&2
+  for i in "${!options[@]}"; do
+    echo "    $((i+1)). ${options[$i]}" >&2
+  done
+  local choice
+  while true; do
+    read -rp "$(echo -e "  ${BOLD}Select [1-${#options[@]}]${NC}: ")" choice # lint-raw-read-prompt: allow intake-wizard.sh defines its own prompt_choice with pause-file semantics; this IS the wizard's centralized numbered-choice helper
+    if [ "$choice" = "pause" ] || [ "$choice" = "PAUSE" ] || [ "$choice" = "Pause" ]; then
+      _request_pause
+      echo ""
+      return
+    fi
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
+      echo "${options[$((choice-1))]}"
+      return
+    fi
+    echo "  Invalid choice. Enter a number between 1 and ${#options[@]}." >&2
+  done
+}
+
+# ================================================================
+# UTILITY: Prompt with ? for suggestions
+# ================================================================
+prompt_with_suggestions() {
+  if [ -f "${_PAUSE_FILE:-/dev/null/sentinel-cannot-exist}" ]; then
+    echo ""
+    return
+  fi
+  local prompt="$1"
+  local suggestion_key="$2"
+  local default="${3:-}"
+  local result
+
+  while true; do
+    if [ -n "$default" ]; then
+      read -rp "$(echo -e "  ${BOLD}$prompt${NC} [? for suggestions, default: $default]: ")" result # lint-raw-read-prompt: allow intake-wizard.sh prompt_with_suggestions — wizard-specific helper with `?`-trigger semantics that don't fit lib/helpers.sh shape
+    else
+      read -rp "$(echo -e "  ${BOLD}$prompt${NC} [? for suggestions]: ")" result # lint-raw-read-prompt: allow intake-wizard.sh prompt_with_suggestions — wizard-specific helper with `?`-trigger semantics that don't fit lib/helpers.sh shape
+    fi
+
+    if [ "$result" = "pause" ] || [ "$result" = "PAUSE" ] || [ "$result" = "Pause" ]; then
+      _request_pause
+      echo ""
+      return
+    fi
+
+    if [ "$result" = "?" ]; then
+      show_suggestions "$suggestion_key"
+      continue
+    fi
+
+    if [ -z "$result" ] && [ -n "$default" ]; then
+      echo "$default"
+      return
+    fi
+
+    if [ -n "$result" ]; then
+      echo "$result"
+      return
+    fi
+
+    echo "  Please enter a value or type ? for suggestions." >&2
+  done
+}
+
+# ================================================================
+# UTILITY: Show suggestions from JSON files
+# ================================================================
+show_suggestions() {
+  local key="$1"
+  local found=false
+
+  # Try platform-specific suggestions first
+  local platform_file="$SUGGESTIONS_DIR/${PLATFORM}.json"
+  if [ -f "$platform_file" ]; then
+    local suggestions
+    suggestions=$(parse_suggestions "$platform_file" "$key" "$LANGUAGE" 2>/dev/null || true)
+    if [ -n "$suggestions" ]; then
+      echo "" >&2
+      echo -e "  ${CYAN}Based on your project ($PLATFORM, $LANGUAGE):${NC}" >&2
+      echo "$suggestions" >&2
+      echo "" >&2
+      found=true
+    fi
+  fi
+
+  # Fall back to common suggestions
+  local common_file="$SUGGESTIONS_DIR/common.json"
+  if [ "$found" = false ] && [ -f "$common_file" ]; then
+    local suggestions
+    suggestions=$(parse_suggestions "$common_file" "$key" "" 2>/dev/null || true)
+    if [ -n "$suggestions" ]; then
+      echo "" >&2
+      echo -e "  ${CYAN}Suggestions:${NC}" >&2
+      echo "$suggestions" >&2
+      echo "" >&2
+      found=true
+    fi
+  fi
+
+  if [ "$found" = false ]; then
+    echo "  No suggestions available for this field." >&2
+  fi
+}
+
+# ================================================================
+# UTILITY: Parse suggestions from a JSON file using python3
+# ================================================================
+parse_suggestions() {
+  local file="$1"
+  local key="$2"
+  local language="$3"
+
+  if command -v python3 &>/dev/null; then
+    python3 << PYEOF
+import json, sys
+try:
+    with open('$file') as f:
+        data = json.load(f)
+    suggestions = data.get('suggestions', {}).get('$key', {})
+    items = suggestions.get('$language', suggestions.get('default', []))
+    if not items:
+        sys.exit(0)
+    for i, item in enumerate(items, 1):
+        rank_label = ' (recommended)' if item.get('rank') == 1 else ''
+        print(f"    {i}. {item['name']}{rank_label}")
+        print(f"       {item['context']}")
+except Exception:
+    sys.exit(0)
+PYEOF
+  fi
+}
+
+# Pause detection: prompt functions write a sentinel file when the user
+# types "pause". The section runner checks for this file after each prompt.
+#
+# PR #104 verifier follow-up (Wave 4 major #3): the verifier flagged
+# both `_PAUSE_FILE` allocation and the EXIT trap as module-load-time
+# side effects. The allocation is kept unconditional because:
+#   (a) it's a pure variable assignment — no /tmp file is created until
+#       _request_pause() touches it, which only the wizard's prompt loop
+#       calls; sourcing the file alone does NOT touch the filesystem.
+#   (b) the `$$` interpolation captures the sourcing process's PID, so
+#       parallel test runs cannot collide.
+#   (c) tests/known-bugs-test-suite.sh:615 (BUG-8) sources this file
+#       under `set -u` and reads $_PAUSE_FILE directly; gating the
+#       allocation would force every sourced caller to fallback-default
+#       it, undermining the source-real-functions rewrite that closed
+#       tests-full-known-bugs-2.
+# The real clobber risk is the EXIT trap (see below) — that IS gated.
+_PAUSE_FILE="/tmp/.solo-intake-pause-$$"
+
+_request_pause() {
+  touch "$_PAUSE_FILE"
+}
+
+# Check if pause was requested. Call this in the main loop, not in subshells.
+check_pause_requested() {
+  if [ -f "$_PAUSE_FILE" ]; then
+    rm -f "$_PAUSE_FILE"
+    echo ""
+    print_info "Pausing intake wizard. Progress saved."
+    print_info "Resume with: scripts/intake-wizard.sh --resume"
+    exit 0
+  fi
+}
+
+# Clean up pause file on exit.
+#
+# PR #104 verifier follow-up (Wave 4 major #3): the trap is gated on
+# __SOLO_INTAKE_WIZARD_SOURCED__ -ne 1. Pre-fix the trap ran at
+# module-load time even when sourced and silently clobbered any pre-
+# existing EXIT trap in the caller's shell — same defect class as the
+# original BUG-8 the main-guard pattern (lines 27, 2009) was added to
+# fix. Tests escaped today only because each `source` lives inside its
+# own `( ... )` subshell. Gating the trap eliminates the clobber surface
+# for any future caller that does not subshell-wrap. Sourced callers
+# that want pause-file cleanup must register their own trap.
+if [ "${__SOLO_INTAKE_WIZARD_SOURCED__:-0}" -ne 1 ]; then
+  trap 'rm -f "$_PAUSE_FILE"' EXIT
+fi
+
+# ================================================================
+# PROGRESS: Initialize progress file
+# ================================================================
+init_progress() {
+  mkdir -p "$(dirname "$PROGRESS_FILE")"
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import json, sys
+data = {
+    'version': 1,
+    'started_at': sys.argv[1],
+    'last_section': 0,
+    'completed_sections': [],
+    'project_name': sys.argv[2],
+    'platform': sys.argv[3],
+    'track': sys.argv[4],
+    'deployment': sys.argv[5],
+    'language': sys.argv[6],
+    'description': sys.argv[7],
+    'poc_mode': None,
+    'answers': {}
+}
+with open(sys.argv[8], 'w') as f:
+    json.dump(data, f, indent=2)
+" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$PROJECT_NAME" "$PLATFORM" "$TRACK" "$DEPLOYMENT" "$LANGUAGE" "$PROJECT_DESCRIPTION" "$PROGRESS_FILE"
+  fi
+}
+
+# ================================================================
+# PROGRESS: Save a completed section
+# ================================================================
+save_section() {
+  local section_num="$1"
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import json, sys
+section, path = int(sys.argv[1]), sys.argv[2]
+with open(path) as f:
+    data = json.load(f)
+data['last_section'] = section
+if section not in data['completed_sections']:
+    data['completed_sections'].append(section)
+    data['completed_sections'].sort()
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+" "$section_num" "$PROGRESS_FILE"
+  fi
+  print_ok "Section $section_num saved."
+  # Audit code-intake-wizard-1: re-render the human-readable appendix in
+  # PROJECT_INTAKE.md so the file stays in sync with the JSON progress
+  # after every section. Failure to render must not block the wizard.
+  render_intake_file || true
+}
+
+# ================================================================
+# RENDER: Materialize answers from intake-progress.json into
+# PROJECT_INTAKE.md as a fenced "Intake Answers (Auto-Populated)"
+# appendix. Idempotent — replaces any prior fenced block. Creates
+# PROJECT_INTAKE.md (from template if available, otherwise a minimal
+# header) when missing. Skips silently if jq or the progress file is
+# absent — the wizard remains usable on minimal systems.
+# ================================================================
+render_intake_file() {
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -f "$PROGRESS_FILE" ] || return 0
+
+  if [ ! -f "$INTAKE_FILE" ]; then
+    local template="$FRAMEWORK_ROOT/templates/project-intake.md"
+    if [ -f "$template" ]; then
+      local today
+      today=$(date -u +%Y-%m-%d)
+      sed "s/__DATE__/$today/g" "$template" > "$INTAKE_FILE"
+    else
+      printf '# Project Intake\n\n_Auto-created by intake-wizard.sh._\n' > "$INTAKE_FILE"
+    fi
+  fi
+
+  local begin_marker="<!-- INTAKE_ANSWERS_BEGIN -->"
+  local end_marker="<!-- INTAKE_ANSWERS_END -->"
+  local appendix tmp
+  appendix=$(mktemp)
+  tmp=$(mktemp)
+
+  {
+    printf '%s\n' "$begin_marker"
+    printf '\n## Intake Answers (Auto-Populated)\n\n'
+    printf '_Generated by `scripts/intake-wizard.sh` from `.claude/intake-progress.json`._\n'
+    printf '_Last updated: %s_\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    printf '### Project Context\n\n'
+    printf '| Field | Value |\n|---|---|\n'
+    jq -r '
+      def row(label; val): "| " + label + " | " + ((val // "") | tostring) + " |";
+      row("Project name"; .project_name),
+      row("Description"; .description),
+      row("Platform"; .platform),
+      row("Track"; .track),
+      row("Deployment"; .deployment),
+      row("Language"; .language),
+      row("POC mode"; (.poc_mode // "N/A")),
+      row("Last section saved"; (.last_section | tostring)),
+      row("Completed sections"; ((.completed_sections // []) | map(tostring) | join(", ")))
+    ' "$PROGRESS_FILE"
+    printf '\n### Answers\n\n'
+
+    local count
+    count=$(jq -r '(.answers // {}) | length' "$PROGRESS_FILE")
+    if [ "${count:-0}" -gt 0 ]; then
+      printf '| Key | Value |\n|---|---|\n'
+      jq -r '
+        (.answers // {})
+        | to_entries
+        | sort_by(.key)
+        | .[]
+        | "| `" + .key + "` | " + ((.value // "") | tostring | gsub("\\|"; "\\|") | gsub("\n"; " ")) + " |"
+      ' "$PROGRESS_FILE"
+    else
+      printf '_No answers recorded yet._\n'
+    fi
+    printf '\n%s\n' "$end_marker"
+  } > "$appendix"
+
+  # Strip any previous fenced block, then append the fresh one.
+  awk -v b="$begin_marker" -v e="$end_marker" '
+    $0 == b { skip = 1; next }
+    $0 == e { skip = 0; next }
+    skip != 1 { print }
+  ' "$INTAKE_FILE" > "$tmp"
+
+  # Trim trailing blank lines, then append.
+  awk 'BEGIN{blank=0} /^$/{blank++; next} {while(blank-->0) print ""; blank=0; print} END{print ""}' "$tmp" > "$INTAKE_FILE"
+  cat "$appendix" >> "$INTAKE_FILE"
+
+  rm -f "$tmp" "$appendix"
+}
+
+# ================================================================
+# PROGRESS: Save an answer to the progress file
+# ================================================================
+# Audit code-intake-wizard-5: bail out early when the pause sentinel
+# exists. Before this guard, callers like `problem=$(prompt_input ...)`
+# followed by `save_answer "problem_statement" "$problem"` would write
+# the empty string returned by the paused prompt, corrupting whatever
+# the user had previously saved. The guard combined with the early-
+# exit checks in prompt_input/prompt_choice/prompt_with_suggestions
+# makes pause immediate at the granularity of the next prompt.
+save_answer() {
+  if [ -f "${_PAUSE_FILE:-/dev/null/sentinel-cannot-exist}" ]; then
+    return
+  fi
+  local key="$1"
+  local value="$2"
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import json, sys
+key, value, path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f:
+    data = json.load(f)
+data['answers'][key] = value
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+" "$key" "$value" "$PROGRESS_FILE"
+  fi
+}
+
+# ================================================================
+# PROGRESS: Load progress and project context
+# ================================================================
+load_progress() {
+  if [ ! -f "$PROGRESS_FILE" ]; then
+    print_warn "No progress file found."
+    return 1
+  fi
+
+  if command -v python3 &>/dev/null; then
+    # Write to a temp file to avoid eval injection from user-provided values
+    local tmpfile
+    tmpfile=$(mktemp)
+    python3 -c "
+import json, sys, shlex
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+# Use shlex.quote to safely escape all values for shell assignment
+print(f\"LAST_SECTION={data['last_section']}\")
+print(f\"PROJECT_NAME={shlex.quote(data['project_name'])}\")
+print(f\"PLATFORM={shlex.quote(data['platform'])}\")
+print(f\"TRACK={shlex.quote(data['track'])}\")
+print(f\"DEPLOYMENT={shlex.quote(data['deployment'])}\")
+print(f\"LANGUAGE={shlex.quote(data['language'])}\")
+print(f\"PROJECT_DESCRIPTION={shlex.quote(data['description'])}\")
+poc = data.get('poc_mode') or ''
+print(f\"POC_MODE={shlex.quote(poc)}\")
+completed = ' '.join(str(s) for s in data.get('completed_sections', []))
+print(f\"COMPLETED_SECTIONS={shlex.quote(completed)}\")
+" "$PROGRESS_FILE" > "$tmpfile"
+    # shellcheck disable=SC1090
+    source "$tmpfile"
+    rm -f "$tmpfile"
+  fi
+}
+
+# ================================================================
+# PROGRESS: Load project context from phase-state.json
+# ================================================================
+load_project_context() {
+  local phase_file="$PROJECT_ROOT/.claude/phase-state.json"
+  local prefs_file="$PROJECT_ROOT/.claude/tool-preferences.json"
+
+  # Load from phase-state.json
+  if [ -f "$phase_file" ] && command -v jq &>/dev/null; then
+    PROJECT_NAME=$(jq -r '.project // empty' "$phase_file" 2>/dev/null)
+    TRACK=$(jq -r '.track // empty' "$phase_file" 2>/dev/null)
+    # BL-095: parse via the # BL-095-STATE-READERS fence (lib/helpers-core.sh).
+    DEPLOYMENT=$(soif_read_deployment "$phase_file")
+    POC_MODE=$(soif_read_poc_mode "$phase_file")
+    [ "$POC_MODE" = "null" ] && POC_MODE=""
+  fi
+
+  # Load from tool-preferences.json
+  if [ -f "$prefs_file" ] && command -v jq &>/dev/null; then
+    PLATFORM=$(jq -r '.context.platform // empty' "$prefs_file" 2>/dev/null)
+    LANGUAGE=$(jq -r '.context.language // empty' "$prefs_file" 2>/dev/null)
+  fi
+
+  # Load description from CLAUDE.md if available (it's embedded there by init)
+  if [ -f "$PROJECT_ROOT/CLAUDE.md" ] && [ -z "$PROJECT_DESCRIPTION" ]; then
+    PROJECT_DESCRIPTION=$(grep -A1 "## Project" "$PROJECT_ROOT/CLAUDE.md" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//' || echo "")
+  fi
+}
+
+# ================================================================
+# PROGRESS: Check if a section is completed
+# ================================================================
+is_section_complete() {
+  local section_num="$1"
+  [[ " $COMPLETED_SECTIONS " == *" $section_num "* ]]
+}
+
+# ================================================================
+# SECTION 1: Project Identity
+# ================================================================
+run_section_1() {
+  print_step "Section 1: Project Identity"
+  echo ""
+  print_info "Most fields are pre-filled from your init.sh answers."
+  echo ""
+
+  local codename
+  codename=$(prompt_input "Project codename (if different from '$PROJECT_NAME', or Enter to skip)" "")
+  save_answer "codename" "${codename:-N/A}"
+
+  local target_platforms
+  target_platforms=$(prompt_input "Target platforms (e.g., 'all modern browsers', 'Windows 10+, macOS 12+')" "")
+  save_answer "target_platforms" "$target_platforms"
+
+  local repo_url
+  repo_url=$(prompt_input "Repository URL (if already created, or Enter to skip)" "")
+  save_answer "repo_url" "${repo_url:-TBD}"
+
+  run_section_1_repo_setup
+
+  save_section 1
+  echo ""
+}
+
+# ================================================================
+# BL-204-VISIBILITY-EXPLAIN — plain-language private vs public
+# ================================================================
+# BL-204 finding 6: the visibility prompt was a bare `private|public` with
+# zero explanation, and choosing "private" on a free-tier personal GitHub
+# account silently forfeits branch protection — a cost that only surfaces
+# much later in the run, as an attestation prompt the user has no context
+# for. Say it HERE, where the choice is actually made.
+_bl204_explain_visibility() {
+  print_info "Who can see this code?"
+  print_info "  private — only you and the people you invite can see the code. Most projects."
+  print_info "  public  — anyone on the internet can read the code. Only you can change it."
+  print_info ""
+  print_info "One trade-off worth knowing before you choose:"
+  print_info "  On a free personal GitHub account, a PRIVATE repo cannot have branch protection"
+  print_info "  (the safety rail that stops accidental force-pushes and deletions of main)."
+  print_info "  If you pick private on a free account, the framework will later ask you to"
+  print_info "  attest that you follow those rules by hand instead. A PUBLIC repo on the same"
+  print_info "  free account gets the real thing, and so does a private repo on a paid plan."
+}
+
+# ================================================================
+# SECTION 1 (repo half): git host + repository visibility
+# ================================================================
+# Split out of run_section_1 by BL-204 so the whole repo-setup exchange —
+# the "why", the prefill, the probe, the visibility explanation — is one
+# reviewable unit that tests can drive in isolation.
+run_section_1_repo_setup() {
+  # BL-204-REMOTE-WHY (finding 8): say why any of this matters BEFORE asking
+  # which host. Pre-fix this framing existed ONLY inside the data-loss warning
+  # arm, i.e. only after something had already gone wrong.
+  print_info "About the next two questions: your remote is your backup."
+  print_info "It is the copy of this project that lives somewhere other than this machine."
+  print_info "If this disk dies and there is no remote, every bit of the work is gone."
+  echo ""
+
+  # --- Git host selection (spec 2026-04-21 host-aware repo gate) ---
+  # BL-204-PREFILL (finding 7): the host was already chosen during init and
+  # recorded in .claude/manifest.json — by the time this wizard runs the
+  # remote usually EXISTS. Asking again, blind, reads to a novice as "my
+  # earlier answer didn't save". Show what is remembered and confirm it.
+  local git_host="" remembered_host="" host_was_remembered=0
+  if [ -f "$MANIFEST_FILE" ] && command -v jq >/dev/null 2>&1; then
+    :  # guard: keeps the block well-formed when the marked read is excised
+    remembered_host=$(jq -r '.host // empty' "$MANIFEST_FILE" 2>/dev/null || echo "")  # BL-204-PREFILL-READ
+  fi
+  if [ -n "$remembered_host" ]; then
+    host_was_remembered=1
+    print_info "Remembered from your setup answers — git host: $remembered_host"
+    print_info "(recorded in .claude/manifest.json; you are confirming it, not re-answering it)"
+    local host_confirm
+    host_confirm=$(prompt_choice "Keep '$remembered_host' as the git host?" \
+      "keep it" \
+      "change it")
+    if [ "$host_confirm" = "change it" ]; then
+      host_was_remembered=0
+      git_host=$(prompt_choice "Git host for this project:" \
+        "github" \
+        "gitlab" \
+        "bitbucket" \
+        "other")
+    else
+      git_host="$remembered_host"
+    fi
+  else
+    git_host=$(prompt_choice "Git host for this project:" \
+      "github" \
+      "gitlab" \
+      "bitbucket" \
+      "other")
+  fi
+  save_answer "git_host" "$git_host"
+
+  # BL-204-PROBE-AT-SELECT (wizard half of finding 5): probe only when the
+  # host is genuinely being CHOSEN here. A remembered host means init already
+  # created the remote against it, so a second probe is noise at best and, if
+  # the CLI has since been uninstalled, an alarming false problem.
+  if [ "$host_was_remembered" -eq 0 ] && [ "$git_host" != "other" ]; then
+    local dispatcher="$SCRIPT_DIR/lib/host.sh"
+    local driver="$SCRIPT_DIR/host-drivers/$git_host.sh"
+    if [ -f "$dispatcher" ] && [ -f "$driver" ]; then
+      # shellcheck disable=SC1090
+      source "$dispatcher"
+      source "$driver"
+      if ! host_require_cli 2>/tmp/host-cli-probe.$$; then
+        cat /tmp/host-cli-probe.$$ >&2
+        rm -f /tmp/host-cli-probe.$$
+        local action
+        action=$(prompt_choice "Host CLI unavailable — what now?" \
+          "retry" \
+          "switch" \
+          "continue")
+        case "$action" in
+          retry)
+            if ! host_require_cli; then
+              echo "Still unavailable. Install the CLI and rerun the wizard." >&2
+              exit 1
+            fi
+            ;;
+          switch)
+            git_host=$(prompt_choice "Choose a different host:" "github" "gitlab" "bitbucket" "other")
+            save_answer "git_host" "$git_host"
+            ;;
+          continue)
+            # BL-204 finding 5: the pre-fix line here promised the CLI would
+            # "be verified again at init.sh". That is backwards — this wizard
+            # runs AFTER init, so nothing downstream re-verifies. Name the
+            # actual remediation instead.
+            echo "Continuing intake — the wizard itself does not need the host CLI." >&2
+            echo "Setting up the remote already happened during setup. If that step did" >&2
+            echo "not finish, install and authenticate the CLI, then run:" >&2
+            echo "  bash scripts/check-gate.sh --repair" >&2
+            ;;
+        esac
+      fi
+      rm -f /tmp/host-cli-probe.$$
+    fi
+  fi
+
+  # --- Repository visibility ---
+  # BL-204-PREFILL (finding 7): visibility lives only in
+  # .claude/intake-progress.json::answers.repo_visibility — the manifest never
+  # records it. Same confirm-don't-re-ask treatment as the host above; the two
+  # halves prefill independently because their sources are independent.
+  local repo_visibility="" remembered_visibility=""
+  if [ -f "$PROGRESS_FILE" ] && command -v jq >/dev/null 2>&1; then
+    :  # guard: keeps the block well-formed when the marked read is excised
+    remembered_visibility=$(jq -r '.answers.repo_visibility // empty' "$PROGRESS_FILE" 2>/dev/null || echo "")  # BL-204-PREFILL-READ
+  fi
+  if [ -n "$remembered_visibility" ]; then
+    print_info "Remembered from your setup answers — repository visibility: $remembered_visibility"
+    local vis_confirm
+    vis_confirm=$(prompt_choice "Keep '$remembered_visibility' as the repository visibility?" \
+      "keep it" \
+      "change it")
+    if [ "$vis_confirm" = "change it" ]; then
+      _bl204_explain_visibility
+      repo_visibility=$(prompt_choice "Repository visibility:" "private" "public")
+    else
+      repo_visibility="$remembered_visibility"
+    fi
+  else
+    _bl204_explain_visibility
+    repo_visibility=$(prompt_choice "Repository visibility:" "private" "public")
+  fi
+  save_answer "repo_visibility" "$repo_visibility"
+}
+
+# ================================================================
+# SECTION 2: Business Context
+# ================================================================
+run_section_2() {
+  print_step "Section 2: Business Context"
+  echo ""
+
+  # 2.1 The Problem
+  print_info "2.1 The Problem"
+  print_info "Describe the problem concretely — not 'improve efficiency' but"
+  print_info "'reconciling vendor invoices takes 6 hours/week of manual spreadsheet work.'"
+  echo ""
+  local problem
+  problem=$(prompt_input "What problem does this solve?" "")
+  save_answer "problem_statement" "$problem"
+
+  # 2.2 Who Has This Problem
+  echo ""
+  print_info "2.2 Who Has This Problem"
+  echo ""
+  local primary_persona
+  primary_persona=$(prompt_input "Primary user persona (job title, skill level, what they're trying to do)" "")
+  save_answer "primary_persona" "$primary_persona"
+
+  local secondary_personas
+  secondary_personas=$(prompt_input "Secondary personas (or Enter to skip)" "")
+  save_answer "secondary_personas" "${secondary_personas:-N/A}"
+
+  local current_solution
+  current_solution=$(prompt_input "How do they solve this today? (spreadsheet, manual process, different tool)" "")
+  save_answer "current_solution" "$current_solution"
+
+  local current_problem
+  current_problem=$(prompt_input "What's wrong with the current solution?" "")
+  save_answer "current_problem" "$current_problem"
+
+  # 2.3 Success Criteria
+  echo ""
+  print_info "2.3 Success Criteria — define 1-3 measurable metrics"
+  echo ""
+  for i in 1 2 3; do
+    local metric
+    metric=$(prompt_input "Success metric $i (or Enter to finish)" "")
+    [ -z "$metric" ] && break
+
+    local target
+    target=$(prompt_input "  Target value for '$metric'" "")
+    local measurement
+    measurement=$(prompt_input "  How will you measure this?" "")
+    save_answer "metric_${i}_name" "$metric"
+    save_answer "metric_${i}_target" "$target"
+    save_answer "metric_${i}_measurement" "$measurement"
+    echo ""
+  done
+
+  # 2.4 What This Is NOT
+  print_info "2.4 What This Is NOT — list 3-5 things explicitly out of scope"
+  echo ""
+  for i in 1 2 3 4 5; do
+    local exclusion
+    if [ "$i" -le 3 ]; then
+      exclusion=$(prompt_input "Out-of-scope item $i" "")
+    else
+      exclusion=$(prompt_input "Out-of-scope item $i (or Enter to finish)" "")
+      [ -z "$exclusion" ] && break
+    fi
+    save_answer "exclusion_$i" "$exclusion"
+  done
+
+  save_section 2
+  echo ""
+}
+
+# ================================================================
+# SECTION 3: Constraints
+# ================================================================
+run_section_3() {
+  print_step "Section 3: Constraints"
+  echo ""
+
+  # 3.1 Timeline
+  print_info "3.1 Timeline"
+  echo ""
+  local mvp_date
+  mvp_date=$(prompt_with_suggestions "Target MVP date or timeframe" "timeline_mvp" "")
+  save_answer "mvp_date" "$mvp_date"
+
+  local hard_deadline
+  hard_deadline=$(prompt_choice "Is this a hard deadline?" "No" "Yes — consequences if missed")
+  save_answer "hard_deadline" "$hard_deadline"
+
+  local hours_per_week
+  hours_per_week=$(prompt_input "Hours per week you can dedicate" "10")
+  save_answer "hours_per_week" "$hours_per_week"
+
+  local time_pattern
+  time_pattern=$(prompt_choice "Work pattern:" "Blocked time (dedicated sessions)" "Interleaved (between other work, 1-2 hour windows)")
+  save_answer "time_pattern" "$time_pattern"
+
+  # 3.2 Budget
+  echo ""
+  print_info "3.2 Budget"
+  echo ""
+  local monthly_budget
+  monthly_budget=$(prompt_with_suggestions "Monthly infrastructure budget ceiling" "budget_monthly" "")
+  save_answer "monthly_budget" "$monthly_budget"
+
+  local one_time_budget
+  one_time_budget=$(prompt_input "One-time budget (or N/A)" "N/A")
+  save_answer "one_time_budget" "$one_time_budget"
+
+  local ai_subscription
+  ai_subscription=$(prompt_choice "AI subscription status:" "Claude Max (\$100/mo)" "Claude Enterprise" "API with commercial terms" "Not yet subscribed")
+  save_answer "ai_subscription" "$ai_subscription"
+
+  # 3.3 Users
+  echo ""
+  print_info "3.3 Users"
+  echo ""
+  local users_launch
+  users_launch=$(prompt_input "Expected users at launch" "")
+  save_answer "users_launch" "$users_launch"
+
+  local users_6mo
+  users_6mo=$(prompt_input "Expected users at 6 months" "")
+  save_answer "users_6mo" "$users_6mo"
+
+  local users_12mo
+  users_12mo=$(prompt_input "Expected users at 12 months" "")
+  save_answer "users_12mo" "$users_12mo"
+
+  local user_type
+  user_type=$(prompt_choice "Internal or external users?" "Internal (within organization)" "External (public or customer-facing)")
+  save_answer "user_type" "$user_type"
+
+  local geo_distribution
+  geo_distribution=$(prompt_input "Geographic distribution (e.g., 'US only', 'Global', 'Single office')" "")
+  save_answer "geo_distribution" "$geo_distribution"
+
+  save_section 3
+  echo ""
+}
+
+# ================================================================
+# SECTION 4: Features & Requirements
+# ================================================================
+run_section_4() {
+  print_step "Section 4: Features & Requirements"
+  echo ""
+
+  # 4.1 Must-Have Features
+  print_info "4.1 Must-Have Features (MVP)"
+  print_info "For each feature, you'll define:"
+  print_info "  - The feature name"
+  print_info "  - Business logic trigger: 'If [condition], the system must [action]'"
+  print_info "  - Failure state: what happens on invalid input or service unavailable"
+  echo ""
+
+  for i in 1 2 3 4 5 6 7 8; do
+    local feature_name
+    if [ "$i" -le 2 ]; then
+      feature_name=$(prompt_input "Must-have feature $i" "")
+    else
+      feature_name=$(prompt_input "Must-have feature $i (or Enter to finish)" "")
+      [ -z "$feature_name" ] && break
+    fi
+
+    local trigger
+    trigger=$(prompt_input "  Business logic: If [condition], system must [action]" "")
+
+    local failure
+    failure=$(prompt_input "  Failure state: what happens when it goes wrong?" "")
+
+    save_answer "feature_${i}_name" "$feature_name"
+    save_answer "feature_${i}_trigger" "$trigger"
+    save_answer "feature_${i}_failure" "$failure"
+    echo ""
+  done
+
+  # 4.2 Should-Have
+  print_info "4.2 Should-Have Features (post-MVP)"
+  echo ""
+  for i in 1 2 3 4 5; do
+    local should_have
+    should_have=$(prompt_input "Should-have feature $i (or Enter to finish)" "")
+    [ -z "$should_have" ] && break
+    save_answer "should_have_$i" "$should_have"
+  done
+
+  # 4.3 Will-Not-Have
+  echo ""
+  print_info "4.3 Will-Not-Have Features (explicit exclusions)"
+  echo ""
+  for i in 1 2 3 4 5; do
+    local will_not
+    if [ "$i" -le 3 ]; then
+      will_not=$(prompt_input "Will-not-have $i" "")
+    else
+      will_not=$(prompt_input "Will-not-have $i (or Enter to finish)" "")
+      [ -z "$will_not" ] && break
+    fi
+    save_answer "will_not_$i" "$will_not"
+  done
+
+  save_section 4
+  echo ""
+}
+
+# ================================================================
+# SECTION 5: Data & Integrations
+# ================================================================
+run_section_5() {
+  print_step "Section 5: Data & Integrations"
+  echo ""
+
+  # 5.1 Data Inputs
+  print_info "5.1 Data Inputs — what data does the system accept?"
+  echo ""
+  for i in 1 2 3 4 5 6; do
+    local input_name
+    if [ "$i" -le 1 ]; then
+      input_name=$(prompt_input "Data input $i name" "")
+    else
+      input_name=$(prompt_input "Data input $i name (or Enter to finish)" "")
+      [ -z "$input_name" ] && break
+    fi
+
+    local data_type
+    data_type=$(prompt_input "  Data type (e.g., string, number, file, JSON)" "")
+    local validation
+    validation=$(prompt_input "  Validation rules" "")
+    local sensitivity
+    sensitivity=$(prompt_with_suggestions "  Sensitivity level" "data_sensitivity" "Internal")
+    local required
+    required=$(prompt_choice "  Required?" "Yes" "No")
+
+    save_answer "input_${i}_name" "$input_name"
+    save_answer "input_${i}_type" "$data_type"
+    save_answer "input_${i}_validation" "$validation"
+    save_answer "input_${i}_sensitivity" "$sensitivity"
+    save_answer "input_${i}_required" "$required"
+    echo ""
+  done
+
+  # 5.2 Data Outputs
+  echo ""
+  print_info "5.2 Data Outputs"
+  echo ""
+  for i in 1 2 3 4; do
+    local output_name
+    output_name=$(prompt_input "Data output $i name (or Enter to finish)" "")
+    [ -z "$output_name" ] && break
+    local format
+    format=$(prompt_input "  Format (e.g., JSON, CSV, HTML, PDF)" "")
+    local latency
+    latency=$(prompt_input "  Latency expectation (e.g., <200ms, <2s, batch)" "")
+    save_answer "output_${i}_name" "$output_name"
+    save_answer "output_${i}_format" "$format"
+    save_answer "output_${i}_latency" "$latency"
+  done
+
+  # 5.3 Third-Party Integrations
+  echo ""
+  print_info "5.3 Third-Party Integrations (or Enter to skip)"
+  echo ""
+  for i in 1 2 3; do
+    local service
+    service=$(prompt_input "Integration $i — service name (or Enter to finish)" "")
+    [ -z "$service" ] && break
+    local data_exchanged
+    data_exchanged=$(prompt_input "  Data sent/received" "")
+    local auth_method
+    auth_method=$(prompt_input "  Auth method (API key, OAuth, none)" "")
+    local fallback
+    fallback=$(prompt_input "  Fallback if unavailable" "")
+    save_answer "integration_${i}_service" "$service"
+    save_answer "integration_${i}_data" "$data_exchanged"
+    save_answer "integration_${i}_auth" "$auth_method"
+    save_answer "integration_${i}_fallback" "$fallback"
+  done
+
+  # 5.4 Data Persistence
+  echo ""
+  print_info "5.4 Data Persistence"
+  echo ""
+  local persistent_data
+  persistent_data=$(prompt_input "What data persists across sessions?" "")
+  save_answer "persistent_data" "$persistent_data"
+
+  local ephemeral_data
+  ephemeral_data=$(prompt_input "What data is ephemeral (session-only)?" "")
+  save_answer "ephemeral_data" "$ephemeral_data"
+
+  local data_volume
+  data_volume=$(prompt_input "Expected data volume at 12 months (e.g., <1GB, 10GB, 100GB+)" "")
+  save_answer "data_volume" "$data_volume"
+
+  local retention
+  retention=$(prompt_input "Data retention requirements (e.g., 'indefinite', '7 years', 'until user deletes')" "")
+  save_answer "retention" "$retention"
+
+  local backup
+  backup=$(prompt_with_suggestions "Backup requirements" "backup_strategy" "Daily automated backups")
+  save_answer "backup" "$backup"
+
+  # 5.5 Phase 1 Data Classification & ZDR Attestation (tier-crosscheck-6)
+  #
+  # docs/governance-framework.md § VII line 299 declares a Mandatory ZDR
+  # gate at Phase 1: projects classified Internal or higher MUST use the
+  # ZDR or self-hosted deployment path. The gate was documented but
+  # never enforced; this section captures the two values that
+  # scripts/check-phase-gate.sh now reads as a Phase 1→2 invariant
+  # (the same way it treats github_free_tier branch-protection
+  # attestation, PR #75). 7-tier taxonomy mirrors
+  # templates/project-intake.md:209.
+  if [ ! -f "${_PAUSE_FILE:-/dev/null/sentinel-cannot-exist}" ]; then
+    echo ""
+    print_info "5.5 Data Classification & ZDR Attestation (Phase 1 invariant — tier-crosscheck-6)"
+    echo ""
+    local data_classification
+    data_classification=$(prompt_choice "Highest classification of any data this system handles:" \
+      "public" "internal" "confidential" "pii" "financial" "health" "regulated")
+    save_answer "data_classification" "$data_classification"
+
+    local zdr_attested="false" zdr_attestation_reason=""
+    if [ "$data_classification" = "public" ]; then
+      print_info "  Public data: ZDR not required (governance-framework.md § VII line 297-299)."
+      zdr_attested="false"
+    else
+      if prompt_yes_no "Is ZDR (Zero Data Retention) or self-hosted LLM in place for this project? [Y/n]" "Y"; then
+        zdr_attested="true"
+      else
+        zdr_attested="false"
+        zdr_attestation_reason=$(prompt_input "Documented exception (required when ZDR not attested) — e.g. 'customer SOW requires retention'" "")
+        if [ -z "$zdr_attestation_reason" ]; then
+          print_warn "ZDR not attested AND no documented exception — Phase 1→2 gate will FAIL until this is set."
+          print_warn "Run: bash scripts/reconfigure-project.sh --field zdr_attestation_reason --new \"<text>\""
+        fi
+      fi
+    fi
+    save_answer "zdr_attested" "$zdr_attested"
+    save_answer "zdr_attestation_reason" "$zdr_attestation_reason"
+
+    # Mirror the captured values into .claude/process-state.json so
+    # scripts/check-phase-gate.sh can read them as a Phase 1→2 invariant.
+    # This is the canonical location for Phase 1 artifacts; the
+    # answers/ copy in intake-progress.json is for resume/audit only.
+    persist_phase1_artifacts "$data_classification" "$zdr_attested" "$zdr_attestation_reason"
+  fi
+
+  save_section 5
+  echo ""
+}
+
+# ================================================================
+# PHASE 1 ARTIFACTS: persist data_classification + ZDR attestation
+# into .claude/process-state.json::phase1_artifacts.
+# ================================================================
+# tier-crosscheck-6: the gate at scripts/check-phase-gate.sh reads from
+# this canonical location. The function is idempotent — re-running with
+# the same values is a no-op write; running with different values
+# overwrites in-place. process-state.json is initialized at init.sh
+# time (.phase2_init etc.); we add phase1_artifacts when absent.
+persist_phase1_artifacts() {
+  local classification="$1"
+  local attested="$2"
+  local reason="$3"
+  local pstate="${PROJECT_ROOT:-.}/.claude/process-state.json"
+  if [ ! -f "$pstate" ]; then
+    print_warn "  $pstate not found — skipping phase1_artifacts persistence."
+    print_info "  Run scripts/init.sh in this project to create it, then re-run intake."
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    print_warn "  jq not available — skipping phase1_artifacts persistence (data captured in intake-progress.json)."
+    return 0
+  fi
+  local jq_bool="false"
+  case "$attested" in
+    true|True|TRUE) jq_bool="true" ;;
+  esac
+  local tmp
+  tmp=$(mktemp)
+  # PR #105 verifier follow-up: the prior implementation ran
+  # `jq ... > tmp && mv tmp pstate` followed by an unconditional
+  # `print_ok` — a malformed process-state.json produced "Phase 1
+  # artifacts persisted" on stdout and rc=0 even though jq's parse
+  # error went to stderr and the file was unchanged. Capture both
+  # exit codes and refuse to print success unless the chain actually
+  # succeeded.
+  if ! jq --arg c "$classification" --argjson a "$jq_bool" --arg r "$reason" \
+       '.phase1_artifacts = ((.phase1_artifacts // {}) +
+          {data_classification: $c, zdr_attested: $a, zdr_attestation_reason: $r})' \
+       "$pstate" > "$tmp"; then
+    rm -f "$tmp"
+    print_fail "  Phase 1 artifacts persistence failed: jq could not parse $pstate" >&2
+    echo "  Remediation: inspect $pstate for malformed JSON (truncation, stray characters)." >&2
+    echo "  If the file is unrecoverable, restore from a .bak or re-run scripts/init.sh." >&2
+    return 1
+  fi
+  if ! mv "$tmp" "$pstate"; then
+    rm -f "$tmp"
+    print_fail "  Phase 1 artifacts persistence failed: mv into $pstate failed (cross-filesystem? read-only?)" >&2
+    return 1
+  fi
+  print_ok "  Phase 1 artifacts persisted to process-state.json (classification=$classification, zdr_attested=$attested)"
+}
+
+# ================================================================
+# SECTION 6: Technical Preferences
+# ================================================================
+run_section_6() {
+  print_step "Section 6: Technical Preferences"
+  echo ""
+
+  # 6.1 Orchestrator Technical Profile
+  print_info "6.1 Your Technical Profile"
+  echo ""
+
+  local languages_known
+  languages_known=$(prompt_input "Languages you know well" "$LANGUAGE")
+  save_answer "languages_known" "$languages_known"
+
+  local frameworks_used
+  frameworks_used=$(prompt_input "Frameworks you've used" "")
+  save_answer "frameworks_used" "$frameworks_used"
+
+  local willing_to_learn
+  willing_to_learn=$(prompt_input "Willing to learn (or Enter to skip)" "")
+  save_answer "willing_to_learn" "${willing_to_learn:-N/A}"
+
+  local refuse_to_use
+  refuse_to_use=$(prompt_input "Refuse to use (or Enter to skip)" "")
+  save_answer "refuse_to_use" "${refuse_to_use:-N/A}"
+
+  local db_experience
+  db_experience=$(prompt_input "Database experience (e.g., PostgreSQL, MySQL, MongoDB, none)" "")
+  save_answer "db_experience" "$db_experience"
+
+  local devops_experience
+  devops_experience=$(prompt_choice "DevOps experience:" "None" "Basic (can deploy to a PaaS)" "Intermediate (Docker, CI/CD)" "Advanced (Kubernetes, IaC)")
+  save_answer "devops_experience" "$devops_experience"
+
+  # 6.2 Competency Matrix
+  echo ""
+  print_info "6.2 Competency Matrix"
+  print_info "For each domain: can you review AI output and reliably determine if it's correct?"
+  print_info "Every honest 'No' adds automated coverage. Every dishonest 'Yes' creates a gap."
+  echo ""
+
+  # Audit code-intake-wizard-6: capture the template's third column
+  # ("Automated Tooling Required?") so Phase 3 enforcement and Phase 2
+  # exit peer-review (baseline §3.3 / §3.4 — Security row drives the
+  # organizational peer-review gate) have a recorded source of truth.
+  # For Partially/No answers we present a framework-default tooling
+  # bundle per domain; the operator presses Enter to accept the default
+  # or overrides with free text. Yes answers store "N/A" so the
+  # rendered table is column-complete.
+  local domains=("Product/UX Logic" "Frontend Code" "Backend/API Design" "Database Design" "Security" "DevOps/Infrastructure" "Accessibility" "Performance" "Mobile")
+  for domain in "${domains[@]}"; do
+    local assessment
+    assessment=$(prompt_choice "$domain:" "Yes — I can reliably validate this" "Partially — I can catch obvious issues" "No — I need automated tooling here")
+    case "$assessment" in
+      "Yes"*) assessment="Yes" ;;
+      "Partially"*) assessment="Partially" ;;
+      "No"*) assessment="No" ;;
+    esac
+    local key
+    key=$(echo "$domain" | tr '/ ' '_' | tr '[:upper:]' '[:lower:]')
+    save_answer "competency_$key" "$assessment"
+
+    # Tooling capture (third column). Skip silently after a pause.
+    if [ -f "${_PAUSE_FILE:-/dev/null/sentinel-cannot-exist}" ]; then
+      continue
+    fi
+    local tooling
+    if [ "$assessment" = "Yes" ]; then
+      tooling="N/A"
+    else
+      local default_tooling
+      case "$key" in
+        product_ux_logic)      default_tooling="UX heuristic review + usability test script" ;;
+        frontend_code)         default_tooling="ESLint + Prettier + axe-core + Playwright" ;;
+        backend_api_design)    default_tooling="OpenAPI contract tests + Postman/Newman + schemathesis" ;;
+        database_design)       default_tooling="SQL linter (sqlfluff) + schema-migration tests + EXPLAIN review" ;;
+        security)              default_tooling="gitleaks + Semgrep + Snyk (SCA + container)" ;;
+        devops_infrastructure) default_tooling="tflint + checkov + IaC plan review + GitHub Actions linter" ;;
+        accessibility)         default_tooling="axe-core + Lighthouse a11y audit + screen-reader smoke test" ;;
+        performance)           default_tooling="Lighthouse perf + k6 (load) + Web Vitals dashboard" ;;
+        mobile)                default_tooling="Detox/XCUITest + device farm (BrowserStack/Sauce) + crash reporting" ;;
+        *)                     default_tooling="Recommended automated tooling (TBD — define before Phase 3)" ;;
+      esac
+      tooling=$(prompt_input "  Automated tooling for $domain" "$default_tooling")
+    fi
+    save_answer "competency_${key}_tooling" "$tooling"
+  done
+
+  # 6.3 Development Environment
+  echo ""
+  print_info "6.3 Development Environment"
+  echo ""
+
+  local primary_machine
+  primary_machine=$(prompt_input "Primary machine (e.g., 'MacBook Pro M3, macOS 15')" "")
+  save_answer "primary_machine" "$primary_machine"
+
+  local ide
+  ide=$(prompt_input "IDE/Editor" "VS Code")
+  save_answer "ide" "$ide"
+
+  local docker_available
+  docker_available=$(prompt_choice "Docker available?" "Yes" "No")
+  save_answer "docker_available" "$docker_available"
+
+  # 6.4 Architecture Preferences (platform-specific)
+  echo ""
+  print_info "6.4 Architecture Preferences"
+  echo ""
+
+  local data_storage
+  data_storage=$(prompt_with_suggestions "Data storage preference" "database" "")
+  save_answer "data_storage" "$data_storage"
+
+  local auth_strategy
+  auth_strategy=$(prompt_with_suggestions "Authentication strategy" "authentication" "")
+  save_answer "auth_strategy" "$auth_strategy"
+
+  # Platform-specific questions
+  case "$PLATFORM" in
+    web)
+      local frontend_fw
+      frontend_fw=$(prompt_with_suggestions "Frontend framework" "frontend_framework" "")
+      save_answer "frontend_framework" "$frontend_fw"
+
+      local hosting
+      hosting=$(prompt_with_suggestions "Hosting provider" "hosting" "")
+      save_answer "hosting" "$hosting"
+      ;;
+    desktop)
+      local ui_fw
+      ui_fw=$(prompt_with_suggestions "UI framework" "ui_framework" "")
+      save_answer "ui_framework" "$ui_fw"
+
+      local packaging
+      packaging=$(prompt_with_suggestions "Packaging format" "packaging" "")
+      save_answer "packaging" "$packaging"
+
+      local auto_update
+      auto_update=$(prompt_with_suggestions "Auto-update strategy" "auto_update" "")
+      save_answer "auto_update" "$auto_update"
+
+      local offline_req
+      offline_req=$(prompt_choice "Offline requirement:" "Online only" "Offline tolerant" "Offline capable" "Offline first")
+      save_answer "offline_requirement" "$offline_req"
+      ;;
+    mobile)
+      local mobile_fw
+      mobile_fw=$(prompt_with_suggestions "Mobile framework" "framework" "")
+      save_answer "mobile_framework" "$mobile_fw"
+
+      local min_os
+      min_os=$(prompt_input "Minimum OS versions (e.g., 'iOS 16+, Android 13+')" "")
+      save_answer "min_os" "$min_os"
+
+      local app_store
+      app_store=$(prompt_choice "App store distribution:" "Apple App Store + Google Play" "Apple App Store only" "Google Play only" "Sideload/enterprise only")
+      save_answer "app_store" "$app_store"
+
+      local mobile_offline
+      mobile_offline=$(prompt_with_suggestions "Offline strategy" "offline_strategy" "Offline tolerant")
+      save_answer "mobile_offline" "$mobile_offline"
+      ;;
+    mcp_server)
+      # Audit specs-plans-init-intake-noninteractive-3: aligns wizard with the
+      # 2026-04-25 non-interactive spec + the shipped mcp_server.json
+      # suggestion file (the older `cli` branch referenced a never-created
+      # cli.json and silently fell through).
+      local mcp_server_transport
+      mcp_server_transport=$(prompt_with_suggestions "Transport" "transport" "")
+      save_answer "mcp_server_transport" "$mcp_server_transport"
+
+      local mcp_server_sdk
+      mcp_server_sdk=$(prompt_with_suggestions "MCP SDK" "mcp_sdk" "")
+      save_answer "mcp_server_sdk" "$mcp_server_sdk"
+
+      local mcp_server_persistence
+      mcp_server_persistence=$(prompt_with_suggestions "Persistence" "persistence" "")
+      save_answer "mcp_server_persistence" "$mcp_server_persistence"
+      ;;
+  esac
+
+  # 6.5 Existing Infrastructure (organizational only)
+  if [ "$DEPLOYMENT" = "organizational" ]; then
+    echo ""
+    print_info "6.5 Existing Infrastructure"
+    echo ""
+    local infra_items=("SSO / Identity Provider" "Logging / SIEM" "Monitoring" "Data Warehouse" "Backup Infrastructure" "CI/CD Platform" "Repository Platform")
+    for item in "${infra_items[@]}"; do
+      local status
+      status=$(prompt_choice "$item:" "Yes — we have this" "No" "N/A")
+      local key
+      key=$(echo "$item" | tr '/ ' '_' | tr '[:upper:]' '[:lower:]')
+      save_answer "infra_$key" "$status"
+    done
+  fi
+
+  save_section 6
+  echo ""
+}
+
+# ================================================================
+# SECTION 7: Revenue Model (conditional)
+# ================================================================
+run_section_7() {
+  if [ "$TRACK" = "light" ]; then
+    print_info "Section 7: Revenue Model — skipped (Light track)"
+    save_section 7
+    return
+  fi
+
+  print_step "Section 7: Revenue Model"
+  echo ""
+
+  local pricing_model
+  pricing_model=$(prompt_choice "Pricing model:" "Free (internal tool)" "Freemium" "Subscription" "One-time purchase" "Usage-based" "Not decided yet")
+  save_answer "pricing_model" "$pricing_model"
+
+  if [ "$pricing_model" != "Free (internal tool)" ]; then
+    local price_point
+    price_point=$(prompt_input "Target price point" "")
+    save_answer "price_point" "$price_point"
+
+    local competitive_range
+    competitive_range=$(prompt_input "Competitive price range (what do alternatives cost?)" "")
+    save_answer "competitive_range" "$competitive_range"
+
+    local cost_per_user
+    cost_per_user=$(prompt_input "Estimated per-user infrastructure cost" "")
+    save_answer "cost_per_user" "$cost_per_user"
+
+    local breakeven
+    breakeven=$(prompt_input "Break-even user count" "")
+    save_answer "breakeven" "$breakeven"
+  fi
+
+  local hosting_launch
+  hosting_launch=$(prompt_input "Hosting cost ceiling at launch" "")
+  save_answer "hosting_launch" "$hosting_launch"
+
+  local hosting_1k
+  hosting_1k=$(prompt_input "Hosting cost ceiling at 1,000 users" "")
+  save_answer "hosting_1k" "$hosting_1k"
+
+  local hosting_10k
+  hosting_10k=$(prompt_input "Hosting cost ceiling at 10,000 users" "")
+  save_answer "hosting_10k" "$hosting_10k"
+
+  save_section 7
+  echo ""
+}
+
+# ================================================================
+# SECTION 8: Governance Pre-Flight (Organizational only)
+# ================================================================
+run_section_8() {
+  if [ "$DEPLOYMENT" = "personal" ]; then
+    print_info "Section 8: Governance Pre-Flight — skipped (personal project)"
+    save_section 8
+    return
+  fi
+
+  print_step "Section 8: Governance Pre-Flight"
+  echo ""
+  echo -e "  ${BOLD}Organizational projects require governance approvals before Phase 0.${NC}"
+  echo "  Some of these take weeks to resolve. Choose your approach:"
+  echo ""
+
+  local gov_mode
+  gov_mode=$(prompt_choice "Governance mode:" \
+    "Production Build — all approvals required (recommended when approvals are in hand)" \
+    "Sponsored POC — organization knows, non-technical approvals deferred" \
+    "Private POC — personal exploration, all governance deferred")
+
+  case "$gov_mode" in
+    "Production"*) POC_MODE="" ;;
+    "Sponsored"*) POC_MODE="sponsored_poc" ;;
+    "Private"*) POC_MODE="private_poc" ;;
+  esac
+
+  # Update progress file with POC mode
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import json, sys
+poc_mode = sys.argv[1] if sys.argv[1] else None
+with open(sys.argv[2]) as f:
+    data = json.load(f)
+data['poc_mode'] = poc_mode
+with open(sys.argv[2], 'w') as f:
+    json.dump(data, f, indent=2)
+" "$POC_MODE" "$PROGRESS_FILE"
+  fi
+
+  if [ -n "$POC_MODE" ]; then
+    echo ""
+    print_warn "POC MODE: ${POC_MODE//_/ }"
+    print_warn "Constraints: no production deployment, no real user data, no external users."
+    print_warn "All technical work will be production-grade and carries forward."
+    print_warn "Upgrade later: scripts/intake-wizard.sh --upgrade-to-production"
+    echo ""
+  fi
+
+  # Pre-conditions and which are required per mode
+  local preconditions=(
+    "AI deployment path approved by IT Security"
+    "Insurance confirmation obtained"
+    "Liability entity designated"
+    "Project sponsor assigned"
+    "Backup maintainer designated"
+    "ITSM ticket filed / portfolio registered"
+    "Exit criteria defined"
+    "Orchestrator time allocation approved"
+  )
+  # Indices required for sponsored POC: 0 (AI path), 3 (sponsor), 7 (time allocation)
+  local required_sponsored="0 3 7"
+
+  for i in "${!preconditions[@]}"; do
+    local precondition="${preconditions[$i]}"
+    local is_deferred=false
+
+    if [ "$POC_MODE" = "private_poc" ]; then
+      is_deferred=true
+    elif [ "$POC_MODE" = "sponsored_poc" ]; then
+      if [[ ! " $required_sponsored " == *" $i "* ]]; then
+        is_deferred=true
+      fi
+    fi
+
+    if [ "$is_deferred" = true ]; then
+      print_info "  $precondition — DEFERRED (POC mode)"
+      save_answer "precondition_${i}_status" "Deferred (POC)"
+      save_answer "precondition_${i}_details" "Deferred — resolve before production"
+    else
+      echo ""
+      local status
+      status=$(prompt_choice "$precondition:" "Complete" "In Progress" "Not Started")
+      save_answer "precondition_${i}_status" "$status"
+
+      if [ "$status" != "Not Started" ]; then
+        local details
+        details=$(prompt_input "  Details (contact name, date, ticket #, etc.)" "")
+        save_answer "precondition_${i}_details" "$details"
+      else
+        save_answer "precondition_${i}_details" ""
+      fi
+    fi
+  done
+
+  # Sections 8.2-8.5 only for production mode
+  if [ -z "$POC_MODE" ]; then
+    # 8.2 Approval Authorities
+    echo ""
+    print_info "8.2 Approval Authorities"
+    echo ""
+    local gates=("Phase 0 to Phase 1" "Phase 1 to Phase 2" "Phase 3 to Phase 4")
+    for gate in "${gates[@]}"; do
+      local approver
+      approver=$(prompt_input "$gate approver (name and role)" "")
+      local key
+      key=$(echo "$gate" | tr ' ' '_' | tr '[:upper:]' '[:lower:]')
+      save_answer "gate_$key" "$approver"
+    done
+
+    # 8.3 Escalation Chain
+    echo ""
+    print_info "8.3 Escalation Chain"
+    echo ""
+    local levels=("Level 1 (first escalation)" "Level 2" "Level 3 (final authority)")
+    for level in "${levels[@]}"; do
+      local contact
+      contact=$(prompt_input "$level contact" "")
+      local key
+      key=$(echo "$level" | tr ' ()' '___' | tr '[:upper:]' '[:lower:]')
+      save_answer "escalation_$key" "$contact"
+    done
+
+    # 8.4 Compliance Screening
+    echo ""
+    print_info "8.4 Compliance Screening"
+    echo ""
+    local compliance_items=(
+      "Does this project handle SOX-regulated financial data?"
+      "Does this project handle payment card data (PCI)?"
+      "Does this project collect personal data across multiple states/countries?"
+      "Does this project serve EU users or involve EU subsidiaries?"
+      "Does this project involve any OFAC-sanctioned jurisdictions?"
+      "Are there records retention requirements?"
+      "Does this project use AI for end-user-facing features (not just development)?"
+      "Is penetration testing required by organizational policy?"
+    )
+    for j in "${!compliance_items[@]}"; do
+      local answer
+      answer=$(prompt_choice "${compliance_items[$j]}" "No" "Yes")
+      save_answer "compliance_$j" "$answer"
+    done
+
+    # 8.5 Exit Criteria
+    echo ""
+    print_info "8.5 Exit Criteria"
+    echo ""
+    local success_def
+    success_def=$(prompt_input "Success definition (what makes this project a success?)" "")
+    save_answer "exit_success" "$success_def"
+
+    local conditional_def
+    conditional_def=$(prompt_input "Conditional success (acceptable with limitations)" "")
+    save_answer "exit_conditional" "$conditional_def"
+
+    local failure_def
+    failure_def=$(prompt_input "Failure definition (when do we shut it down?)" "")
+    save_answer "exit_failure" "$failure_def"
+  fi
+
+  save_section 8
+  echo ""
+}
+
+# ================================================================
+# SECTION 9: Accessibility & UX Constraints
+# ================================================================
+run_section_9() {
+  print_step "Section 9: Accessibility & UX Constraints"
+  echo ""
+
+  local accessibility_target
+  accessibility_target=$(prompt_with_suggestions "Accessibility target" "accessibility_target" "WCAG AA, Lighthouse 90+")
+  save_answer "accessibility_target" "$accessibility_target"
+
+  local color_vision
+  color_vision=$(prompt_choice "Design for color vision deficiency?" "Yes — never rely on color alone" "No")
+  save_answer "color_vision" "$color_vision"
+
+  if [ "$PLATFORM" = "web" ]; then
+    local browsers
+    browsers=$(prompt_input "Supported browsers" "Chrome, Firefox, Safari, Edge (latest 2 versions)")
+    save_answer "browsers" "$browsers"
+
+    local responsive
+    responsive=$(prompt_choice "Mobile responsive?" "Yes" "No")
+    save_answer "responsive" "$responsive"
+  fi
+
+  local dark_mode
+  dark_mode=$(prompt_choice "Dark mode:" "Yes" "No" "Nice-to-have (post-MVP)")
+  save_answer "dark_mode" "$dark_mode"
+
+  local branding
+  branding=$(prompt_input "Branding/style guide (URL or description, or N/A)" "N/A")
+  save_answer "branding" "$branding"
+
+  save_section 9
+  echo ""
+}
+
+# ================================================================
+# SECTION 10: Distribution & Operations
+# ================================================================
+run_section_10() {
+  print_step "Section 10: Distribution & Operations"
+  echo ""
+
+  local uptime
+  uptime=$(prompt_with_suggestions "Uptime expectation" "uptime_expectation" "")
+  save_answer "uptime" "$uptime"
+
+  local env_strategy
+  env_strategy=$(prompt_choice "Environment strategy:" "Dev + Production" "Dev + Staging + Production" "Production only")
+  save_answer "env_strategy" "$env_strategy"
+
+  case "$PLATFORM" in
+    web)
+      local domain
+      domain=$(prompt_input "Domain name (or TBD)" "TBD")
+      save_answer "domain" "$domain"
+
+      local maintenance_window
+      maintenance_window=$(prompt_input "Preferred maintenance window (or N/A)" "N/A")
+      save_answer "maintenance_window" "$maintenance_window"
+      ;;
+    desktop)
+      local dist_channels
+      dist_channels=$(prompt_choice "Distribution channels:" "Direct download (website/GitHub)" "App stores (Mac App Store, Microsoft Store)" "Both" "Internal distribution only")
+      save_answer "dist_channels" "$dist_channels"
+
+      local code_signing
+      code_signing=$(prompt_choice "Code signing:" "Yes — required for distribution" "No — internal/dev use only")
+      save_answer "code_signing" "$code_signing"
+
+      local min_os_versions
+      min_os_versions=$(prompt_input "Minimum OS versions (e.g., 'Windows 10+, macOS 12+, Ubuntu 22.04+')" "")
+      save_answer "min_os_versions" "$min_os_versions"
+      ;;
+    mobile)
+      local mobile_dist
+      mobile_dist=$(prompt_choice "Distribution:" "App stores (iOS + Android)" "iOS App Store only" "Google Play only" "Enterprise sideload")
+      save_answer "mobile_dist" "$mobile_dist"
+
+      local beta_testing
+      beta_testing=$(prompt_choice "Beta testing:" "TestFlight + Google Play internal testing" "TestFlight only" "Google Play internal testing only" "No beta program")
+      save_answer "beta_testing" "$beta_testing"
+      ;;
+  esac
+
+  save_section 10
+  echo ""
+}
+
+# ================================================================
+# SECTION 11: Known Risks & Concerns
+# ================================================================
+run_section_11() {
+  print_step "Section 11: Known Risks & Concerns"
+  echo ""
+
+  local risks
+  risks=$(prompt_input "Any additional context, known risks, or concerns? (or Enter to skip)" "")
+  save_answer "known_risks" "${risks:-None noted}"
+
+  save_section 11
+  echo ""
+}
+
+# ================================================================
+# SECTION 11.5: Testing & Bug Tracking (Audit code-intake-wizard-2)
+# Pre-fix, the wizard jumped from Section 11 to 12 entirely, leaving
+# the five testing/bug-tracking template fields blank. Tier-aware
+# defaults: Standard/Full set testing_interval=2 features and the
+# SEV SLAs (24h critical / 7d high / best-effort low). Light skips
+# UAT prompts and defaults human_tester_count=1.
+# ================================================================
+run_section_11_5() {
+  print_step "Section 11.5: Testing & Bug Tracking"
+  echo ""
+
+  local track
+  track=$(jq -r '.track // .answers.track // "standard"' "$PROGRESS_FILE" 2>/dev/null || echo "standard")
+
+  local interval sev_critical sev_high sev_low tester_count uat_role bug_tool
+  case "$track" in
+    light)
+      interval=$(prompt_input "Test session interval (every N features)" "5")
+      tester_count=$(prompt_input "Number of human testers" "1")
+      # Light track skips formal SEV SLAs + UAT role prompts.
+      sev_critical="best-effort"
+      sev_high="best-effort"
+      sev_low="best-effort"
+      uat_role="self"
+      ;;
+    *)
+      # Standard / Full
+      interval=$(prompt_input "Test session interval (every N features)" "2")
+      tester_count=$(prompt_input "Number of human testers" "1")
+      sev_critical=$(prompt_input "SEV-Critical fix SLA" "24 hours")
+      sev_high=$(prompt_input "SEV-High fix SLA" "7 days")
+      sev_low=$(prompt_input "SEV-Low fix SLA" "best-effort")
+      uat_role=$(prompt_input "UAT responsibility (self / sponsor / pilot user)" "self")
+      ;;
+  esac
+  bug_tool=$(prompt_input "Bug tracking tool" "GitHub Issues")
+
+  save_answer "testing_interval"   "$interval"
+  # BL-203-INTERVAL-PLUMB — the recorded answer must also reach the ENFORCED
+  # field (.claude/build-progress.json::test_interval); saving it into the
+  # intake record alone is the silent no-op BL-203 documents. test-gate.sh
+  # --set-interval is the single writer.
+  if [ -f "scripts/test-gate.sh" ]; then
+    if bash scripts/test-gate.sh --set-interval "$interval" >/dev/null 2>&1; then
+      print_info "Enforced testing interval set to every $interval feature(s)."
+    else
+      print_warn "Could not update the enforced interval — run: bash scripts/test-gate.sh --set-interval $interval"
+    fi
+  else
+    # R-BL203-7: an absent writer must not become the silent no-op again.
+    print_warn "scripts/test-gate.sh not found — the enforced interval is unchanged. Run: bash scripts/test-gate.sh --set-interval $interval"
+  fi
+  save_answer "human_tester_count" "$tester_count"
+  save_answer "sev_critical_sla"   "$sev_critical"
+  save_answer "sev_high_sla"       "$sev_high"
+  save_answer "sev_low_sla"        "$sev_low"
+  save_answer "uat_role"           "$uat_role"
+  save_answer "bug_tracking_tool"  "$bug_tool"
+
+  # Persist as integer 115 so save_section's int() cast and the
+  # completed_sections.sort() stay homogeneous. 115 sits between 11 and 12
+  # which preserves "what's next" arithmetic in resume logic.
+  save_section 115
+  echo ""
+}
+
+# ================================================================
+# SECTION 12: Tooling Configuration (auto-populated)
+# ================================================================
+# Audit code-intake-wizard-3: align wizard numbering with the template
+# (templates/project-intake.md §12 = Tooling Configuration, §13 =
+# Agent Initialization Prompt). The wizard previously skipped §12 and
+# called the agent-prompt section "12", which corrupted the section
+# semantics for anyone who paused at "Section 12" and later opened
+# PROJECT_INTAKE.md expecting their work in template §12.
+#
+# This wizard step is informational only — actual content is written
+# by init.sh based on the tool installation matrix (see template
+# §12's auto-populated marker and .claude/tool-preferences.json).
+run_section_12() {
+  print_step "Section 12: Tooling Configuration"
+  print_info "Auto-populated by init.sh from .claude/tool-preferences.json"
+  print_info "and the tool installation matrix — skipping interactive prompts."
+  save_section 12
+  echo ""
+}
+
+# ================================================================
+# SECTION 13: Agent Initialization Prompt (auto-generated)
+# ================================================================
+# Audit code-intake-wizard-3: this used to be `run_section_12` and
+# was labelled "Section 12: Agent Initialization Prompt", which
+# misaligned with templates/project-intake.md (§13 in the template).
+run_section_13() {
+  print_step "Section 13: Agent Initialization Prompt"
+  print_info "Auto-generating from your answers..."
+
+  # Read accessibility answers for the prompt
+  local accessibility_rules="WCAG AA, Lighthouse 90+"
+  if command -v python3 &>/dev/null; then
+    accessibility_rules=$(python3 << PYEOF
+import json
+try:
+    with open('$PROGRESS_FILE') as f:
+        data = json.load(f)
+    answers = data.get('answers', {})
+    parts = []
+    target = answers.get('accessibility_target', '')
+    if target:
+        parts.append(f'Accessibility target: {target}')
+    color = answers.get('color_vision', '')
+    if 'Yes' in color:
+        parts.append('Color vision deficiency: never rely on color alone for meaning.')
+    print('; '.join(parts) if parts else 'WCAG AA, Lighthouse 90+')
+except Exception:
+    print('WCAG AA, Lighthouse 90+')
+PYEOF
+)
+  fi
+
+  print_ok "Section 13 auto-generated."
+  save_section 13
+  echo ""
+}
+
+# ================================================================
+# MODE: Run all sections in order (script path)
+# ================================================================
+run_script_mode() {
+  local start_section="${1:-1}"
+
+  if [ "$start_section" -gt 1 ]; then
+    print_info "Resuming from Section $start_section"
+  fi
+
+  echo ""
+  print_info "Type 'pause' at any prompt to save and exit."
+  print_info "Type '?' at prompts marked with [? for suggestions] to see options."
+  echo ""
+
+  # Section IDs: 1..11, 115 (Testing & Bug Tracking), 12, 13.
+  # The 115 ID encodes "between 11 and 12" while keeping the value an
+  # integer for save_section / is_section_complete; the runner maps it
+  # back to function name run_section_11_5 below.
+  #
+  # Audit code-intake-wizard-3: §12 (Tooling Configuration, auto-
+  # populated) and §13 (Agent Initialization Prompt, auto-generated)
+  # are now distinct wizard steps that mirror the template's
+  # numbering, instead of the old single "Section 12" that ran §13's
+  # content.
+  local sections=(1 2 3 4 5 6 7 8 9 10 11 115 12 13)
+  for section in "${sections[@]}"; do
+    if [ "$section" -lt "$start_section" ]; then
+      continue
+    fi
+
+    if is_section_complete "$section" 2>/dev/null; then
+      print_ok "Section $section — already complete"
+      continue
+    fi
+
+    # Map 115 → run_section_11_5; all other ids match function names verbatim.
+    case "$section" in
+      115) "run_section_11_5" ;;
+      *)   "run_section_$section" ;;
+    esac
+    check_pause_requested
+  done
+
+  # Final render — ensures the appendix reflects every saved answer
+  # even if save_section's per-section render was skipped.
+  render_intake_file || true
+
+  echo ""
+  echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${GREEN}${BOLD}║              Intake Complete!                           ║${NC}"
+  echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
+  echo ""
+  print_ok "Answers saved to $PROGRESS_FILE"
+  print_ok "PROJECT_INTAKE.md updated with 'Intake Answers (Auto-Populated)' appendix"
+  print_ok "Done — your answers are recorded in the appendix at the end of PROJECT_INTAKE.md."
+  echo ""
+  echo "  Next: open Claude Code and give it the project."
+  echo "    1. Type:  claude"
+  echo "    2. It will sit there quietly until you send a message — that's normal."
+  echo "    3. Paste the first message printed by:  bash scripts/resume.sh"
+  echo "       (it prints your project's own Section 13 initialization prompt)"
+  echo ""
+}
+
+# ================================================================
+# MODE: Generate Claude-guided prompt
+# ================================================================
+run_claude_mode() {
+  print_step "Generating AI-assisted intake prompt..."
+  echo ""
+
+  local output_file="$PROJECT_ROOT/INTAKE_GUIDED_PROMPT.md"
+
+  cat > "$output_file" << 'PROMPTEOF'
+# Guided Intake Conversation
+
+## Your Role
+
+You are helping a Solo Orchestrator fill out their Project Intake template (PROJECT_INTAKE.md). Walk through it section by section in a conversational tone. Explain each field's purpose before asking. When the user is unsure, offer 2-3 ranked suggestions with context.
+
+PROMPTEOF
+
+  cat >> "$output_file" << PROMPTEOF
+## Project Context (from init.sh)
+
+- **Project name:** $PROJECT_NAME
+- **Description:** $PROJECT_DESCRIPTION
+- **Platform:** $PLATFORM
+- **Language:** $LANGUAGE
+- **Track:** $TRACK
+- **Deployment:** $DEPLOYMENT
+
+## Instructions
+
+1. Walk through PROJECT_INTAKE.md section by section (Sections 1-13).
+2. Section 1 is mostly pre-filled from context above — confirm and fill remaining fields (target platforms, codename, repo URL).
+3. For each field, explain its purpose briefly, then ask the question.
+4. When the user says "I'm not sure" or asks for help, offer 2-3 options ranked by fit for their project type ($PLATFORM, $LANGUAGE, $TRACK), with a one-sentence explanation of why each fits.
+5. Check off fields as you cover them. Before moving to the next section, confirm: "Section N complete. Anything to change before we move on?"
+6. Skip sections that don't apply:
+   - Section 7 (Revenue Model): skip if track is Light or deployment is Personal with internal users
+   - Section 8 (Governance): skip if deployment is Personal
+7. For Section 8 (Governance, organizational only): ask which mode — Production Build, Sponsored POC, or Private POC. Explain each:
+   - **Production Build:** All 8 pre-conditions required. Full governance.
+   - **Sponsored POC:** Organization knows. AI deployment path + sponsor + time allocation required. Insurance, liability, ITSM, exit criteria, backup maintainer deferred. Constraints: no production deployment, no real user data, no external users. All technical work is production-grade.
+   - **Private POC:** Personal exploration. All pre-conditions deferred. Same constraints as Sponsored POC.
+8. Write completed sections into PROJECT_INTAKE.md progressively as you go.
+9. Section 12 (Tooling Configuration) is auto-populated by \`init.sh\` from \`.claude/tool-preferences.json\` — do not prompt the user; confirm the section is recorded and move on.
+10. Section 13 (Agent Initialization Prompt): auto-generate from the answers. Do not ask the user to write this.
+11. At the end, summarize what was filled in and flag any fields left blank.
+12. After Section 11.5's testing interval is answered, run \`bash scripts/test-gate.sh --set-interval N\` (N = the answer) — the recorded answer does not reach the enforced gate by itself (BL-203), and this path never runs the wizard's own plumbing. This heredoc is UNQUOTED (context values substitute), so backticks here MUST stay escaped or they execute at prompt-generation time (review R-BL203-1).
+
+## Suggestion Data
+
+Use the following platform-specific suggestions when the user needs help with technical choices:
+
+PROMPTEOF
+
+  # Append relevant suggestion file
+  local platform_file="$SUGGESTIONS_DIR/${PLATFORM}.json"
+  if [ -f "$platform_file" ]; then
+    echo '### Platform Suggestions' >> "$output_file"
+    echo '```json' >> "$output_file"
+    cat "$platform_file" >> "$output_file"
+    echo '```' >> "$output_file"
+  fi
+
+  # Append common suggestions
+  local common_file="$SUGGESTIONS_DIR/common.json"
+  if [ -f "$common_file" ]; then
+    echo "" >> "$output_file"
+    echo "### Common Suggestions" >> "$output_file"
+    echo '```json' >> "$output_file"
+    cat "$common_file" >> "$output_file"
+    echo '```' >> "$output_file"
+  fi
+
+  echo ""
+  print_ok "Prompt generated: INTAKE_GUIDED_PROMPT.md"
+  echo ""
+
+  echo -e "  ${BOLD}How would you like to proceed?${NC}"
+  echo ""
+  echo "    1. Launch Claude Code now"
+  echo "       Opens Claude Code with the intake prompt automatically."
+  echo "       You'll have a conversation that fills out PROJECT_INTAKE.md."
+  echo ""
+  echo "    2. Generate prompt file only"
+  echo "       INTAKE_GUIDED_PROMPT.md is ready for you to review first."
+  echo "       When ready: claude \"Read INTAKE_GUIDED_PROMPT.md and begin\""
+  echo "       (a blank Claude Code screen means it is ready and waiting, not stuck)"
+  echo ""
+  local launch_choice
+  read -rp "$(echo -e "  ${BOLD}Select [1-2]${NC}: ")" launch_choice # lint-raw-read-prompt: allow intake-wizard.sh interactive-only launch-mode choice (1 = launch Claude, 2 = generate prompt file); wizard is interactive-only by design
+
+  if [ "$launch_choice" = "1" ]; then
+    if command -v claude &>/dev/null; then
+      print_info "Launching Claude Code..."
+      cd "$PROJECT_ROOT"
+      exec claude "Read INTAKE_GUIDED_PROMPT.md and follow its instructions to help me fill out PROJECT_INTAKE.md."
+    else
+      print_warn "Claude Code isn't installed on this computer."
+      print_info "Install it from https://claude.com/claude-code, then run:"
+      echo "  claude \"Read INTAKE_GUIDED_PROMPT.md and begin\""
+    fi
+  else
+    print_info "Prompt file ready at: INTAKE_GUIDED_PROMPT.md"
+    print_info "When ready: claude \"Read INTAKE_GUIDED_PROMPT.md and begin\""
+  fi
+}
+
+# ================================================================
+# MODE: Upgrade POC to production
+# ================================================================
+run_upgrade_to_production() {
+  print_step "Upgrading POC to Production"
+  echo ""
+
+  if [ ! -f "$PROGRESS_FILE" ]; then
+    print_warn "No progress file found. Nothing to upgrade."
+    exit 1
+  fi
+
+  load_progress
+
+  if [ -z "$POC_MODE" ]; then
+    print_warn "This project is not in POC mode. Nothing to upgrade."
+    exit 0
+  fi
+
+  print_info "Current mode: ${POC_MODE//_/ }"
+  print_info "Upgrading to Production Build. You'll resolve deferred pre-conditions."
+  echo ""
+
+  # Re-run Section 8 in production mode. Preserve current DEPLOYMENT —
+  # personal/Private POC upgrades to personal/Production; organizational/
+  # Sponsored POC upgrades to organizational/Production. Prior behavior
+  # forced DEPLOYMENT=organizational, which silently converted personal
+  # POC projects to organizational on the upgrade.
+  POC_MODE=""
+  run_section_8
+
+  # Update progress file
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+data['poc_mode'] = None
+with open(sys.argv[1], 'w') as f:
+    json.dump(data, f, indent=2)
+" "$PROGRESS_FILE"
+  fi
+
+  print_ok "Upgraded to Production Build."
+  print_info "Review APPROVAL_LOG.md and CLAUDE.md to remove POC watermarks."
+  echo ""
+
+  # Re-resolve tools for new track
+  if [ -x "scripts/resolve-tools.sh" ] && [ -f ".claude/tool-preferences.json" ]; then
+    print_info "Re-resolving tools for production track..."
+    # Update track in tool-preferences.json
+    if command -v jq &>/dev/null; then
+      local tmp_prefs
+      tmp_prefs=$(mktemp)
+      jq '.context.track = "standard"' ".claude/tool-preferences.json" > "$tmp_prefs" && mv "$tmp_prefs" ".claude/tool-preferences.json"
+    fi
+    local dev_os platform language track
+    dev_os=$(jq -r '.context.dev_os' ".claude/tool-preferences.json")
+    platform=$(jq -r '.context.platform' ".claude/tool-preferences.json")
+    language=$(jq -r '.context.language' ".claude/tool-preferences.json")
+    track=$(jq -r '.context.track' ".claude/tool-preferences.json")
+    local current_phase
+    current_phase=$(grep -o '"current_phase"[[:space:]]*:[[:space:]]*"*[0-9][0-9]*"*' ".claude/phase-state.json" | grep -o '[0-9][0-9]*' || echo "2")
+
+    local tool_output
+    tool_output=$(bash scripts/resolve-tools.sh \
+      --dev-os "$dev_os" --platform "$platform" --language "$language" \
+      --track "$track" --phase "$current_phase" \
+      --matrix-dir templates/tool-matrix \
+      --tool-prefs ".claude/tool-preferences.json" 2>/dev/null) || true
+
+    if [ -n "$tool_output" ]; then
+      local new_tools
+      new_tools=$(echo "$tool_output" | jq '[(.auto_install + .manual_install)[] | .name] | length')
+      if [ "$new_tools" -gt 0 ]; then
+        print_info "New tools available for production track:"
+        echo "$tool_output" | jq -r '(.auto_install + .manual_install)[] | "  • \(.name) (\(.category))"'
+        echo ""
+        print_info "Run scripts/resolve-tools.sh to install them."
+      fi
+    fi
+  fi
+}
+
+# ================================================================
+# UTILITY: Ask for project context if not available
+# ================================================================
+ask_project_context() {
+  if [ -n "$PROJECT_NAME" ] && [ -n "$PLATFORM" ] && [ -n "$TRACK" ]; then
+    echo ""
+    print_info "Project context (from init):"
+    echo "  Project:    $PROJECT_NAME"
+    echo "  Description: ${PROJECT_DESCRIPTION:-<not set>}"
+    echo "  Platform:   $PLATFORM"
+    echo "  Track:      $TRACK"
+    echo "  Language:   $LANGUAGE"
+    echo "  Deployment: $DEPLOYMENT"
+    [ -n "$POC_MODE" ] && echo "  POC Mode:   ${POC_MODE//_/ }"
+    echo ""
+    read -rp "$(echo -e "${BOLD}Is this correct? [Y/n]${NC}: ")" confirm # lint-raw-read-prompt: allow intake-wizard.sh interactive-only summary confirmation; wizard is interactive-only by design
+    if [[ "$confirm" =~ ^[Nn] ]]; then
+      print_info "You can change fields in the intake wizard Section 1."
+      print_info "Structural changes (platform, language, track) will trigger project reconfiguration."
+    fi
+    return
+  fi
+
+  # Fallback: ask for missing fields
+  if [ -z "$PROJECT_NAME" ]; then
+    PROJECT_NAME=$(prompt_input "Project name" "")
+  fi
+  if [ -z "$PROJECT_DESCRIPTION" ]; then
+    PROJECT_DESCRIPTION=$(prompt_input "One-sentence description" "")
+  fi
+  if [ -z "$PLATFORM" ]; then
+    # Audit specs-plans-init-intake-noninteractive-3: the shipped suggestion
+    # files cover web/desktop/mobile/mcp_server (not `cli`). Keep the prompt
+    # aligned with the actually-shipped set so prompt_with_suggestions can
+    # resolve the correct platform suggestions file.
+    PLATFORM=$(prompt_choice "Platform:" "web" "desktop" "mobile" "mcp_server" "other")
+  fi
+  if [ -z "$TRACK" ]; then
+    TRACK=$(prompt_choice "Track:" "light" "standard" "full")
+  fi
+  if [ -z "$DEPLOYMENT" ]; then
+    DEPLOYMENT=$(prompt_choice "Deployment:" "personal" "organizational")
+  fi
+  if [ -z "$LANGUAGE" ]; then
+    LANGUAGE=$(prompt_choice "Language:" "typescript" "javascript" "python" "rust" "csharp" "kotlin" "java" "go" "dart" "other")
+  fi
+}
+
+# ================================================================
+# MAIN
+# ================================================================
+main() {
+  # Parse flags that don't need project context
+  case "${1:-}" in
+    --help|-h)
+      echo "Usage: scripts/intake-wizard.sh [--resume] [--upgrade-to-production] [--help]"
+      echo ""
+      echo "  (no flags)              Start the intake wizard or choose mode"
+      echo "  --resume                Resume from last save point"
+      echo "  --upgrade-to-production Upgrade a POC project to production"
+      echo "  --upgrade-track TYPE    Upgrade track (light|standard|full)"
+      echo "  --upgrade-deployment T  Upgrade deployment (personal|organizational)"
+      echo "  --to-private-poc        Upgrade Personal -> Private POC"
+      echo "  --to-sponsored-poc      Upgrade Personal/Private POC -> Sponsored POC"
+      echo ""
+      echo "Phase 1 ZDR/classification non-interactive flags (tier-crosscheck-6):"
+      echo "  --data-classification VALUE        Set data_classification (one of:"
+      echo "                                     public, internal, confidential, pii,"
+      echo "                                     financial, health, regulated)"
+      echo "  --zdr-attested                     Mark zdr_attested=true"
+      echo "  --zdr-attestation-reason \"<text>\"  Record a documented exception"
+      echo ""
+      echo "  --help                  Show this help"
+      exit 0
+      ;;
+    --data-classification|--zdr-attested|--zdr-attestation-reason|--data-classification=*|--zdr-attestation-reason=*)
+      # tier-crosscheck-6 non-interactive write path. Parsed below
+      # (after PROJECT_ROOT is resolved) so the helper can read/write
+      # .claude/process-state.json + .claude/intake-progress.json.
+      ;;
+  esac
+
+  # Collect tier-crosscheck-6 CLI flags. We re-scan "$@" so flags can
+  # appear anywhere on the line (and so --resume / --upgrade-* paths
+  # above keep working unchanged).
+  TC6_CLASSIFICATION=""
+  TC6_ATTESTED=""
+  TC6_REASON=""
+  TC6_PROVIDED=0
+  _tc6_args=("$@")
+  _i=0
+  while [ "$_i" -lt "${#_tc6_args[@]}" ]; do
+    case "${_tc6_args[$_i]}" in
+      --data-classification)
+        TC6_CLASSIFICATION="${_tc6_args[$((_i + 1))]:-}"; TC6_PROVIDED=1
+        _i=$((_i + 2)); continue ;;
+      --data-classification=*)
+        TC6_CLASSIFICATION="${_tc6_args[$_i]#--data-classification=}"; TC6_PROVIDED=1
+        _i=$((_i + 1)); continue ;;
+      --zdr-attested)
+        TC6_ATTESTED="true"; TC6_PROVIDED=1
+        _i=$((_i + 1)); continue ;;
+      --zdr-attestation-reason)
+        TC6_REASON="${_tc6_args[$((_i + 1))]:-}"; TC6_PROVIDED=1
+        _i=$((_i + 2)); continue ;;
+      --zdr-attestation-reason=*)
+        TC6_REASON="${_tc6_args[$_i]#--zdr-attestation-reason=}"; TC6_PROVIDED=1
+        _i=$((_i + 1)); continue ;;
+    esac
+    _i=$((_i + 1))
+  done
+  if [ "$TC6_PROVIDED" = "1" ]; then
+    # Validate classification value (if provided).
+    if [ -n "$TC6_CLASSIFICATION" ]; then
+      TC6_CLASSIFICATION_CANON=$(printf '%s' "$TC6_CLASSIFICATION" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      case "$TC6_CLASSIFICATION_CANON" in
+        public|internal|confidential|pii|financial|health|regulated)
+          TC6_CLASSIFICATION="$TC6_CLASSIFICATION_CANON" ;;
+        *)
+          echo "Error: --data-classification '$TC6_CLASSIFICATION' is not in the 7-tier taxonomy."
+          echo "       Allowed: public, internal, confidential, pii, financial, health, regulated"
+          exit 1 ;;
+      esac
+    fi
+    # When the operator supplies any tier-crosscheck-6 flag, treat it
+    # as a one-shot write to process-state.json and exit cleanly. The
+    # wizard's interactive flow is intentionally NOT entered.
+    if command -v jq >/dev/null 2>&1 && [ -f .claude/process-state.json ]; then
+      _tc6_attested_json="false"
+      [ "$TC6_ATTESTED" = "true" ] && _tc6_attested_json="true"
+      _tc6_tmp=$(mktemp)
+      # PR #105 verifier follow-up: the prior implementation chained
+      # `jq ... > tmp && mv tmp pstate` and then unconditionally printed
+      # "Phase 1 artifacts updated" + exit 0. A malformed
+      # process-state.json produced jq's parse error on stderr, the
+      # success message on stdout, and rc=0 — operator told the write
+      # succeeded when nothing had been written. Surface failure now.
+      if ! jq --arg c "$TC6_CLASSIFICATION" --argjson a "$_tc6_attested_json" --arg r "$TC6_REASON" \
+           '.phase1_artifacts = ((.phase1_artifacts // {}) +
+              (if $c != "" then {data_classification: $c} else {} end) +
+              (if $a == true then {zdr_attested: true} else {} end) +
+              (if $r != "" then {zdr_attestation_reason: $r} else {} end))' \
+           .claude/process-state.json > "$_tc6_tmp"; then
+        rm -f "$_tc6_tmp"
+        echo "[FAIL] intake-wizard.sh: could not update .claude/process-state.json — jq parse failure." >&2
+        echo "  Remediation: inspect .claude/process-state.json for malformed JSON (truncation, stray characters)." >&2
+        echo "  If the file is unrecoverable, restore from a .bak or re-run scripts/init.sh." >&2
+        exit 1
+      fi
+      if ! mv "$_tc6_tmp" .claude/process-state.json; then
+        rm -f "$_tc6_tmp"
+        echo "[FAIL] intake-wizard.sh: mv into .claude/process-state.json failed (cross-filesystem? read-only?)." >&2
+        exit 1
+      fi
+      echo "Phase 1 artifacts updated in .claude/process-state.json:"
+      echo "  data_classification    = '${TC6_CLASSIFICATION:-(unchanged)}'"
+      echo "  zdr_attested           = '${TC6_ATTESTED:-(unchanged)}'"
+      echo "  zdr_attestation_reason = '${TC6_REASON:-(unchanged)}'"
+      exit 0
+    else
+      echo "Error: jq + .claude/process-state.json required for --data-classification / --zdr-* flags." >&2
+      exit 1
+    fi
+  fi
+
+  # Check we're in a project directory
+  if [ ! -f "$INTAKE_FILE" ]; then
+    echo "Error: PROJECT_INTAKE.md not found."
+    echo "Run this script from a Solo Orchestrator project directory."
+    exit 1
+  fi
+
+  # Parse flags that need project context
+  case "${1:-}" in
+    --resume)
+      if ! load_progress; then
+        exit 1
+      fi
+      local next_section=$((LAST_SECTION + 1))
+      echo ""
+      print_info "Sections completed: ${COMPLETED_SECTIONS:-none}"
+      run_script_mode "$next_section"
+      exit 0
+      ;;
+    --upgrade-to-production)
+      # Audit specs-plans-init-intake-noninteractive-8 (Option C):
+      # delegate the canonical state mutation to upgrade-project.sh, then
+      # sync intake-progress.json's poc_mode mirror so the wizard's own
+      # state file stays consistent with phase-state.json.
+      if [ -x "scripts/upgrade-project.sh" ]; then
+        bash scripts/upgrade-project.sh --to-production || exit $?
+        if command -v jq &>/dev/null && [ -f "$PROGRESS_FILE" ]; then
+          tmp=$(mktemp)
+          jq '.poc_mode = null' "$PROGRESS_FILE" > "$tmp" && mv "$tmp" "$PROGRESS_FILE"
+        fi
+      else
+        run_upgrade_to_production  # fallback when canonical script missing
+      fi
+      exit 0
+      ;;
+    --upgrade-track)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --upgrade-track requires a value (light|standard|full)"
+        exit 1
+      fi
+      if [ -x "scripts/upgrade-project.sh" ]; then
+        exec bash scripts/upgrade-project.sh --track "$2"
+      else
+        echo "Error: scripts/upgrade-project.sh not found. Run 'solo init' first."
+        exit 1
+      fi
+      ;;
+    --upgrade-deployment)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --upgrade-deployment requires a value (personal|organizational)"
+        exit 1
+      fi
+      if [ -x "scripts/upgrade-project.sh" ]; then
+        exec bash scripts/upgrade-project.sh --deployment "$2"
+      else
+        echo "Error: scripts/upgrade-project.sh not found. Run 'solo init' first."
+        exit 1
+      fi
+      ;;
+    --to-sponsored-poc)
+      if [ -x "scripts/upgrade-project.sh" ]; then
+        exec bash scripts/upgrade-project.sh --to-sponsored-poc
+      else
+        echo "Error: scripts/upgrade-project.sh not found. Run 'solo init' first."
+        exit 1
+      fi
+      ;;
+    --to-private-poc)
+      if [ -x "scripts/upgrade-project.sh" ]; then
+        exec bash scripts/upgrade-project.sh --to-private-poc
+      else
+        echo "Error: scripts/upgrade-project.sh not found. Run 'solo init' first."
+        exit 1
+      fi
+      ;;
+  esac
+
+  # PR-#96 verifier follow-up: the 8 `read -rp` allowlist entries in
+  # this file (lines 85/88/115/144/146/1658/1774/1923) cite
+  # "interactive-only by design" as the reason. That documented intent,
+  # but until now nothing in the wizard ACTUALLY refused to run without
+  # a TTY — so a CI / piped-stdin invocation would block on the first
+  # prompt or auto-empty-input through every section, corrupting
+  # intake-progress.json. Enforce the contract right before the
+  # interactive mode-selection prompt below, AFTER the flag-driven
+  # passthroughs (--resume / --upgrade-* / --to-*-poc / --help) so
+  # those scripted CI use-cases keep working. Operators driving the
+  # wizard via canned input must opt in via SOIF_NONINTERACTIVE=1.
+  if [ ! -t 0 ] && [ -z "${SOIF_NONINTERACTIVE:-}" ]; then
+    print_fail "intake-wizard requires a TTY on stdin (or set SOIF_NONINTERACTIVE=1 to drive it from a harness)."
+    echo "  Detected non-TTY stdin (CI=${CI:-unset}). The wizard's read prompts would block or auto-empty-input through every section, corrupting .claude/intake-progress.json." >&2
+    exit 1
+  fi
+
+  # Mode selection
+  echo ""
+  echo -e "${BOLD}How would you like to fill out the Project Intake?${NC}"
+  echo ""
+  echo "  1. Guided Script (30-60 minutes)"
+  echo "     You answer questions section by section in the terminal. Best if you"
+  echo "     already know your project requirements, tech preferences, and constraints."
+  echo "     You can pause anytime and resume later. Progress is saved after each section."
+  echo ""
+  echo "  2. AI-Assisted (45-90 minutes)"
+  echo "     Claude Code walks you through the intake conversationally, explains each"
+  echo "     field, and suggests options based on your project type. Best if you want"
+  echo "     help thinking through requirements or are unsure about technical choices."
+  echo "     Requires Claude Code to be authenticated."
+  echo ""
+  echo "  3. I'll do it manually later"
+  echo "     Open PROJECT_INTAKE.md in your editor and fill it out yourself."
+  echo "     See the User Guide Section 3 for field-by-field guidance."
+  echo ""
+
+  local mode
+  read -rp "$(echo -e "${BOLD}Select [1-3]${NC}: ")" mode # lint-raw-read-prompt: allow intake-wizard.sh interactive-only mode selection (1=wizard, 2=AI prompt, 3=manual); wizard is interactive-only by design
+
+  case "$mode" in
+    1)
+      # Check for existing progress
+      if [ -f "$PROGRESS_FILE" ]; then
+        load_progress
+        if [ "$LAST_SECTION" -gt 0 ]; then
+          print_info "Found existing progress (through Section $LAST_SECTION)."
+          local resume_choice
+          resume_choice=$(prompt_choice "Resume or start over?" \
+            "Resume from Section $((LAST_SECTION + 1))" \
+            "Start over (previous progress will be overwritten)")
+          if [[ "$resume_choice" == "Resume"* ]]; then
+            run_script_mode "$((LAST_SECTION + 1))"
+            exit 0
+          fi
+        fi
+      fi
+
+      # Load or ask for project context
+      load_project_context
+      ask_project_context
+
+      COMPLETED_SECTIONS=""
+      init_progress
+      run_script_mode 1
+      ;;
+    2)
+      load_project_context
+      ask_project_context
+      run_claude_mode
+      ;;
+    3)
+      print_info "No problem. Open PROJECT_INTAKE.md in your editor when ready."
+      print_info "When you've filled it in, run: bash scripts/resume.sh"
+      print_info "That prints the exact message to paste into Claude Code to begin."
+      print_info "See docs/reference/user-guide.md Section 3 for field-by-field guidance."
+      ;;
+    *)
+      echo "Invalid choice."
+      exit 1
+      ;;
+  esac
+}
+
+if [ "${__SOLO_INTAKE_WIZARD_SOURCED__:-0}" -ne 1 ]; then
+  main "$@"
+fi

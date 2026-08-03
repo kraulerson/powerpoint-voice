@@ -1,0 +1,46 @@
+# Rollback Test Results
+
+<!--
+  Phase 4 Step 4.1.5 output. Documents the mandatory rollback test
+  performed before go-live.
+
+  Save as: docs/test-results/YYYY-MM-DD_rollback-test.md
+
+  This file must exist before the rollback_tested process step
+  can be marked complete.
+-->
+
+**Date:** YYYY-MM-DD
+**Tested By:** [Name]
+**Environment:** [Production / Staging / Equivalent]
+
+---
+
+## Test Procedure
+
+| Step | Action | Expected Result | Actual Result | Pass/Fail |
+|------|--------|----------------|---------------|-----------|
+| 1 | Deploy release candidate to environment | Application running at target version | | |
+| 2 | Execute documented rollback procedure | Application reverts to prior version | | |
+| 3 | Verify application functionality | Core flow works on prior version | | |
+| 4 | Verify data integrity | No data loss, no corruption, no orphaned records | | |
+| 5 | Record time elapsed | Rollback completed within acceptable window | | |
+
+---
+
+## Results
+
+| Field | Value |
+|-------|-------|
+| **Rollback-from version** | [Version deployed] |
+| **Rollback-to version** | [Version reverted to] |
+| **Time elapsed** | [Minutes from start to verified rollback] |
+| **Data integrity** | Pass / Fail — [details] |
+| **Overall result** | Pass / Fail |
+| **Issues encountered** | [None / describe] |
+
+---
+
+## Notes
+
+[Any observations, gotchas, or improvements to the rollback procedure discovered during testing.]

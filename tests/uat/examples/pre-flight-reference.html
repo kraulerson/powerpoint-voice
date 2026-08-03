@@ -1,0 +1,19 @@
+<div class="fixture-ref">
+  <strong>System under test:</strong> macOS (darwin/arm64) or Linux (x86_64/arm64). Commands assume a POSIX shell (bash or zsh). Windows WSL should also work for most scenarios — any Windows-specific deltas will be called out inline.<br>
+  <strong>Project root:</strong> <code>/absolute/path/to/your/project</code> — the Orchestrator will replace this placeholder with the real path before dispatching.<br>
+  <strong>Language runtime:</strong> <code>python 3.12.x</code> inside <code>.venv/</code> at the project root (OR the equivalent for your stack — Node 20.x, Rust 1.75, Go 1.21, etc.; the scenarios below name the exact runtime they exercise).<br>
+  <strong>Required tools:</strong> <code>python</code>, <code>pip</code>, <code>git</code>, <code>jq</code>. <em>Optional:</em> <code>sqlite3</code> (scenarios 4, 7), <code>docker</code> (scenario 13 only).<br>
+  <br>
+  <strong>One-time setup before any scenario:</strong><br>
+  <code>cd "/absolute/path/to/your/project"</code><br>
+  <code>source .venv/bin/activate</code><br>
+  <code>python --version   # must print 3.12.x</code><br>
+  <br>
+  Every scenario below assumes:<br>
+  1. You are in the project-root terminal above.<br>
+  2. The <code>.venv</code> is active (your prompt should show <code>(.venv)</code>).<br>
+  3. If a scenario changes directory, it says so and returns you to the project root before ending.<br>
+  4. If a scenario mutates files, it includes explicit cleanup + verification.<br>
+  <br>
+  <strong>How to run a scenario:</strong> click "details" on the scenario card, copy the numbered commands into the terminal, compare your output to the "Expected" block, then click Pass / Fail / Skip. Use the Notes field for anything surprising or out of scope.
+</div>

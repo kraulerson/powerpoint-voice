@@ -1,0 +1,7 @@
+{
+  "id": 4,
+  "feature": 1,
+  "title": "CHECKSUMS drift — tampered migration is detected",
+  "steps": "You are in the project root with .venv active (see 'Before you start').\n\nThis scenario modifies a file briefly and then restores it. Do NOT commit between steps.\n\n1. Save an untouched copy of the migration:\n   cp src/orchestrator/db/migrations/0001_initial.sql /tmp/saved-0001.sql\n\n2. Tamper with the file by appending a comment:\n   echo '-- tampered for UAT' >> src/orchestrator/db/migrations/0001_initial.sql\n\n3. Remove any stale test DB:\n   rm -f /tmp/orch-uat-drift.db\n\n4. Try to run migrations. It should fail:\n   python -c \"from orchestrator.db.migrate import run_migrations; run_migrations('/tmp/orch-uat-drift.db')\"; echo \"exit=$?\"\n\n5. Restore the original file immediately:\n   cp /tmp/saved-0001.sql src/orchestrator/db/migrations/0001_initial.sql\n\n6. Verify the file is restored (no diff against git):\n   git diff --exit-code src/orchestrator/db/migrations/0001_initial.sql && echo RESTORED",
+  "expected": "Step 4: exits with a non-zero 'exit=' line (expect exit=1). Traceback ends in a MigrationError whose message contains 'checksum mismatch' and the text 'file=' and 'manifest='.\n\nStep 6: prints 'RESTORED' on its own line. git diff --exit-code returns 0.\n\nPASS if step 4 raised MigrationError AND step 6 printed RESTORED. FAIL if step 4 succeeded silently (bug — the CHECKSUMS check didn't fire) or step 6 shows a diff (your file needs manual restore: git checkout -- src/orchestrator/db/migrations/0001_initial.sql)."
+}
