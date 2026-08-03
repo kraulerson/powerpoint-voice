@@ -79,6 +79,18 @@ _When this gate is crossed, **append** a completed approval table directly below
 <!-- BL-170-APPEND-DESIGN -->
 _When this gate is crossed, **append** a completed approval table directly below (above this section's closing `---`) — use the shape at the top of this file (role: Senior Technical Authority; artifacts to review: PROJECT_BIBLE.md, Architecture Decision Records, Threat Model). Append-only: never edit a line once pushed._
 
+| Field | Value |
+|---|---|
+| **Gate** | Phase 1 → Phase 2 |
+| **Approver** | Karl Raulerson |
+| **Role** | Senior Technical Authority |
+| **Date** | 2026-08-03 |
+| **Method** | Interactive session approval (walk protocol; PR #6 review) |
+| **Reference** | PR #6 (walk/phase1); PROJECT_BIBLE.md; docs/ADR documentation/ADR-0001-architecture-qt6-vosk.md; docs/phase-1/threat-model.md, data-model.md, ui-scaffolding.md |
+| **Artifacts reviewed** | PROJECT_BIBLE.md (16 sections), ADR-0001 (Qt6+Vosk architecture selection + rejected alternatives), Threat Model (23 STRIDE threats + mitigation matrix), Data Model, UI Component Specs |
+| **Decision** | Approved — Qt 6.8 + Vosk architecture on a from-scratch OOXML renderer; pre-render-off-thread TM-018 mitigation accepted; ZDR gate satisfied (confidential + recorded exception); Phase 2 construction authorized. |
+| **Notes** | Point-of-no-return architecture sign-off. Unsigned-MVP code-signing residual (TM-022/023) accepted for own-machine showtime; release.yml C++ steps deferred to Phase 4 (WALK ISSUE-010). recent_files consolidated into settings.json (data-model gap 1, ratified). |
+
 ---
 
 ## Phase Gate: Phase 2 → Phase 3
