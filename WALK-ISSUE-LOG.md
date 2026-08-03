@@ -335,3 +335,17 @@ identities are Karl) remains fully documented here and in the audit file.
 - **S-15:** First real cross-platform CI divergence and it was a genuine project issue (not a framework finding): ubuntu splits libzip CLI tools out of libzip-dev, and libzip's CMake targets file asserts /usr/bin/zipcmp exists, so find_package(libzip) errored on ubuntu though it passed on macOS (brew bundles the tools). Fixed by adding libzip-tools to .github/ci-deps-apt.txt. The ci-deps-apt.txt mechanism I built into the cpp.yml template made this a one-line fix — the extension pattern held up under a real cross-distro packaging quirk.
 
 - **S-15 follow-up:** The libzip fix evolved: libzip-tools does not exist as an Ubuntu package, so the robust fix was to locate libzip AND pugixml via **pkg-config** (IMPORTED_TARGET) instead of each library's CMake config — pkg-config finds them cleanly on both brew and apt without the tools-target assertion. Required installing pkgconf locally (standard dev tool) and adding pkg-config to CI apt deps. Local build recipe now needs PKG_CONFIG_PATH for the brew kegs.
+
+- **S-16:** F1b renderer built through the full Build Loop. The per-feature security audit
+  ONCE AGAIN caught serious real bugs on the second feature: a font-size giant-glyph hang
+  (a hostile deck declaring an absurd font freezes the app mid-talk), an untrusted-image-codec
+  gap (QImage::fromData would invoke CVE-prone TIFF/WebP/GIF decoders on attacker bytes —
+  now allow-listed to PNG/JPEG), and unbounded text volume. Verified VISUALLY too: a GIF
+  behind a .png name renders a "missing image" placeholder (allow-list working), a real PNG
+  decodes and displays. Two features, two audits, ~7 Critical/High bugs caught and fixed
+  test-first that plain "write code + run tests" would have shipped. The framework's core
+  claim — per-feature adversarial audit catches AI blind spots — is now demonstrated twice.
+- **S-17:** Rendering fidelity confirmed with real pixels: bold white title on the dark
+  background, correctly sized/positioned; unsupported table → labeled placeholder box;
+  images decode and scale. The from-scratch-renderer bet (intake §11 risk 1) has a working,
+  security-hardened text+images foundation. Full suite 40/40 on macOS; CI to confirm ubuntu.
