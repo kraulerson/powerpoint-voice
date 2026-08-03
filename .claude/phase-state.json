@@ -1,7 +1,7 @@
 {
   "project": "powerpoint-voice",
   "framework_version": "1.0",
-  "current_phase": 0,
+  "current_phase": 1,
   "track": "full",
   "deployment": "organizational",
   "poc_mode": null,
