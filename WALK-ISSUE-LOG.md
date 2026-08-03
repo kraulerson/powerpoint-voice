@@ -121,3 +121,30 @@ Severity scale: Blocker / Major / Minor / Confusion. Smooth notes logged too.
 - **S-6:** All 6 organizational pre-conditions presented to and decided by Karl individually,
   recorded verbatim in APPROVAL_LOG.md (append-only rows) + GitHub issue #1 as the ITSM record.
   The pre-conditions table's append-only design with numbered rows was easy to comply with.
+
+## ISSUE-006 — Org-mode protection + solo GitHub account = unmergeable main; no documented recovery (BLOCKER, workaround pending human decision)
+
+- **When/where:** 2026-08-03 ~07:50, first push after `check-gate.sh --repair` applied org-mode protection.
+- **Expected (doc):** Project CLAUDE.md §Branch Protection: *"Until then, the Orchestrator
+  creates and merges their own PRs with phase gate review at milestones."* Builder's Guide
+  1432: *"commit … push → open PR"* — the framework clearly intends a PR flow the solo
+  Orchestrator can complete.
+- **Actual:** Org protection bar (applied by the framework's own driver: `enforce_admins:
+  true`, `required_approving_review_count: 1`, strict checks) makes that impossible solo:
+  1. `git push` → `GH006 … Changes must be made through a pull request` (direct push sealed).
+  2. PR #2 opened; `gh pr merge 2 --merge` → *"not mergeable: the base branch policy
+     prohibits the merge"* (exit 1). GitHub forbids self-approval of one's own PR; there is
+     no second collaborator; `--admin` is both walk-forbidden and neutralized by enforce_admins.
+  3. Attestation hatches (`github_free_tier`, `gitlab_free_tier_approvals`) cover
+     protection-UNAVAILABLE only — checked `scripts/check-gate.sh` (BL-002 block) and the
+     backlog; nothing covers review-UNSATISFIABLE. Governance Framework §178-182
+     ("No self-approval") confirms the design assumes ≥2 humans.
+- **Severity:** **Blocker** (all merges to main frozen; governance records commit `ecea92c`
+  stranded on branch `walk/governance-records`). Practical workaround exists but requires a
+  human decision (second reviewer account), hence Blocker-with-workaround, not permanent.
+- **Known-ledger check:** no BL/BUG entry found for the solo-account org-mode review dead-end.
+  Appears NEW — and is exactly the class of issue a first full-rigor validation should surface:
+  the org path was designed for real orgs; the "organization of one" case has no documented story.
+- **Resolution:** STOPPED for Karl's decision (options: second controlled account as
+  reviewer / real second person / other). To be recorded here + APPROVAL_LOG history once made.
+- **Time lost:** ~25 min (diagnosis, doc/ledger search, empirical PR proof).
