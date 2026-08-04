@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-04 (session 2; UAT-2 done, RESEQUENCED to F7 UI -> F6 keyboard -> voice)
+**Last updated:** 2026-08-04 (session 2; F7a merged, building F7b — the first usable presenter)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -98,11 +98,19 @@ framework's most rigorous path, logging every stumble.
 > enhancement with a real fallback behind it, not a single point of failure.
 > The voice design + all critic findings are preserved in `docs/design-notes/voice-engine-design.md`.
 
-1. **F7 PRESENTATION UI — CURRENT Build Loop (`F7-presentation-ui`, branch `walk/voice-engine`).**
-   Wire the built library into a usable presenter: File->Open a .pptx, LoadReportView for warnings,
-   **PRE-RENDER the deck off the UI thread** (Bible §3 / TM-018 — never render lazily mid-talk),
-   fullscreen slide display, route to the external display, dark holding-screen exit, quit-confirm.
-   **Must range-clamp slide numbers (BUG-16)** — the matcher deliberately does not.
+1. **F7 = SEQUENTIAL SUB-FEATURES** (Karl decision after ISSUE-019: the Build Loop cannot express a
+   staged feature without a false attestation or a 10-stage mega-commit). Design + all critic
+   findings: `docs/design-notes/`; the revision-2 design and assertion list are the source for each
+   sub-feature's gate.
+   - **F7a presentation funnel — DONE** (PR #15, merged 5b1e0f0). PresentationController: the single
+     slide-index funnel, BUG-16 rejection, quit unreachable from any command, one pause bit, closed
+     notice vocabulary. 6 audit findings fixed (2 HIGH gate bypasses).
+   - **F7b minimum usable presenter — CURRENT.** Off-thread deck load + pre-render of the current
+     slide and neighbours, the slide surface (fitRect letterboxing), notice strip, and main.cpp
+     wiring. **This is the first point the product actually presents.**
+   - **F7c+** pre-render caps/budget/cache window (all four TM-018 caps, 2 GB always-on window),
+     load report, display routing + mirror, exit path, pre-show report + logging, settings,
+     accessibility. Each its own gate/audit/PR.
 2. **F6 KEYBOARD PARITY.** All five commands on keys, routed through the SAME matchCommand ->
    RecognizerController dispatch path the voice engine will use (so keyboard and voice share one
    code path, and the keyboard is the audited fallback). Covers the residual stuck-in-Paused risk
