@@ -108,8 +108,9 @@ release/
 # Solo Orchestrator logs
 .solo-orchestrator/
 
-# Sanitizer build dir (UAT)
+# Sanitizer build dirs (UAT / audits)
 build-asan/
+build-tsan/
 
 # Local deck render output (never commit deck content)
 render-out/

@@ -1,0 +1,82 @@
+#include "ui/presentation_window.hpp"
+
+#include <QCloseEvent>
+#include <QKeyEvent>
+#include <QResizeEvent>
+
+#include "ui/notice_strip.hpp"
+#include "ui/slide_surface.hpp"
+
+namespace pptv {
+
+PresentationWindow::PresentationWindow(PresentationController* controller, QWidget* parent)
+    : QWidget(parent), controller_(controller) {
+    surface_ = new SlideSurface(this);
+    strip_ = new NoticeStrip(this);
+    setFocusPolicy(Qt::StrongFocus);
+    QPalette p = palette();
+    p.setColor(QPalette::Window, Qt::black);
+    setPalette(p);
+    setAutoFillBackground(true);
+    clock_.start();
+}
+
+qint64 PresentationWindow::nowMs() const {
+    return clock_.isValid() ? clock_.elapsed() : 0;
+}
+
+void PresentationWindow::setSlideImage(const QImage& img) {
+    surface_->setSlideImage(img);
+}
+
+void PresentationWindow::setNotice(const QString& text) {
+    strip_->setText(text);
+}
+
+void PresentationWindow::resizeEvent(QResizeEvent* e) {
+    QWidget::resizeEvent(e);
+    const int stripH = NoticeStrip::heightFor(height());
+    surface_->setGeometry(0, 0, width(), height());
+    strip_->setGeometry(0, height() - stripH, width(), stripH);
+    strip_->raise();
+}
+
+void PresentationWindow::keyPressEvent(QKeyEvent* e) {
+    const Mode mode = controller_ ? controller_->mode() : Mode::Presenting;
+    if (mode != lastMode_) {
+        // Clear any half-typed slide number whenever the mode changes, so it cannot
+        // fire after the presenter has moved on (audit M1).
+        translator_.onModeChanged(mode);
+        lastMode_ = mode;
+    }
+    const KeyContext ctx{mode, paused_};
+    const KeyAction a = translator_.onKey(e->key(), e->modifiers(), ctx, nowMs());
+
+    if (a.command && sink_) {
+        sink_(*a.command);
+    }
+    if (a.uiRequest && uiSink_) {
+        uiSink_(*a.uiRequest);
+    }
+    if (a.consumed) {
+        // Accept and RETURN without calling the base class. This is what stops Esc
+        // (and any other handled key) from reaching Qt's default handling, which for
+        // some widget types closes the window — i.e. ends the talk on one keypress.
+        e->accept();
+        return;
+    }
+    QWidget::keyPressEvent(e);
+}
+
+void PresentationWindow::closeEvent(QCloseEvent* e) {
+    // A close request — window button, Cmd-Q, a stray shortcut — is REFUSED unless
+    // quitting was actually confirmed through the deliberate two-step. Nothing else
+    // can end a presentation in progress.
+    if (controller_ && !controller_->quitConfirmed()) {
+        e->ignore();
+        return;
+    }
+    e->accept();
+}
+
+} // namespace pptv

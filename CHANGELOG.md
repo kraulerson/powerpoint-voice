@@ -20,6 +20,16 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Security
+- **F7b hardened after an adversarial audit** (all findings reproduced in real builds; ThreadSanitizer
+  clean). Five Critical, all fixed: a use-after-free that made the app **SEGV on the first arrow key
+  after pre-render** (Qt destroys workers on `QThread::finished`; raw pointers dangled → now
+  `QPointer`); a 0-slide deck producing an **unquittable fullscreen black projector**; the deck's
+  **full file path rendered into a dialog** that lands on the projector (Bible §8 / TM-013); an
+  attacker-triggered use-after-free in the loader (`st.name` read after `zip_close`) that **printed
+  freed heap into that dialog**; and media-part read amplification with a **~640 GB allocation
+  ceiling** from a ≤200 MB file. Plus the privacy blackout never actually blanking, an invisible
+  quit prompt that never timed out, and unbounded shutdown. Findings:
+  `docs/security-audits/f7b-usable-presenter-security-audit.md`.
 - **F7a presentation funnel hardened** after adversarial audit: `undoJump()` was a second
   index-computing entry point that moved the deck behind the quit overlay and the privacy blackout;
   the blackout could be dismissed by a *rejected* command and by a voice "continue presentation"
@@ -56,6 +66,12 @@ for handoff clarity. Categories are ordered by impact severity.
   No persisted schema (standalone app).
 
 ### Added
+- **Feature F7b — Usable Presenter**: the app now actually presents. `File`/CLI opens a `.pptx`
+  **off the UI thread**, every slide is **pre-rendered off-thread** before the talk (TM-018), and the
+  deck is shown fullscreen on the external display with keyboard navigation, a privacy blackout
+  (Esc), and a deliberate two-step quit. New modules under `src/present/` (display geometry, key
+  translation, deck-load worker, pre-render worker) and `src/ui/` (slide surface, notice strip,
+  presentation window, app shell). A second test binary (`pptv_ui_tests`) tests the widget layer.
 - **Feature F7a — Presentation Funnel**: `PresentationController`, the single place in the product
   that computes a slide index, so both input paths (voice, keyboard) are range-checked once and it
   cannot be bypassed. Rejects out-of-range slide numbers rather than clamping (BUG-16); a
