@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-04 (session 2; F2/F3 command layer merged, UAT-2 in progress)
+**Last updated:** 2026-08-04 (session 2; UAT-2 done, starting the voice-engine feature)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -69,33 +69,35 @@ framework's most rigorous path, logging every stumble.
     (phrase-level closed grammar, no false-trigger) + `RecognizerController` (Active/Paused
     dispatch gate; Paused drops nav for Q&A). Pure/unit-tested; engine plugs in behind
     `IRecognizer`. 2-agent audit fixed 1 High (sink-exception mid-talk crash) + 2 Med test-first.
-  - **86 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
+  - **90 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
+  - **UAT session 2 done** (branch walk/uat-2, PR #13, merged 05823ff): 3 agent-testers confirmed
+    the safety property SOLID (could not force a false command or crash). Fixed BUG-11 (SEV-1
+    stuck-in-Paused → resume synonyms) + BUG-12 (SEV-2 natural filler tolerance) test-first per
+    Karl triage Option A; BUG-13..16 (SEV-3: directional aliases, spoken-number naturalness,
+    unicode punctuation, out-of-range clamp) DEFERRED to the voice-engine feature / F7.
+    `tools/command_probe` added (typed phrase → command). No open SEV-1/2.
 - **UAT session 1 done** (7 real-deck bugs fixed) + real-deck remediation (BUG-8 font-size,
   BUG-10 aspect, EMF→PNG tool). Karl confirmed his real deck renders readably (2 EMF images
   blank due to LibreOffice conversion limits — Karl to re-export in PowerPoint).
-- **test-gate: 2/2 features since last test → UAT session 2 REQUIRED** before any new feature.
+- **test-gate: counter reset after UAT-2; clear to continue (2 features until next UAT).**
 - **SCOPE SPLIT (Karl-approved):** the Vosk speech engine + mic capture is a SEPARATE follow-on
   feature (UAT-validated, needs the bundled-model dependency decision), NOT part of F2/F3.
+- Local commit gate (`scripts/run-tests.sh`) now ALSO runs clang-format (S-25 gap closed).
 
 ## 5. NEXT (in order) — resume here
 
-1. **UAT SESSION 2 (in progress on branch `walk/uat-2`).** Gate: `test-gate.sh --check-batch`
-   (blocks new features). Covers F4 + F2/F3 (both pure command logic — no new GUI surface yet).
-   Steps (`process-checklist.sh --complete-step uat_session:STEP`): agents_dispatched,
-   template_generated, orchestrator_notified, results_received, completeness_verified,
-   bugs_consolidated, triage_complete, remediation_complete, gate_passed. Dispatch parallel
-   agent-testers (automated suite / malicious-user adversarial on matcher+parser / cross-platform);
-   generate the human session HTML for Karl (typed phrase→command probe + real-deck render
-   regression); triage WITH Karl; fix Fix-Now test-first; `--reset-counter` at the end.
-   A `tools/command_probe` utility (phrase → matched command) is built for the human test.
-2. **Voice-engine feature** (`--start-feature` AFTER UAT-2 gate passes): Vosk (prebuilt `libvosk`
-   + model `vosk-model-small-en-us-0.15` ~40MB, Apache-2.0) + miniaudio (MIT) mic capture, behind
-   `IRecognizer`. **DECISION PENDING (bring to Karl):** how to acquire/bundle Vosk lib + 40MB
-   model under "pin everything / no runtime download / offline" — planned rec: build-time fetch
-   pinned by SHA-256, bundled into the app, model NOT committed to the public repo; miniaudio
-   vendored single-header. macOS needs `NSMicrophoneUsageDescription` in Info.plist. Must honor
-   the audited `IRecognizer` contract: finalized-phrases-only + same-thread delivery.
-3. **Then, by risk:** F5 transcript overlay + listening-state glyph → F6 keyboard parity (every
+1. **VOICE-ENGINE FEATURE (starting, branch `walk/voice-engine`).** Makes voice actually work:
+   Vosk (prebuilt `libvosk` + model `vosk-model-small-en-us-0.15` ~40MB, Apache-2.0) + miniaudio
+   (MIT) mic capture, implementing the audited `IRecognizer` interface. **DECISION PENDING (bring
+   to Karl at kickoff):** how to acquire/bundle Vosk lib + the 40MB model under "pin everything /
+   no runtime download / offline" — planned rec: build-time fetch pinned by SHA-256, bundled into
+   the app, model NOT committed to the public repo; miniaudio vendored single-header. macOS needs
+   `NSMicrophoneUsageDescription` in Info.plist (TCC mic permission). MUST honor the `IRecognizer`
+   contract from the F2/F3 audit: finalized-phrases-only + same-thread delivery (marshal audio-
+   thread phrases onto the UI thread). Keep any pure glue (Vosk JSON→phrase, grammar build) unit-
+   testable; the Vosk/mic I/O is validated in UAT (real audio). Also address the deferred
+   BUG-13/14/16 items here (directional aliases, spoken-number naturalness, out-of-range with F7).
+2. **Then, by risk:** F5 transcript overlay + listening-state glyph → F6 keyboard parity (every
    command has a key; independent of the speech engine) → **F7 presentation UI** (wires it all:
    File→Open, LoadReportView for warnings, PRE-RENDER cache OFF the UI thread per Bible §3/TM-018,
    route slide to external display, dark holding-screen exit, quit-confirm). Each triggers the
