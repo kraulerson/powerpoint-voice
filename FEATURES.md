@@ -58,4 +58,25 @@ pixel-determinism is not guaranteed (font substitution) — relevant only to a f
 
 ---
 
+## Feature F4: Slide-Number Parser ("go to slide N")
+
+**Phase Built:** 2
+**Status:** Complete
+**Summary:** `parseSlideNumber(text)` turns the spoken/typed number in a "go to slide N" command
+into an integer — the correctness-critical piece behind jumping to the right slide. Handles
+digits ("15"), number words ("fifteen", "twenty three", "one hundred twenty three"), and
+digit-by-digit ("one five" → 15), strips "go to slide" filler, and is case/whitespace/hyphen
+tolerant. Fails safe: garbage, malformed sequences ("fifteen fifteen"), and overflow return
+nothing (no jump), so a mis-heard command never lands on the wrong slide.
+**Key Interfaces:** `src/command/number_parser.hpp`; see `docs/api and interfaces/number-parser.md`.
+**Test Coverage:** Unit — 20 cases (`tests/test_number_parser.cpp`): digits, words, hundreds,
+digit-by-digit, filler, case/whitespace, unparseable, Karl's 7 orchestrator assertions, and 2
+security-audit regressions (overflow/flood + malformed-sequence rejection).
+**Security:** `docs/security-audits/f4-number-parser-security-audit.md` — 3 findings fixed
+test-first (negative overflow, unchecked toInt, malformed-sequence wrong-jump).
+**Known Limitations:** English only. Range-checking against the deck length (out-of-range →
+"deck has N slides") is the caller's job (F2/F7), not the parser's.
+
+---
+
 <!-- Copy the section above for each new feature. Number sequentially. -->
