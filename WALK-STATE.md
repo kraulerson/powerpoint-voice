@@ -105,9 +105,25 @@ framework's most rigorous path, logging every stumble.
    - **F7a presentation funnel — DONE** (PR #15, merged 5b1e0f0). PresentationController: the single
      slide-index funnel, BUG-16 rejection, quit unreachable from any command, one pause bit, closed
      notice vocabulary. 6 audit findings fixed (2 HIGH gate bypasses).
-   - **F7b minimum usable presenter — CURRENT.** Off-thread deck load + pre-render of the current
-     slide and neighbours, the slide surface (fitRect letterboxing), notice strip, and main.cpp
-     wiring. **This is the first point the product actually presents.**
+   - **F7b minimum usable presenter — IN PROGRESS** (branch `walk/f7b-presenter`, Build Loop open,
+     Karl approved its 44-assertion gate: 26 carried over from the Stage-1 gate + 18 new).
+     **This is the first point the product actually presents.** Modules, in order:
+     1. `src/present/display_geometry.*` — DONE (fitRect letterboxing, renderTargetPolicy clamp,
+        surfaceStateFor grace window). 137 tests green.
+     2. `src/present/key_translator.*` — TODO (group G, 14 assertions: arrows/space/PgDn, P=pause,
+        typed digits + Enter with 3 s staleness and a 6-digit cap, Esc's three meanings, Ctrl+Shift
+        chords, ConfirmQuit consumes everything).
+     3. `src/present/deck_load_worker.*` — TODO (group P, 6: off-thread parse, cancel, typed
+        failures, queued handoff with no deep copy).
+     4. `src/present/pre_render_worker.*` — TODO (group O, 11: PROVEN off-thread, never a null
+        image, bounded cancel/shutdown, mid-flight re-steer, emits QImage never QPixmap).
+     5. `src/ui/` widgets + a NEW `pptv_ui` lib and `pptv_ui_tests` binary with its own
+        QApplication main (group U, 7: keys reach the window, **Esc must NOT close it** — Qt's
+        default would, closeEvent refused unless quitConfirmed, SlideSurface draws at fitRect,
+        NoticeStrip bounded/eliding/exception-contained), plus main.cpp wiring.
+     NOTE (ISSUE-019): no `feat:` commit is possible until `implemented` is marked, so work
+     accumulates in the working tree until F7b is complete. If resuming cold, check
+     `git status` for uncommitted F7b modules before re-deriving anything.
    - **F7c+** pre-render caps/budget/cache window (all four TM-018 caps, 2 GB always-on window),
      load report, display routing + mirror, exit path, pre-show report + logging, settings,
      accessibility. Each its own gate/audit/PR.
