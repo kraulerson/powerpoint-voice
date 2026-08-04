@@ -419,6 +419,14 @@ identities are Karl) remains fully documented here and in the audit file.
   compiler pointer, and the fix (rename to `shouldDispatch`) was trivial — the tight build/test
   loop the toolchain setup gives makes these self-inflicted errors cheap.
 
+- **S-25 (self-inflicted, honest stumble + gap closed):** PR #13's Ubuntu CI failed on the
+  clang-format check — I formatted the SOURCE files after the UAT-2 remediation but not the two
+  TEST files I'd edited, and the local commit gate (`scripts/run-tests.sh`) runs build+ctest but
+  NOT clang-format, so the violation passed locally and only surfaced in CI (one wasted round-trip).
+  Root cause is a local/CI gate asymmetry, not the framework. Closed the gap: added the same
+  `git ls-files … | clang-format --dry-run --Werror` check to run-tests.sh, so a format-only
+  violation now fails at commit time. Lesson: mirror every CI gate in the local commit gate.
+
 - **Scope decision (2026-08-04):** F2/F3 was split with Karl's approval — this feature delivers
   the voice-command GRAMMAR + DISPATCH (pure, fully unit-tested, audited); the Vosk speech
   engine + microphone capture is carved into a follow-on feature (UAT-validated, needs the

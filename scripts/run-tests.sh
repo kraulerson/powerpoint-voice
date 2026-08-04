@@ -14,6 +14,12 @@ if command -v brew >/dev/null 2>&1; then
   export PKG_CONFIG_PATH="$(brew --prefix libzip)/lib/pkgconfig:$(brew --prefix pugixml)/lib/pkgconfig"
 fi
 
+# Format check — mirrors CI's clang-format gate so a formatting-only violation
+# fails HERE (at commit time) instead of only in CI. Fast, so run it first.
+if command -v clang-format >/dev/null 2>&1; then
+  git ls-files '*.cpp' '*.hpp' '*.h' '*.cc' '*.cxx' | xargs -r clang-format --dry-run --Werror
+fi
+
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build
 ctest --test-dir build --output-on-failure

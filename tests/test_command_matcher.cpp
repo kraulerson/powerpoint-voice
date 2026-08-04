@@ -143,8 +143,7 @@ TEST_CASE("UAT2 BUG-11: resume synonyms map to ContinuePresentation") {
              CommandType::ContinuePresentation);
     checkCmd(matchCommand(QStringLiteral("continue presentation please")),
              CommandType::ContinuePresentation);
-    checkCmd(matchCommand(QStringLiteral("okay lets continue")),
-             CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("okay lets continue")), CommandType::ContinuePresentation);
 }
 
 // BUG-12 — common leading/trailing filler and politeness are tolerated on all
@@ -173,6 +172,7 @@ TEST_CASE("UAT2 BUG-12: filler tolerance does not leak a false trigger") {
     CHECK_FALSE(matchCommand(QStringLiteral("let's pause here for questions")).has_value());
     CHECK_FALSE(matchCommand(QStringLiteral("that's the next slide")).has_value());
     CHECK_FALSE(matchCommand(QStringLiteral("the next slide shows our results")).has_value());
-    CHECK_FALSE(matchCommand(QStringLiteral("move to the next slide")).has_value()); // BUG-13 deferred
-    CHECK_FALSE(matchCommand(QStringLiteral("okay please")).has_value());            // pure filler
+    CHECK_FALSE(
+        matchCommand(QStringLiteral("move to the next slide")).has_value()); // BUG-13 deferred
+    CHECK_FALSE(matchCommand(QStringLiteral("okay please")).has_value());    // pure filler
 }
