@@ -36,6 +36,9 @@ for handoff clarity. Categories are ordered by impact severity.
   No persisted schema (standalone app).
 
 ### Added
+- **Feature F4 — Slide-Number Parser**: `parseSlideNumber()` turns "go to slide N" text
+  (digits, number words, digit-by-digit) into an integer; fails safe (nullopt) on garbage,
+  malformed sequences, or overflow so a mis-heard command never jumps to the wrong slide.
 - **Feature F1a — Deck Loader**: `DeckLoader::load()` parses an untrusted .pptx (libzip +
   pugixml) into the slide model — text runs with font/size/weight/color, EMU positions, solid
   backgrounds, resolved image references + bytes, and warnings for unsupported elements. Resource
