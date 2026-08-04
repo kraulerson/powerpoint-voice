@@ -63,34 +63,34 @@ Done (session 1):
 6. Findings 001-011 logged (see WALK-ISSUE-LOG.md). Resolved blockers: ISSUE-006 (un-block
    protocol), ISSUE-008 (recorder identity). Standing conventions in "Standing protocols" above.
 
-## Repo state (F1 COMPLETE + UAT SESSION 1 COMPLETE — awaiting merge)
+## Repo state (F1 done; UAT-1 + real-deck remediation in progress)
 
-- `main` @ merged through PR #8 (F1a + F1b). current_phase=2.
-- Branch **`walk/uat-1`** = PR (to open) with **UAT session 1 complete + all 7 real-deck
-  bugs fixed** + render-preview tool. **Karl merges next** (audit row, sync, delete branch).
-- **test-gate CLEAR** (counter reset; "2 features until next testing session"). UAT session 1
-  is 9/9 steps done; BUGS.md all 7 Fixed.
+- `main` @ merged through PR #9 (F1 + UAT-1 seven bug fixes). current_phase=2. test-gate CLEAR.
+- Branch **`walk/uat-1b`** (unmerged, to PR): real-deck remediation from Karl's actual deck
+  render — **BUG-8** (font-size inheritance from master txStyles — was blank/tiny text; FIXED),
+  **BUG-10** (image aspect preserved — no squish; FIXED), **BUG-9** (EMF/WDP images = Won't-Fix-MVP,
+  addressed via the convert-deck-emf tool below). 50 tests green.
+- Real deck: `../Solo Orchestrator - FirstService IT Summit.pptx` (Confidential, OUTSIDE repo,
+  never commit). Karl's report: text now readable after BUG-8; EMF images were placeholders.
+- **Tools:** `scripts/render-deck.sh <deck>` (render to render-out/); `scripts/convert-deck-emf.sh
+  <in> <out>` (LibreOffice-backed EMF/WDP→PNG repackage — LibreOffice cask now installed).
 - Toolchain local: cmake 4.4.2, ninja, llvm 22, Qt 6.11.1, libzip 1.11.4, pugixml 1.16,
-  pkgconf 3.0.5. `.claude/test-command` → `scripts/run-tests.sh` (48 tests, ~3s).
-- **Deck fidelity tool:** `bash scripts/render-deck.sh <deck.pptx>` → `render-out/slide-NNN.png`
-  (deck stays local, gitignored). Karl to validate his REAL deck at rehearsal.
+  pkgconf 3.0.5, LibreOffice (soffice). `.claude/test-command` → `scripts/run-tests.sh` (50 tests).
 
-## What F1 + UAT-1 delivered
+## What F1 + UAT delivered (renderer handles REAL decks)
 
-- **F1a DeckLoader::load()** — untrusted .pptx → slide model. Now handles theme colors,
-  scheme resolution, slideLayout placeholder inheritance, group recursion, line breaks, bullets.
-- **F1b SlideRenderer::render()** — slide model → QImage via QTextLayout (word-wrap, per-run
-  color/font, line breaks, bullets), luminance-based readable-text default, visible placeholders.
-- **48 tests green** (macOS; CI to confirm ubuntu). ASan+UBSan clean. Karl's 7+7 assertions
-  + 8 UAT regressions. Visual: themed dark deck renders red accent + white plain text; multi-run RGB.
-- **The renderer now renders REAL PowerPoint decks readably** (was invisible-text on synthetic-only).
-  Documented remaining limits: theme1/default clrMap, one-level layout inheritance, no group
-  transform, inline-only bullets — refinements, not blockers.
+- **DeckLoader::load()** — untrusted .pptx → slide model: theme/scheme colors, master txStyles
+  font-size inheritance, slideLayout placeholder position, group recursion, line breaks, bullets.
+- **SlideRenderer::render()** — QImage via QTextLayout (wrap, per-run color/font, breaks, bullets),
+  luminance-based readable-text default, aspect-preserved images, visible placeholders.
+- **50 tests green** + ASan/UBSan clean. Karl's real deck (10 slides) renders readably.
+- Known limits: EMF/WDP images (use convert-deck-emf), theme1/default clrMap, one-level layout
+  inheritance, no group transform, inline-only bullets.
 
 ## NEXT (in order)
 
-0. **KARL:** merge the UAT-1 PR (as kraulerson-reviewer); sync main; delete branch; audit row.
-   Optionally render your REAL deck now: `bash scripts/render-deck.sh <deck.pptx>`.
+0. **KARL:** re-check the converted deck render (EMF→PNG); confirm real-deck fidelity acceptable.
+   Then merge the walk/uat-1b PR (as kraulerson-reviewer); sync main; delete branch; audit row.
 1. **Build Loop feature F4 — "go to slide N" number parsing** (next feature, `--start-feature`).
    Highest-value non-render feature: normalize "fifteen"/"one five"/"15" → int, range-check
    against deck length. Pure/testable; no new deps. Karl at the test gate for ≥3 assertions.

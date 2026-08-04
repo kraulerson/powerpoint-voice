@@ -113,3 +113,4 @@ build-asan/
 
 # Local deck render output (never commit deck content)
 render-out/
+render-out-png/
