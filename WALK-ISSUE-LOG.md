@@ -432,3 +432,25 @@ identities are Karl) remains fully documented here and in the audit file.
   engine + microphone capture is carved into a follow-on feature (UAT-validated, needs the
   bundled-model dependency decision). Rationale: the engine can only be validated with real
   audio, so it does not fit unit-test-first — separating it keeps the tested logic honest.
+
+- **OBSERVATION-014 — ADR-pinned Vosk version (0.3.45) has NO macOS build (real dep-availability
+  surprise):** setting up the voice-engine deps, the exact version ADR-0001 named — Vosk 0.3.45 —
+  turned out to ship no macOS binary at all (Linux + Windows only, on both the GitHub release and
+  PyPI). The last version with a macOS `universal2` (arm64) build is 0.3.44 (PyPI-only; there is
+  not even a `v0.3.44` git tag). Verified against the live registries and pinned 0.3.44; took the
+  stable header from the v0.3.45 tag and ABI-verified every used symbol resolves in the 0.3.44 lib
+  (`nm -gU`). Lesson for the framework's ADR step: an architecture ADR should pin a dependency
+  version only after confirming a build exists for every TARGET platform — the Bible/ADR asserted
+  0.3.45 without that check, and it was wrong for the primary (macOS) target. Not blocking (0.3.44
+  works), but a real gap between "chose the library" and "the library ships for our platforms."
+  Dep decision: Karl chose full self-containment — libvosk + the 40MB model committed via git-LFS,
+  everything pinned by SHA-256, wheels verified against PyPI digests (`third_party/PROVENANCE.md`).
+
+- **S-26 (self-inflicted, honest stumble + gap):** the first attempt to commit the vendored deps
+  HUNG (killed at 2min). Diagnosed empirically: gitleaks (3s) and semgrep (4s) on the staged set
+  were fine — the stall was the clang-format check I'd just added to run-tests.sh (S-25) formatting
+  the 4MB vendored `miniaudio.h`. Vendored third-party code must be excluded from our linters:
+  added `':(exclude)third_party/**'` to the clang-format checks in both run-tests.sh and CI (and
+  clang-tidy in CI). A direct consequence of S-25's new gate meeting a 4MB vendored header — the
+  fix I added needed a scope carve-out for vendored code, which is standard practice I should have
+  applied up front.
