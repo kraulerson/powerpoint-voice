@@ -1,5 +1,6 @@
 #include "loader/deck_loader.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -229,9 +230,76 @@ std::optional<Color> parseSolidFill(const pugi::xml_node& fill, const ThemeColor
     return std::nullopt;
 }
 
-TextRun parseRun(const pugi::xml_node& r, int maxChars, const ThemeColors& theme) {
+// Default font sizes (points) inherited from the slide master's <p:txStyles>
+// when a run/paragraph declares none (BUG-8). Without this, unsized text (very
+// common in real decks) renders at 1px — blank/tiny slides.
+struct MasterTextStyles {
+    double title = 0.0;
+    std::vector<double> body; // per list level (index 0 == level 0)
+    double other = 0.0;
+};
+
+double defRPrSizePt(const pugi::xml_node& lvlPr) {
+    const QString sz = attrLocal(childLocal(lvlPr, "defRPr"), "sz");
+    return sz.isEmpty() ? 0.0 : sz.toDouble() / 100.0;
+}
+
+MasterTextStyles parseMasterStyles(const QByteArray& xml) {
+    MasterTextStyles s;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
+        return s;
+    }
+    pugi::xml_node txStyles = descendantLocal(doc.first_child(), "txStyles");
+    pugi::xml_node title = childLocal(txStyles, "titleStyle");
+    if (title) {
+        s.title = defRPrSizePt(childLocal(title, "lvl1pPr"));
+    }
+    pugi::xml_node other = childLocal(txStyles, "otherStyle");
+    if (other) {
+        s.other = defRPrSizePt(childLocal(other, "lvl1pPr"));
+    }
+    pugi::xml_node body = childLocal(txStyles, "bodyStyle");
+    for (int lvl = 1; lvl <= 9; ++lvl) {
+        const QByteArray tag = QStringLiteral("lvl%1pPr").arg(lvl).toUtf8();
+        pugi::xml_node lvlPr = childLocal(body, tag.constData());
+        if (!lvlPr) {
+            break;
+        }
+        s.body.push_back(defRPrSizePt(lvlPr));
+    }
+    return s;
+}
+
+// Placeholder type of a shape ("title"/"ctrTitle"/"body"/"subTitle"/... or empty).
+QString placeholderType(const pugi::xml_node& sp) {
+    pugi::xml_node ph = descendantLocal(childLocal(sp, "nvSpPr"), "ph");
+    return ph ? attrLocal(ph, "type") : QString();
+}
+
+// The inherited default size (points) for a placeholder type + list level.
+double resolveDefaultSizePt(const QString& phType, int lvl, const MasterTextStyles& m) {
+    const bool isTitle = phType == QLatin1String("title") || phType == QLatin1String("ctrTitle");
+    if (isTitle && m.title > 0.0) {
+        return m.title;
+    }
+    if (!isTitle && !m.body.empty()) {
+        const int i = std::clamp(lvl, 0, static_cast<int>(m.body.size()) - 1);
+        if (m.body[i] > 0.0) {
+            return m.body[i];
+        }
+    }
+    if (m.other > 0.0) {
+        return m.other;
+    }
+    return isTitle ? 40.0 : 18.0; // last-resort fallbacks so text is never 1px
+}
+
+TextRun parseRun(const pugi::xml_node& r, int maxChars, const ThemeColors& theme,
+                 double defaultSizePt) {
     TextRun run;
     run.text = QString::fromUtf8(childLocal(r, "t").text().get()).left(maxChars);
+    run.fontSizePt = defaultSizePt; // inherited default unless overridden below
     pugi::xml_node rPr = childLocal(r, "rPr");
     if (rPr) {
         const QString sz = attrLocal(rPr, "sz");
@@ -249,9 +317,11 @@ TextRun parseRun(const pugi::xml_node& r, int maxChars, const ThemeColors& theme
     return run;
 }
 
-TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim, const ThemeColors& theme) {
+TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim, const ThemeColors& theme,
+                     const MasterTextStyles& master) {
     TextBox tb;
     tb.rect = parseXfrm(childLocal(sp, "spPr"));
+    const QString phType = placeholderType(sp);
     pugi::xml_node txBody = childLocal(sp, "txBody");
     for (pugi::xml_node p = txBody.first_child(); p; p = p.next_sibling()) {
         if (localName(p.name()) != QLatin1String("p")) {
@@ -274,13 +344,15 @@ TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim, const Th
                 para.bulletChar = QStringLiteral("•"); // numbered lists -> a dot (MVP)
             }
         }
+        // Inherited default size for runs that declare none (BUG-8).
+        const double defaultSizePt = resolveDefaultSizePt(phType, para.indentLevel, master);
         for (pugi::xml_node r = p.first_child(); r; r = r.next_sibling()) {
             const QString rn = localName(r.name());
             if (static_cast<int>(para.runs.size()) >= lim.maxRunsPerParagraph) {
                 break;
             }
             if (rn == QLatin1String("r")) {
-                para.runs.push_back(parseRun(r, lim.maxRunTextChars, theme));
+                para.runs.push_back(parseRun(r, lim.maxRunTextChars, theme, defaultSizePt));
             } else if (rn == QLatin1String("br")) {
                 // Soft line break within the paragraph (BUG-6): a U+2028 line
                 // separator, which the renderer's QTextLayout breaks on.
@@ -354,12 +426,12 @@ QHash<QString, RectEmu> parseLayoutPlaceholders(const QByteArray& xml) {
 void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
                       const QHash<QString, QString>& slideRels, const QString& slideDir,
                       const LoaderLimits& lim, const ThemeColors& theme,
-                      const QHash<QString, RectEmu>& layoutPh);
+                      const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master);
 
 void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
                       const QHash<QString, QString>& slideRels, const QString& slideDir,
                       const LoaderLimits& lim, const ThemeColors& theme,
-                      const QHash<QString, RectEmu>& layoutPh) {
+                      const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master) {
     for (pugi::xml_node node = tree.first_child(); node; node = node.next_sibling()) {
         if (static_cast<int>(slide.elements.size()) >= lim.maxShapesPerSlide) {
             LoadWarning w;
@@ -375,7 +447,7 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             if (childLocal(node, "txBody")) {
                 ShapeElement e;
                 e.kind = ElementKind::TextBox;
-                e.textBox = parseTextBox(node, lim, theme);
+                e.textBox = parseTextBox(node, lim, theme, master);
                 // BUG-2: a placeholder with no inline geometry inherits position
                 // from the slide layout.
                 if (e.textBox.rect.cx <= 0 || e.textBox.rect.cy <= 0) {
@@ -400,7 +472,7 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             // Recurse into the group so its text/images render instead of a
             // placeholder (BUG-3). Group child-coordinate transforms are not
             // applied (MVP approximation) — positions are read from child xfrms.
-            processShapeTree(node, slide, index, slideRels, slideDir, lim, theme, layoutPh);
+            processShapeTree(node, slide, index, slideRels, slideDir, lim, theme, layoutPh, master);
         } else if (name == QLatin1String("graphicFrame") || name == QLatin1String("cxnSp")) {
             // Genuinely unsupported (table/chart/SmartArt) -> warning + visible
             // placeholder box.
@@ -441,7 +513,8 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
 
 Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>& slideRels,
                  const QString& slideDir, const LoaderLimits& lim, const ThemeColors& theme,
-                 const QHash<QString, RectEmu>& layoutPh, bool& xmlOk) {
+                 const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master,
+                 bool& xmlOk) {
     Slide slide;
     pugi::xml_document doc;
     if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
@@ -454,7 +527,7 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
     pugi::xml_node cSld = childLocal(sld, "cSld");
     slide.background = parseBackground(cSld, theme);
     pugi::xml_node spTree = childLocal(cSld, "spTree");
-    processShapeTree(spTree, slide, index, slideRels, slideDir, lim, theme, layoutPh);
+    processShapeTree(spTree, slide, index, slideRels, slideDir, lim, theme, layoutPh, master);
     return slide;
 }
 
@@ -591,6 +664,15 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         theme = parseTheme(themeXml);
     }
 
+    // Master text styles for inherited font sizes (BUG-8). The common
+    // single-master case (ppt/slideMasters/slideMaster1.xml) covers most decks.
+    MasterTextStyles master;
+    QByteArray masterXml;
+    if (readPart(za, QStringLiteral("ppt/slideMasters/slideMaster1.xml"), masterXml,
+                 limits.maxPartUncompressed)) {
+        master = parseMasterStyles(masterXml);
+    }
+
     // Insert a placeholder slide that preserves slide numbering (audit F1a-3).
     // Silently dropping an unresolvable slide would compact the vector and make
     // "go to slide N" land on the wrong slide during a live talk.
@@ -649,8 +731,8 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         }
 
         bool xmlOk = true;
-        Slide slide =
-            parseSlide(slideXml, index, slideRels, slideDir, limits, theme, layoutPh, xmlOk);
+        Slide slide = parseSlide(slideXml, index, slideRels, slideDir, limits, theme, layoutPh,
+                                 master, xmlOk);
         if (!xmlOk) {
             zip_close(za);
             return fail(LoadErrorKind::MalformedXml,

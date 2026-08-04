@@ -16,7 +16,11 @@
 | 6 | SEV-2 | Fixed | F1a | Line breaks `<a:br>` dropped; runs concatenate ("Q3⏎FY26" → "Q3FY26") | Session 1 | Fix Now | `<a:br>` → U+2028 separator | Session 1 |
 | 7 | SEV-3 | Fixed | F1a/F1b | Bullet markers (`buChar`/`buAutoNum`) and list-level indentation ignored | Session 1 | Fix Now | parse buChar/lvl + render bullet prefix/indent | Session 1 |
 
-**Known remaining limitations (documented, not blocking, tracked for post-MVP):** theme resolution uses `theme1.xml` and the default color map (no per-master `clrMap` override); placeholder geometry inherits one level (slideLayout), not slideMaster; group child-coordinate transforms are not applied (positions read from child xfrms); bullets render inline markers only (master list-style bullets not inherited). These are refinements — text is now **readable and correctly colored** on real decks.
+| 8 | SEV-1 | Fixed | F1a/F1b | Runs with no inline `sz` rendered at 0→1px (blank/tiny text) — real decks inherit font size from the master `<p:txStyles>` (title/body/other per level) | Session 1 (real deck) | Fix Now | parse master txStyles + resolve default size by placeholder type/level + fallback | Session 1 |
+| 9 | SEV-2 | Won't Fix (MVP) | F1b | EMF and WDP (JPEG-XR) images render a "missing image" placeholder — Qt has no decoder for these Windows vector/HD-Photo formats | Session 1 (real deck) | Post-MVP | none feasible without a metafile engine; **workaround: re-export EMF/WDP images as PNG in PowerPoint** | — |
+| 10 | SEV-3 | Open | F1b | Image drawn stretched-to-fill its frame; a frame whose aspect differs from the image looks squished (matches PowerPoint's fill default in most cases; a source-crop/`srcRect` is not applied) | Session 1 (real deck) | Defer | investigate `srcRect` / aspect after the font-size fix re-check | — |
+
+**Known remaining limitations (documented, not blocking, tracked for post-MVP):** theme resolution uses `theme1.xml` + default color map; placeholder geometry inherits one level (slideLayout); group child transforms not applied; inline bullets only; **EMF/WDP images unsupported (BUG-9 — re-export as PNG)**; font-size inheritance resolves via the master txStyles (not per-layout overrides). Text is now **readable and correctly sized/colored** on real decks.
 <!--
   Severity: SEV-1, SEV-2, SEV-3, SEV-4 (see PROJECT_BIBLE.md Bug Severity Classification)
   Cite bugs elsewhere as BUG-<#> (the # column, bare integer, no zero-padding — see docs/IDENTIFIERS.md)
