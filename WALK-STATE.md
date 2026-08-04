@@ -165,8 +165,22 @@ kraulerson-reviewer), semgrep/gitleaks/snyk/docker.
 
 ## 9. Findings tally (for WALK-REPORT.md at the end)
 
-12 issues + 2 observations + 21 smooth notes. Blocker-class resolved: ISSUE-006 (un-block
-protocol), ISSUE-008 (recorder identity). The framework's per-feature security audits + UAT
-have EACH caught real ship-blocking bugs (F1a: 3 Crit+1 High; F1b: 1 Crit+2 High; UAT-1:
-2 SEV-1 incl. invisible-text; F4: overflow/wrong-jump) — strongest evidence the rigor works.
-Time: ~session 1 was long (interview → F4). Multi-session expected.
+**See the `FINDINGS INDEX & CLASSIFICATION` section at the END of `WALK-ISSUE-LOG.md`** — it splits
+every entry into **A. FRAMEWORK findings** (the only ones that are candidate fixes for
+solo-orchestrator), **B. PROJECT findings** (ours, incl. self-inflicted stumbles), and **C. smooth
+notes**, and is the source for WALK-REPORT.md.
+
+**18 numbered findings** — 15 FRAMEWORK (2 Blocker, 7 Major, 2 Moderate, 4 Minor) + 3 PROJECT/
+governance — plus 3 self-inflicted project stumbles and ~23 smooth notes.
+
+Blocker-class framework findings, both resolved by convention: ISSUE-006 (org protection + solo
+account = unmergeable main → human-merge protocol) and ISSUE-008 (self-approval verifier
+unsatisfiable solo → recorder identity). Highest-value NEW framework findings: **ISSUE-017** (the
+Build Loop never asks whether the PRODUCT is demonstrable end-to-end — four features shipped at full
+rigor while the app was still a dark window) and **ISSUE-018** (UAT remediation gets no re-audit —
+the BUG-11 fix introduced the SEV-2 BUG-17 regression and passed the gate, CI and a merge).
+
+The framework's per-feature security audits + UAT have EACH caught real ship-blocking bugs (F1a: 3
+Crit+1 High; F1b: 1 Crit+2 High; UAT-1: 2 SEV-1 incl. invisible-text; F4: overflow/wrong-jump;
+F2/F3: an audio-thread std::terminate) — the strongest evidence the rigor works, and it belongs in
+the report next to the defects. Multi-session walk; sessions 1-2 covered interview → F2/F3 → UAT-2.
