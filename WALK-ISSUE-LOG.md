@@ -491,3 +491,20 @@ identities are Karl) remains fully documented here and in the audit file.
   clang-tidy in CI). A direct consequence of S-25's new gate meeting a 4MB vendored header — the
   fix I added needed a scope carve-out for vendored code, which is standard practice I should have
   applied up front.
+
+- **OBSERVATION-016 — clang-tidy has NEVER run: a gate that silently no-ops, while the Bible claims
+  it is enforced (MODERATE).** Found by the F7 design review. `.github/workflows/ci.yml` guards the
+  lint step with `if: hashFiles('.clang-tidy') != ''` — and **no `.clang-tidy` file has ever
+  existed**, so the step has been skipped on every CI run of the walk while reporting the job green.
+  Meanwhile `PROJECT_BIBLE.md` section 10 states style is "enforced by `.clang-format` ... and
+  `.clang-tidy`". So an approved control was documented as active, appeared green in CI, and was
+  doing nothing — the exact shape of a compliance illusion. Measured the cost of turning it on:
+  108 warnings on existing `src/`, but 82 of them are two stylistic checks
+  (`misc-const-correctness` 46, `misc-include-cleaner` 36); with a focused bug-finding check set only
+  ~12 are substantive (narrowing conversions 8, internal linkage 2, no-recursion 1, and one
+  `bugprone-empty-catch` which is the deliberate audited exception backstop in
+  recognizer_controller.cpp and needs a NOLINT with a reason). Cheap to fix, so it will be enabled.
+  **Framework finding:** a `hashFiles()`-guarded CI step that silently skips when its config is
+  absent is a footgun — the generated pipeline should either ship the config it guards on, or FAIL
+  loudly when a documented control is unconfigured. A skipped control must never look like a passed
+  control. Recorded for the framework's CI-template design.
