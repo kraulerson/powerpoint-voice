@@ -571,11 +571,15 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         // cast to zip_uint64_t is exact.
         if (!(st.valid & ZIP_STAT_SIZE) ||
             st.size > static_cast<zip_uint64_t>(limits.maxPartUncompressed)) {
+            // Copy the name BEFORE zip_close: libzip owns st.name and frees it in
+            // zip_close, so formatting afterwards read freed heap and printed those
+            // bytes into a user-facing dialog (audit C4 — an attacker-triggered
+            // use-after-free AND an information-disclosure channel).
+            const QString partName = (st.valid & ZIP_STAT_NAME) ? QString::fromUtf8(st.name)
+                                                                : QStringLiteral("<unknown>");
             zip_close(za);
             return fail(LoadErrorKind::PartTooLarge,
-                        QStringLiteral("part '%1' exceeds per-part size cap")
-                            .arg((st.valid & ZIP_STAT_NAME) ? QString::fromUtf8(st.name)
-                                                            : QStringLiteral("<unknown>")));
+                        QStringLiteral("part '%1' exceeds per-part size cap").arg(partName));
         }
         total += static_cast<long long>(st.size); // st.size now known <= 128 MB
         if (total > limits.maxTotalUncompressed) {
@@ -688,6 +692,11 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         pres.slides.push_back(std::move(ph));
     };
 
+    // Media parts are read ONCE and shared by every element that references them
+    // (audit C5), and their cumulative size is charged against the decompression cap.
+    QHash<QString, QByteArray> mediaCache;
+    long long mediaBytes = 0;
+
     int index = 0;
     for (const QString& rid : slideRids) {
         ++index;
@@ -743,10 +752,29 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
         // leaves imageData empty and the renderer draws a missing-image placeholder.
         for (ShapeElement& e : slide.elements) {
             if (e.kind == ElementKind::Image && !e.image.mediaPart.isEmpty()) {
-                QByteArray bytes;
-                if (readPart(za, e.image.mediaPart, bytes, limits.maxPartUncompressed)) {
-                    e.image.imageData = std::move(bytes);
+                // CACHE by part name (audit C5). The same media entry can be
+                // referenced by any number of <p:pic> elements, and each reference
+                // previously re-read and re-allocated it while the cumulative
+                // decompression cap — which walks the central directory — counted
+                // the entry only ONCE. A 63 MB file with 40 references measured
+                // 2.4 GB of resident image bytes, and the ceiling was ~640 GB.
+                // QByteArray is copy-on-write, so sharing here is free.
+                auto it = mediaCache.find(e.image.mediaPart);
+                if (it == mediaCache.end()) {
+                    QByteArray bytes;
+                    if (!readPart(za, e.image.mediaPart, bytes, limits.maxPartUncompressed)) {
+                        bytes.clear(); // absent/over-cap: renderer draws a placeholder
+                    }
+                    mediaBytes += bytes.size();
+                    if (mediaBytes > limits.maxTotalUncompressed) {
+                        zip_close(za);
+                        return fail(LoadErrorKind::DecompressionLimit,
+                                    QStringLiteral("media parts exceed the cumulative "
+                                                   "decompression cap"));
+                    }
+                    it = mediaCache.insert(e.image.mediaPart, bytes);
                 }
+                e.image.imageData = it.value();
             }
         }
         for (const LoadWarning& w : slide.warnings) {

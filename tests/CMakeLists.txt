@@ -9,10 +9,17 @@ add_executable(pptv_tests
   test_number_parser.cpp
   test_command_matcher.cpp
   test_recognizer_controller.cpp
-  test_presentation_controller.cpp)
-target_link_libraries(pptv_tests PRIVATE pptv_core doctest::doctest)
+  test_presentation_controller.cpp
+  test_display_geometry.cpp
+  test_key_translator.cpp
+  test_deck_load_worker.cpp
+  test_pre_render_worker.cpp)
+target_link_libraries(pptv_tests PRIVATE pptv_core doctest::doctest Qt6::Test)
 target_compile_definitions(pptv_tests PRIVATE
   FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(pptv_tests)
+
+# Widget tests (own QApplication main) — see tests/ui/CMakeLists.txt.
+add_subdirectory(ui)

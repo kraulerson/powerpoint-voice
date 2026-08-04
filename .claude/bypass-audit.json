@@ -78,5 +78,29 @@
     },
     "user_response": "PENDING",
     "final_outcome": "escalated"
+  },
+  {
+    "timestamp": "2026-08-04T22:55:11Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "bl125_tests"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-04T22:55:55Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "commitmsg_buildloop"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
   }
 ]

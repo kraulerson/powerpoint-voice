@@ -28,7 +28,9 @@ endif()
 # feature during the Phase 2 Build Loop — added when the feature that needs them
 # is built, not speculatively (CLAUDE.md dependency rule).
 # ---------------------------------------------------------------------------
-find_package(Qt6 6.2 REQUIRED COMPONENTS Gui Widgets)
+# Qt6::Test supplies QSignalSpy, used to assert the off-thread workers' signals
+# (it is part of qtbase, so it adds no new package on brew or ubuntu apt).
+find_package(Qt6 6.2 REQUIRED COMPONENTS Gui Widgets Test)
 qt_standard_project_setup()
 
 # OOXML parse layer (ADR-0001): libzip reads the .pptx package, pugixml parses
@@ -63,7 +65,11 @@ add_library(pptv_core STATIC
   src/command/command_matcher.cpp
   src/command/recognizer_controller.cpp
   src/present/notice.cpp
-  src/present/presentation_controller.cpp)
+  src/present/presentation_controller.cpp
+  src/present/display_geometry.cpp
+  src/present/key_translator.cpp
+  src/present/deck_load_worker.cpp
+  src/present/pre_render_worker.cpp)
 target_include_directories(pptv_core PUBLIC src)
 # Qt6::Gui for the renderer (QImage/QPainter/QFont); libzip+pugixml for the loader.
 target_link_libraries(pptv_core PUBLIC Qt6::Core Qt6::Gui
@@ -72,12 +78,25 @@ target_compile_definitions(pptv_core PUBLIC
   POWERPOINT_VOICE_VERSION="${PROJECT_VERSION}")
 
 # ---------------------------------------------------------------------------
+# UI layer (widgets). Separate from pptv_core because core links Qt6::Gui only —
+# keeping the decision layer free of Widgets is what lets the 169 core tests run
+# under a plain QGuiApplication. All POLICY stays in core; these classes only paint
+# and forward.
+# ---------------------------------------------------------------------------
+add_library(pptv_ui STATIC
+  src/ui/start_view.cpp
+  src/ui/slide_surface.cpp
+  src/ui/notice_strip.cpp
+  src/ui/presentation_window.cpp
+  src/ui/app_shell.cpp)
+target_link_libraries(pptv_ui PUBLIC pptv_core Qt6::Widgets)
+
+# ---------------------------------------------------------------------------
 # GUI application
 # ---------------------------------------------------------------------------
 qt_add_executable(powerpoint_voice
-  src/main.cpp
-  src/ui/start_view.cpp)
-target_link_libraries(powerpoint_voice PRIVATE pptv_core Qt6::Widgets)
+  src/main.cpp)
+target_link_libraries(powerpoint_voice PRIVATE pptv_ui)
 set_target_properties(powerpoint_voice PROPERTIES
   WIN32_EXECUTABLE ON
   MACOSX_BUNDLE ON)

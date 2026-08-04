@@ -114,4 +114,32 @@ contract (finalized-phrases-only, same-thread delivery).
 
 ---
 
+## Feature F7a/F7b: Presentation UI (funnel + usable presenter)
+
+**Phase Built:** 2
+**Status:** Complete for the core presenter; later F7 sub-features add caps/cache, load report,
+display routing polish, pre-show report, settings and accessibility.
+**Summary:** The point at which powerpoint-voice became a product. **F7a** built
+`PresentationController` — the single place in the product that computes a slide index, so both
+input paths are range-checked once (BUG-16) and quitting is unreachable from any command. **F7b**
+made it present: an untrusted `.pptx` is parsed **off the UI thread**, every slide is **pre-rendered
+off-thread** before the talk (TM-018 — never lazily mid-presentation), and the deck is displayed
+fullscreen on the external display with keyboard navigation, a privacy blackout, and a deliberate
+two-step quit.
+**Key Interfaces:** `src/present/` (presentation_controller, notice, display_geometry,
+key_translator, deck_load_worker, pre_render_worker) and `src/ui/` (slide_surface, notice_strip,
+presentation_window, app_shell).
+**Test Coverage:** 178 tests, including a second binary (`pptv_ui_tests`, own `QApplication`) for the
+widget layer. Highlights: a 40-dispatch matrix + 500-step fuzz proving quit is unreachable; rendering
+**proven off-thread**; the render bomb proven never to reach the renderer; Esc proven not to close the
+window.
+**Security:** `docs/security-audits/f7a-presentation-funnel-security-audit.md` and
+`f7b-usable-presenter-security-audit.md` — 2 High + 5 Critical + 6 High found and fixed test-first;
+ThreadSanitizer clean.
+**Known Limitations:** the TM-018 caps count shapes and text runs only (BUG-21) and the raster cache
+is unbounded (BUG-22) — both land in F7c with the ratified four-cap set and 2 GB window. Voice is not
+yet wired (the recognizer arrives with the voice-engine feature).
+
+---
+
 <!-- Copy the section above for each new feature. Number sequentially. -->
