@@ -63,9 +63,12 @@ Done (session 1):
 6. Findings 001-011 logged (see WALK-ISSUE-LOG.md). Resolved blockers: ISSUE-006 (un-block
    protocol), ISSUE-008 (recorder identity). Standing conventions in "Standing protocols" above.
 
-## Repo state (F1 done; UAT-1 + real-deck remediation in progress)
+## Repo state (F1 + UAT-1 done; F4 done — awaiting merge)
 
-- `main` @ merged through PR #9 (F1 + UAT-1 seven bug fixes). current_phase=2. test-gate CLEAR.
+- `main` @ merged through PR #10 (F1 + UAT-1 + real-deck remediation). current_phase=2.
+- Branch **`walk/f4-numbers`** (unmerged, PR to open): **feature F4 (slide-number parser) complete**
+  through the full Build Loop — parseSlideNumber(). 66 tests green. Karl merges next.
+- test-gate: F4 recorded (1/2 to UAT session 2; the NEXT feature triggers it).
 - Branch **`walk/uat-1b`** (unmerged, to PR): real-deck remediation from Karl's actual deck
   render — **BUG-8** (font-size inheritance from master txStyles — was blank/tiny text; FIXED),
   **BUG-10** (image aspect preserved — no squish; FIXED), **BUG-9** (EMF/WDP images = Won't-Fix-MVP,
