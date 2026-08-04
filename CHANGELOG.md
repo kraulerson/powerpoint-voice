@@ -20,6 +20,13 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Security
+- **Command grammar requires an object (BUG-17):** a bare "pause"/"continue"/"resume" is no longer
+  a command. Accepting single words gave the audience a ONE-WORD un-pause during Q&A — the exact
+  window the Paused state exists to protect (TM-002/019) — and the filler strip reduced ordinary
+  speech ("okay lets continue", "and now continue", "lets pause") to that lone word. Now
+  "pause/continue/resume (the) presentation" is required; 7 regression assertions lock it. Found by
+  the voice-engine design review; the residual stuck-in-Paused risk is covered by keyboard parity
+  (F6), resequenced ahead of the voice engine.
 - Voice-command layer (F2/F3) hardened at the recognizer boundary: the dispatch sink is
   exception-guarded so a throwing command handler can never cross the audio-thread boundary
   and crash the app mid-talk; a reentrancy backstop prevents double-dispatch/recursion; the

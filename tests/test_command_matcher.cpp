@@ -132,18 +132,20 @@ TEST_CASE("audit M-MED-1: punctuation tolerance does not leak a false trigger") 
 // (natural filler/politeness tolerance), Option A (safe subset).
 // ===========================================================================
 
-// BUG-11 — the Paused->resume path must accept the natural resume words, not only
-// the exact "continue presentation" (else the presenter is stuck mid-talk).
-TEST_CASE("UAT2 BUG-11: resume synonyms map to ContinuePresentation") {
-    checkCmd(matchCommand(QStringLiteral("resume")), CommandType::ContinuePresentation);
-    checkCmd(matchCommand(QStringLiteral("continue")), CommandType::ContinuePresentation);
+// BUG-11 — the Paused->resume path must accept the natural resume WORDINGS, not
+// only the exact "continue presentation" (else the presenter is stuck mid-talk).
+// NARROWED by BUG-17: the object ("presentation") is now required — see below.
+TEST_CASE("UAT2 BUG-11: two-word resume wordings map to ContinuePresentation") {
     checkCmd(matchCommand(QStringLiteral("resume presentation")),
              CommandType::ContinuePresentation);
     checkCmd(matchCommand(QStringLiteral("continue the presentation")),
              CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("resume the presentation")),
+             CommandType::ContinuePresentation);
     checkCmd(matchCommand(QStringLiteral("continue presentation please")),
              CommandType::ContinuePresentation);
-    checkCmd(matchCommand(QStringLiteral("okay lets continue")), CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("okay resume presentation")),
+             CommandType::ContinuePresentation);
 }
 
 // BUG-12 — common leading/trailing filler and politeness are tolerated on all
@@ -155,7 +157,6 @@ TEST_CASE("UAT2 BUG-12: natural filler/politeness is tolerated") {
     checkCmd(matchCommand(QStringLiteral("previous slide please")), CommandType::PreviousSlide);
     checkCmd(matchCommand(QStringLiteral("pause the presentation")),
              CommandType::PausePresentation);
-    checkCmd(matchCommand(QStringLiteral("lets pause")), CommandType::PausePresentation);
     checkCmd(matchCommand(QStringLiteral("pause presentation please")),
              CommandType::PausePresentation);
     checkCmd(matchCommand(QStringLiteral("go to slide five please")), CommandType::GoToSlide, 5);
@@ -175,4 +176,28 @@ TEST_CASE("UAT2 BUG-12: filler tolerance does not leak a false trigger") {
     CHECK_FALSE(
         matchCommand(QStringLiteral("move to the next slide")).has_value()); // BUG-13 deferred
     CHECK_FALSE(matchCommand(QStringLiteral("okay please")).has_value());    // pure filler
+}
+
+// ===========================================================================
+// BUG-17 (design-review remediation, 2026-08-04) — SINGLE-WORD COMMANDS ARE
+// REJECTED. The BUG-11 fix accepted bare "resume"/"continue"/"pause", which
+// handed the audience a ONE-WORD un-pause during Q&A — the exact window the
+// Paused state exists to protect (TM-002/019). Every command now requires its
+// object, so a lone conversational word can never re-arm navigation. The
+// residual stuck-in-Paused risk is covered by keyboard parity (F6).
+// ===========================================================================
+TEST_CASE("BUG-17: bare single-word commands are rejected (Q&A protection)") {
+    CHECK_FALSE(matchCommand(QStringLiteral("resume")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("continue")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("pause")).has_value());
+}
+
+// The filler strip must not reduce conversational speech to a lone command word
+// and fire it — these are the exact phrasings that used to un-pause the deck.
+TEST_CASE("BUG-17: filler cannot reduce speech to a lone command word") {
+    CHECK_FALSE(matchCommand(QStringLiteral("okay lets continue")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("and now continue")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("so continue please")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("lets pause")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("well resume")).has_value());
 }

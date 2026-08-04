@@ -30,8 +30,18 @@ Maps a phrase to a `Command`, or `std::nullopt` if the phrase is not a command.
 |---|---|
 | `"next slide"`, `"Next Slide"`, `"  next  slide "`, `"Next slide."` | NextSlide |
 | `"previous slide"` | PreviousSlide |
-| `"pause presentation"` / `"continue presentation"` | Pause / Continue |
+| `"pause presentation"`, `"pause the presentation"` | PausePresentation |
+| `"continue presentation"`, `"resume presentation"`, `+ "the"` variants | ContinuePresentation |
 | `"go to slide 7"`, `"go to slide fifteen"`, `"go to slide one five"` | GoToSlide(7 / 15 / 15) |
+
+Leading/trailing filler ("okay", "so", "please", "thanks", …) is stripped, so "okay next slide"
+and "next slide please" work. Interior words are never stripped.
+
+**Every command requires its object** (BUG-17): a bare `"pause"`, `"continue"` or `"resume"` is
+NOT a command. Accepting one handed the audience a single-word un-pause during Q&A — the exact
+window the Paused state protects (TM-002/019) — because the filler strip reduces ordinary speech
+("okay, let's continue", "and now continue") to that lone word. The residual "stuck in Paused"
+risk this re-opens is covered by keyboard parity (F6).
 
 **Fails safe → nullopt** for anything else: empty, garbage (`"banana"`), a partial
 command (`"next"`), a sentence that merely *contains* a keyword

@@ -446,6 +446,43 @@ identities are Karl) remains fully documented here and in the audit file.
   Dep decision: Karl chose full self-containment — libvosk + the 40MB model committed via git-LFS,
   everything pinned by SHA-256, wheels verified against PyPI digests (`third_party/PROVENANCE.md`).
 
+- **S-27 — the single highest-value event of the walk so far: a pre-implementation DESIGN review
+  caught a strategy error the whole process had missed.** Before writing any voice-engine code, an
+  8-agent design workflow (4 parallel deep-dives -> synthesis -> 3 adversarial critics) reviewed the
+  design. All three critics returned NEEDS_CHANGES, and one observation generalized into a
+  project-level finding: every voice failure path terminated in "use the clicker", but keyboard
+  control (F6) did not exist — and checking that revealed the app had **no presentation UI at all**
+  (main.cpp opens a dark StartView; the loader/renderer/command logic were a library wired to
+  nothing) with 6 days to the live talk. Four features had been built to production rigor without a
+  single one being *usable*. Karl resequenced: F7 presentation UI + F6 keyboard FIRST, voice after
+  (BUG-18). **Framework gap this exposes:** the Build Loop enforces per-feature rigor
+  (tests/audit/docs) but nothing in it ever asks "is the product demonstrable end-to-end yet?" The
+  MVP Cutline lists features but implies no ordering by user-visible value, and the UAT cadence
+  tests *features*, not the *product*. A "walking-skeleton first" or "is it demonstrable?" checkpoint
+  between features would have caught this at F1b. Recommend the framework add one.
+
+- **S-28 — the same design review found a SEV-2 security regression in already-merged, already-
+  UAT'd code (BUG-17), traceable to a fix the walk itself approved.** The UAT-2 BUG-11 remediation
+  (which I recommended and Karl approved) added bare "resume"/"continue"/"pause" to fix
+  stuck-in-Paused. The critics showed that this hands the audience a ONE-WORD un-pause during Q&A —
+  defeating the primary documented mitigation for TM-002/019 in exactly the window it protects —
+  made worse by the filler strip reducing "okay lets continue" / "and now continue" to a lone word.
+  I verified it directly with command_probe before reporting. Fixed test-first (object now required;
+  7 assertions). Honest lesson: a UAT remediation is a code change like any other and deserves the
+  same adversarial review as the original feature — the walk's UAT loop had no re-audit step after
+  remediation, so the regression passed the gate, CI, and a merge.
+
+- **OBSERVATION-015 — no non-interactive way to ABANDON a started Build Loop (MINOR).** After Karl
+  resequenced, the open `F2-F3-voice-engine` loop (0/6, no code written) had to be abandoned.
+  `--reset build_loop` is interactive-only (Y/N + a terminal) and refuses agent sessions by design.
+  `--start-feature` for the new feature DID succeed, printing `[WARN] Previous feature
+  'F2-F3-voice-engine' was not recorded` — a good, honest warning that leaves an accurate trail
+  (the loop was abandoned, not completed). I deliberately did NOT run `--record-feature` for it,
+  since no work was done and recording would have inflated the UAT counter with a phantom feature.
+  Working as designed, but a documented `--abandon-feature` (recording the abandonment + reason)
+  would fit the framework's audit philosophy better than a warning that a later reader must
+  interpret.
+
 - **S-26 (self-inflicted, honest stumble + gap):** the first attempt to commit the vendored deps
   HUNG (killed at 2min). Diagnosed empirically: gitleaks (3s) and semgrep (4s) on the staged set
   were fine — the stall was the clang-format check I'd just added to run-tests.sh (S-25) formatting
