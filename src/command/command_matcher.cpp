@@ -78,15 +78,21 @@ std::optional<Command> matchCommand(const QString& phrase) {
     if (core == QStringLiteral("previous slide")) {
         return Command{CommandType::PreviousSlide};
     }
-    // "pause the presentation" / a bare "pause" also pause (UAT-2 BUG-12).
-    if (core == QStringLiteral("pause") || core == QStringLiteral("pause presentation") ||
+    // Control commands accept their natural wordings, with or without "the"
+    // (UAT-2 BUG-11/12) — but ALWAYS require the object "presentation".
+    //
+    // BUG-17: a BARE "pause"/"continue"/"resume" is deliberately NOT a command.
+    // Accepting one handed the audience a single-word un-pause during Q&A — the
+    // exact window the Paused state exists to protect (TM-002/019) — because the
+    // filler strip reduces ordinary speech like "okay, let's continue" or "and
+    // now continue" to that lone word. Requiring the object makes a conversational
+    // word harmless. The residual "stuck in Paused" risk this re-opens is covered
+    // by keyboard parity (F6), which is why F6 ships before the voice engine.
+    if (core == QStringLiteral("pause presentation") ||
         core == QStringLiteral("pause the presentation")) {
         return Command{CommandType::PausePresentation};
     }
-    // The resume path accepts the natural words too, so the presenter is never
-    // stuck in Paused mid-talk (UAT-2 BUG-11).
-    if (core == QStringLiteral("continue") || core == QStringLiteral("resume") ||
-        core == QStringLiteral("continue presentation") ||
+    if (core == QStringLiteral("continue presentation") ||
         core == QStringLiteral("resume presentation") ||
         core == QStringLiteral("continue the presentation") ||
         core == QStringLiteral("resume the presentation")) {

@@ -167,14 +167,20 @@ TEST_CASE("audit S2: a reentrant sink is dropped, dispatching once") {
 // UAT SESSION 2 REMEDIATION — 2026-08-04. BUG-11: the Paused->Active escape hatch
 // must accept natural resume words, so the presenter is never stuck mid-talk.
 // ===========================================================================
-TEST_CASE("UAT2 BUG-11: 'resume' un-pauses, not only the exact phrase") {
+TEST_CASE("UAT2 BUG-11/17: 'resume presentation' un-pauses; a bare word does not") {
     Harness h;
     h.recognizer.speak(QStringLiteral("pause presentation"));
     REQUIRE(h.controller.state() == RecognizerController::State::Paused);
     h.emitted.clear();
 
-    // The natural word "resume" must resume — the SEV-1 fix.
+    // The natural wording "resume presentation" must resume — the SEV-1 fix.
+    // (BUG-17 narrowed this: a BARE "resume" no longer counts, so an audience
+    // member cannot un-pause the deck with one conversational word.)
     h.recognizer.speak(QStringLiteral("resume"));
+    CHECK(h.emitted.empty()); // bare word must NOT resume
+    CHECK(h.controller.state() == RecognizerController::State::Paused);
+
+    h.recognizer.speak(QStringLiteral("resume presentation"));
     REQUIRE(h.emitted.size() == 1);
     CHECK(h.emitted[0].type == CommandType::ContinuePresentation);
     CHECK(h.controller.state() == RecognizerController::State::Active);

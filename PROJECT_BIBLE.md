@@ -36,10 +36,14 @@ Full ADR: `docs/ADR documentation/ADR-0001-architecture-qt6-vosk.md` (Accepted, 
 - **Renderer:** from-scratch OOXML → in-memory slide model → QPainter/QTextLayout
   (text shaping, wrapping), QRawFont (embedded fonts), QImage (image codecs). Text+images
   tier only; unsupported elements → visible placeholders + warning list.
-- **Speech:** Vosk 0.3.45 (Apache-2.0), on-device, **grammar-constrained** to the five
-  phrases + number vocabulary. Model `vosk-model-small-en-us-0.15` (~40MB) bundled in the
-  app package (no first-run download — offline hard constraint).
-- **Audio capture:** miniaudio (MIT, single-header).
+- **Speech:** Vosk **0.3.44** (Apache-2.0), on-device, **grammar-constrained** to the five
+  phrases + number vocabulary (via `vosk_recognizer_new_grm` + a JSON phrase list). Model
+  `vosk-model-small-en-us-0.15` (~40MB) bundled. **Deviation from ADR-0001's 0.3.45:** 0.3.45
+  ships NO macOS build; 0.3.44 is the last with a macOS `universal2` (arm64) binary — required
+  for the Apple-Silicon showtime machine. libvosk + model are **vendored via git-LFS** (fully
+  self-contained offline build/run, Orchestrator decision); all pinned by SHA-256. See
+  `third_party/PROVENANCE.md`.
+- **Audio capture:** miniaudio (MIT, single-header) 0.11.25, vendored.
 - **Parsing:** libzip 1.11 (OOXML zip), pugixml 1.15 (XML — DTD/entity processing off, see
   TM-010).
 - **Logging:** spdlog 1.14 (MIT), structured, session-correlation IDs, day 1.

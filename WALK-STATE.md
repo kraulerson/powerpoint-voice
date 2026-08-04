@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-04 (session 2; F2/F3 command layer merged, UAT-2 in progress)
+**Last updated:** 2026-08-04 (session 2; UAT-2 done, RESEQUENCED to F7 UI -> F6 keyboard -> voice)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -69,42 +69,66 @@ framework's most rigorous path, logging every stumble.
     (phrase-level closed grammar, no false-trigger) + `RecognizerController` (Active/Paused
     dispatch gate; Paused drops nav for Q&A). Pure/unit-tested; engine plugs in behind
     `IRecognizer`. 2-agent audit fixed 1 High (sink-exception mid-talk crash) + 2 Med test-first.
-  - **86 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
+  - **90 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
+  - **UAT session 2 done** (branch walk/uat-2, PR #13, merged 05823ff): 3 agent-testers confirmed
+    the safety property SOLID (could not force a false command or crash). Fixed BUG-11 (SEV-1
+    stuck-in-Paused → resume synonyms) + BUG-12 (SEV-2 natural filler tolerance) test-first per
+    Karl triage Option A; BUG-13..16 (SEV-3: directional aliases, spoken-number naturalness,
+    unicode punctuation, out-of-range clamp) DEFERRED to the voice-engine feature / F7.
+    `tools/command_probe` added (typed phrase → command). No open SEV-1/2.
 - **UAT session 1 done** (7 real-deck bugs fixed) + real-deck remediation (BUG-8 font-size,
   BUG-10 aspect, EMF→PNG tool). Karl confirmed his real deck renders readably (2 EMF images
   blank due to LibreOffice conversion limits — Karl to re-export in PowerPoint).
-- **test-gate: 2/2 features since last test → UAT session 2 REQUIRED** before any new feature.
-- **SCOPE SPLIT (Karl-approved):** the Vosk speech engine + mic capture is a SEPARATE follow-on
-  feature (UAT-validated, needs the bundled-model dependency decision), NOT part of F2/F3.
+- **test-gate: counter reset after UAT-2; clear to continue (2 features until next UAT).**
+- **SCOPE SPLIT (Karl-approved):** the Vosk speech engine + mic capture is a SEPARATE feature,
+  NOT part of F2/F3. Its deps are already vendored (git-LFS, pinned + SHA-256); it is now
+  RESEQUENCED to run after F7/F6/UAT-3 — see NEXT.
+- **BUG-17 fixed (design review):** bare "pause"/"continue"/"resume" no longer match; every command
+  requires its object, closing a one-word audience un-pause during Q&A (TM-002/019). 93 tests green.
+- Local commit gate (`scripts/run-tests.sh`) now ALSO runs clang-format (S-25 gap closed).
 
 ## 5. NEXT (in order) — resume here
 
-1. **UAT SESSION 2 (in progress on branch `walk/uat-2`).** Gate: `test-gate.sh --check-batch`
-   (blocks new features). Covers F4 + F2/F3 (both pure command logic — no new GUI surface yet).
-   Steps (`process-checklist.sh --complete-step uat_session:STEP`): agents_dispatched,
-   template_generated, orchestrator_notified, results_received, completeness_verified,
-   bugs_consolidated, triage_complete, remediation_complete, gate_passed. Dispatch parallel
-   agent-testers (automated suite / malicious-user adversarial on matcher+parser / cross-platform);
-   generate the human session HTML for Karl (typed phrase→command probe + real-deck render
-   regression); triage WITH Karl; fix Fix-Now test-first; `--reset-counter` at the end.
-   A `tools/command_probe` utility (phrase → matched command) is built for the human test.
-2. **Voice-engine feature** (`--start-feature` AFTER UAT-2 gate passes): Vosk (prebuilt `libvosk`
-   + model `vosk-model-small-en-us-0.15` ~40MB, Apache-2.0) + miniaudio (MIT) mic capture, behind
-   `IRecognizer`. **DECISION PENDING (bring to Karl):** how to acquire/bundle Vosk lib + 40MB
-   model under "pin everything / no runtime download / offline" — planned rec: build-time fetch
-   pinned by SHA-256, bundled into the app, model NOT committed to the public repo; miniaudio
-   vendored single-header. macOS needs `NSMicrophoneUsageDescription` in Info.plist. Must honor
-   the audited `IRecognizer` contract: finalized-phrases-only + same-thread delivery.
-3. **Then, by risk:** F5 transcript overlay + listening-state glyph → F6 keyboard parity (every
-   command has a key; independent of the speech engine) → **F7 presentation UI** (wires it all:
-   File→Open, LoadReportView for warnings, PRE-RENDER cache OFF the UI thread per Bible §3/TM-018,
-   route slide to external display, dark holding-screen exit, quit-confirm). Each triggers the
-   2-feature UAT cadence.
-4. **Phase 2 exit → Phase 3 (Validation):** requires no open SEV-1/2, all MVP features, CI green.
+> **RESEQUENCED 2026-08-04 (Karl decision).** An 8-agent pre-implementation design review of the
+> voice engine found that every voice-failure path ended in a keyboard fallback that did not exist —
+> and that the app had **no presentation UI at all** (dark StartView only) with 6 days to the talk
+> (BUG-18). Four features were built to production rigor without the product ever being usable.
+> **New order: F7 presentation UI -> F6 keyboard parity -> UAT-3 (Karl drives his REAL deck by
+> keyboard) -> voice engine.** Rationale: guarantee a working presenter first; voice then becomes an
+> enhancement with a real fallback behind it, not a single point of failure.
+> The voice design + all critic findings are preserved in `docs/design-notes/voice-engine-design.md`.
+
+1. **F7 PRESENTATION UI — CURRENT Build Loop (`F7-presentation-ui`, branch `walk/voice-engine`).**
+   Wire the built library into a usable presenter: File->Open a .pptx, LoadReportView for warnings,
+   **PRE-RENDER the deck off the UI thread** (Bible §3 / TM-018 — never render lazily mid-talk),
+   fullscreen slide display, route to the external display, dark holding-screen exit, quit-confirm.
+   **Must range-clamp slide numbers (BUG-16)** — the matcher deliberately does not.
+2. **F6 KEYBOARD PARITY.** All five commands on keys, routed through the SAME matchCommand ->
+   RecognizerController dispatch path the voice engine will use (so keyboard and voice share one
+   code path, and the keyboard is the audited fallback). Covers the residual stuck-in-Paused risk
+   left by BUG-17.
+3. **UAT session 3** (2 features since UAT-2): Karl presents his REAL deck with the keyboard.
+4. **VOICE-ENGINE FEATURE (deferred to after UAT-3).** Makes voice actually work: Vosk +
+   miniaudio mic capture implementing the audited `IRecognizer` interface.
+   **Deps are DONE** — libvosk (macOS universal2 + Linux x86_64), the ~40MB model, miniaudio and
+   `vosk_api.h` are vendored via git-LFS, pinned + SHA-256 verified (`third_party/PROVENANCE.md`).
+   Vosk pinned **0.3.44** (0.3.45 ships no macOS build). macOS still needs
+   `NSMicrophoneUsageDescription` in the app Info.plist (TCC mic permission).
+   **START FROM `docs/design-notes/voice-engine-design.md`** — the full design PLUS the three
+   critics' NEEDS_CHANGES findings, which must be folded in BEFORE implementation. Highest-value:
+   `vosk_recognizer_set_grm` is NOT exported by the 0.3.44 macOS lib (builds green on Ubuntu CI,
+   fails on the showtime Mac); a model without the expected layout makes the grammar constraint
+   silently degrade to a full ~200k-word decoder (destroying the false-trigger defense); invalid
+   grammar JSON SEGFAULTS rather than returning null; out-of-vocabulary grammar tokens are silently
+   dropped (a dropped "resume" = stuck in Paused); `assert()` is a no-op in this forced-Release
+   build. MUST honor the `IRecognizer` contract: finalized-phrases-only + same-thread delivery.
+   Also address deferred BUG-13/14 (directional aliases, spoken-number naturalness).
+5. **F5 transcript overlay** + listening-state glyph + pre-show voice check (final MVP item).
+6. **Phase 2 exit → Phase 3 (Validation):** requires no open SEV-1/2, all MVP features, CI green.
    Then the Phase 3 five-scanner gate (`run-phase3-validation.sh`), six-reviewer eval
    (`evaluation-prompts/Projects/run-reviews.sh desktop-app`), Karl's auditor sign-offs
    (security / legal / UAT / pen-test), dual Application-Owner + IT-Security 3→4 approval.
-5. **Phase 4 (Release):** author the C++ macOS build/sign steps in `release.yml` (WALK ISSUE-003/010,
+7. **Phase 4 (Release):** author the C++ macOS build/sign steps in `release.yml` (WALK ISSUE-003/010,
    deferred to here), rollback test, go-live smoke test, HANDOFF.md, tag **v1.0.0**. Walk DONE.
 
 ## 6. Build / run recipe (macOS local — REQUIRED env)
