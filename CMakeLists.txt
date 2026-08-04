@@ -84,6 +84,10 @@ set_target_properties(powerpoint_voice PROPERTIES
 add_executable(render_preview tools/render_preview.cpp)
 target_link_libraries(render_preview PRIVATE pptv_core Qt6::Gui)
 
+# Headless dev/UAT utility: map typed phrases to voice commands (F2/F3/F4).
+add_executable(command_probe tools/command_probe.cpp)
+target_link_libraries(command_probe PRIVATE pptv_core)
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------

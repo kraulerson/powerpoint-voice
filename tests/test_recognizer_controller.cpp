@@ -162,3 +162,26 @@ TEST_CASE("audit S2: a reentrant sink is dropped, dispatching once") {
     CHECK(calls == 1); // without the guard this would be 2
     CHECK(c.state() == RecognizerController::State::Active);
 }
+
+// ===========================================================================
+// UAT SESSION 2 REMEDIATION — 2026-08-04. BUG-11: the Paused->Active escape hatch
+// must accept natural resume words, so the presenter is never stuck mid-talk.
+// ===========================================================================
+TEST_CASE("UAT2 BUG-11: 'resume' un-pauses, not only the exact phrase") {
+    Harness h;
+    h.recognizer.speak(QStringLiteral("pause presentation"));
+    REQUIRE(h.controller.state() == RecognizerController::State::Paused);
+    h.emitted.clear();
+
+    // The natural word "resume" must resume — the SEV-1 fix.
+    h.recognizer.speak(QStringLiteral("resume"));
+    REQUIRE(h.emitted.size() == 1);
+    CHECK(h.emitted[0].type == CommandType::ContinuePresentation);
+    CHECK(h.controller.state() == RecognizerController::State::Active);
+
+    // ...and navigation works again after resuming.
+    h.emitted.clear();
+    h.recognizer.speak(QStringLiteral("next slide"));
+    REQUIRE(h.emitted.size() == 1);
+    CHECK(h.emitted[0].type == CommandType::NextSlide);
+}

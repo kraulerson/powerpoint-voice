@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-03 (end of session 1; after F4, before F2/F3 voice)
+**Last updated:** 2026-08-04 (session 2; F2/F3 command layer merged, UAT-2 in progress)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -56,50 +56,50 @@ framework's most rigorous path, logging every stumble.
    TWO-word phrases: **"next slide" / "previous slide" / "pause presentation" /
    "continue presentation" / "go to slide N"** (Karl's Q1 change; supersedes intake single words).
 
-## 4. Current position (as of end of session 1)
+## 4. Current position (session 2, 2026-08-04)
 
 - **Phase 2 (Construction), current_phase=2.** Phases 0 & 1 gate-approved by Karl.
 - **Features built (all through the full Build Loop, tests-first, security-audited):**
   - **F1a DeckLoader::load()** — untrusted .pptx → in-memory slide model (libzip+pugixml).
   - **F1b SlideRenderer::render()** — slide model → QImage (QTextLayout text, images, placeholders).
+    Handles REAL decks: theme colors, master-txStyles font inheritance, layout placeholders,
+    group recursion, wrap, multi-run color, line breaks, bullets, aspect-preserved images.
   - **F4 parseSlideNumber()** — "go to slide N" text → int, fails safe on garbage/overflow.
-  - The renderer handles REAL decks: theme/scheme colors, master-txStyles font-size inheritance,
-    slideLayout placeholder position, group recursion, wrap, multi-run color, line breaks,
-    bullets, luminance-readable-text default, aspect-preserved images.
-  - **66 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
-- **UAT session 1 done** (found 7 real-deck bugs → all fixed) + real-deck remediation round
-  (BUG-8 font-size, BUG-10 aspect, EMF→PNG tool). Karl confirmed his real deck renders readably
-  (2 EMF images blank due to LibreOffice conversion limits — Karl to re-export in PowerPoint).
-- **test-gate:** F4 recorded, **1/2 features to UAT session 2** (the NEXT feature triggers it).
-- **PR #11 (F4)** was open at session end; Karl is merging it, then compacting, then resuming.
-  On resume: `git checkout main && git pull` (F4 should be merged); if PR #11 not yet merged,
-  it's on branch `walk/f4-numbers`.
+  - **F2/F3 voice-command grammar & dispatch** (PR #12, merged 2e3ad38) — `matchCommand()`
+    (phrase-level closed grammar, no false-trigger) + `RecognizerController` (Active/Paused
+    dispatch gate; Paused drops nav for Q&A). Pure/unit-tested; engine plugs in behind
+    `IRecognizer`. 2-agent audit fixed 1 High (sink-exception mid-talk crash) + 2 Med test-first.
+  - **86 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
+- **UAT session 1 done** (7 real-deck bugs fixed) + real-deck remediation (BUG-8 font-size,
+  BUG-10 aspect, EMF→PNG tool). Karl confirmed his real deck renders readably (2 EMF images
+  blank due to LibreOffice conversion limits — Karl to re-export in PowerPoint).
+- **test-gate: 2/2 features since last test → UAT session 2 REQUIRED** before any new feature.
+- **SCOPE SPLIT (Karl-approved):** the Vosk speech engine + mic capture is a SEPARATE follow-on
+  feature (UAT-validated, needs the bundled-model dependency decision), NOT part of F2/F3.
 
 ## 5. NEXT (in order) — resume here
 
-0. **Sync:** `git checkout main && git pull`; delete merged `walk/f4-numbers`. Append a
-   `WALK-UNBLOCK-AUDIT.md` row for the PR #11 merge (if not already). Run the session-start
-   obligation `bash scripts/check-versions.sh` (project CLAUDE.md) and report.
-1. **Build Loop feature F2/F3 — VOICE RECOGNITION (the big one).** `--start-feature`.
-   - F2 = voice nav ("next slide"/"previous slide"); F3 = recognition control
-     ("pause presentation"/"continue presentation"). Grammar-CONSTRAINED Vosk recognizer
-     limited to the 5 phrases + number words (mitigates audience false-trigger, TM-002/019).
-   - **New deps (add when F2 starts):** Vosk (prebuilt lib `libvosk` + model
-     `vosk-model-small-en-us-0.15` ~40MB, Apache-2.0, BUNDLED in-app — no download at runtime);
-     miniaudio (MIT, single-header) for mic capture. macOS needs `NSMicrophoneUsageDescription`
-     in the app Info.plist (TCC mic permission).
-   - **Design for testability:** keep the grammar-match + command-dispatch layer PURE and
-     unit-testable (feed it recognizer text → assert the emitted Command; reuse F4's
-     parseSlideNumber for the number). Wrap the Vosk/mic integration behind an interface; that
-     layer is exercised in UAT (real audio), not unit tests.
-   - Karl at the test gate for ≥3 assertions (give him step-by-step + options + TLDR — his
-     standing request for any input point).
-2. **Then, by risk:** F5 transcript overlay + listening-state glyph → F6 keyboard parity (every
+1. **UAT SESSION 2 (in progress on branch `walk/uat-2`).** Gate: `test-gate.sh --check-batch`
+   (blocks new features). Covers F4 + F2/F3 (both pure command logic — no new GUI surface yet).
+   Steps (`process-checklist.sh --complete-step uat_session:STEP`): agents_dispatched,
+   template_generated, orchestrator_notified, results_received, completeness_verified,
+   bugs_consolidated, triage_complete, remediation_complete, gate_passed. Dispatch parallel
+   agent-testers (automated suite / malicious-user adversarial on matcher+parser / cross-platform);
+   generate the human session HTML for Karl (typed phrase→command probe + real-deck render
+   regression); triage WITH Karl; fix Fix-Now test-first; `--reset-counter` at the end.
+   A `tools/command_probe` utility (phrase → matched command) is built for the human test.
+2. **Voice-engine feature** (`--start-feature` AFTER UAT-2 gate passes): Vosk (prebuilt `libvosk`
+   + model `vosk-model-small-en-us-0.15` ~40MB, Apache-2.0) + miniaudio (MIT) mic capture, behind
+   `IRecognizer`. **DECISION PENDING (bring to Karl):** how to acquire/bundle Vosk lib + 40MB
+   model under "pin everything / no runtime download / offline" — planned rec: build-time fetch
+   pinned by SHA-256, bundled into the app, model NOT committed to the public repo; miniaudio
+   vendored single-header. macOS needs `NSMicrophoneUsageDescription` in Info.plist. Must honor
+   the audited `IRecognizer` contract: finalized-phrases-only + same-thread delivery.
+3. **Then, by risk:** F5 transcript overlay + listening-state glyph → F6 keyboard parity (every
    command has a key; independent of the speech engine) → **F7 presentation UI** (wires it all:
    File→Open, LoadReportView for warnings, PRE-RENDER cache OFF the UI thread per Bible §3/TM-018,
-   route slide to external display, dark holding-screen exit, quit-confirm).
-3. **UAT session 2** fires after F2/F3 (2 features since last test): `--start-uat 2`, dispatch
-   agent-testers, generate the session doc, triage WITH Karl, fix Fix-Now test-first, gate.
+   route slide to external display, dark holding-screen exit, quit-confirm). Each triggers the
+   2-feature UAT cadence.
 4. **Phase 2 exit → Phase 3 (Validation):** requires no open SEV-1/2, all MVP features, CI green.
    Then the Phase 3 five-scanner gate (`run-phase3-validation.sh`), six-reviewer eval
    (`evaluation-prompts/Projects/run-reviews.sh desktop-app`), Karl's auditor sign-offs

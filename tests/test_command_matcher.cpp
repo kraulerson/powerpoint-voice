@@ -126,3 +126,53 @@ TEST_CASE("audit M-MED-1: punctuation tolerance does not leak a false trigger") 
     CHECK_FALSE(matchCommand(QStringLiteral("!!!")).has_value());
     CHECK_FALSE(matchCommand(QStringLiteral("...")).has_value());
 }
+
+// ===========================================================================
+// UAT SESSION 2 REMEDIATION — 2026-08-04. BUG-11 (resume synonyms) + BUG-12
+// (natural filler/politeness tolerance), Option A (safe subset).
+// ===========================================================================
+
+// BUG-11 — the Paused->resume path must accept the natural resume words, not only
+// the exact "continue presentation" (else the presenter is stuck mid-talk).
+TEST_CASE("UAT2 BUG-11: resume synonyms map to ContinuePresentation") {
+    checkCmd(matchCommand(QStringLiteral("resume")), CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("continue")), CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("resume presentation")),
+             CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("continue the presentation")),
+             CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("continue presentation please")),
+             CommandType::ContinuePresentation);
+    checkCmd(matchCommand(QStringLiteral("okay lets continue")), CommandType::ContinuePresentation);
+}
+
+// BUG-12 — common leading/trailing filler and politeness are tolerated on all
+// commands (and the "please" asymmetry is gone).
+TEST_CASE("UAT2 BUG-12: natural filler/politeness is tolerated") {
+    checkCmd(matchCommand(QStringLiteral("okay next slide")), CommandType::NextSlide);
+    checkCmd(matchCommand(QStringLiteral("next slide please")), CommandType::NextSlide);
+    checkCmd(matchCommand(QStringLiteral("so previous slide")), CommandType::PreviousSlide);
+    checkCmd(matchCommand(QStringLiteral("previous slide please")), CommandType::PreviousSlide);
+    checkCmd(matchCommand(QStringLiteral("pause the presentation")),
+             CommandType::PausePresentation);
+    checkCmd(matchCommand(QStringLiteral("lets pause")), CommandType::PausePresentation);
+    checkCmd(matchCommand(QStringLiteral("pause presentation please")),
+             CommandType::PausePresentation);
+    checkCmd(matchCommand(QStringLiteral("go to slide five please")), CommandType::GoToSlide, 5);
+    checkCmd(matchCommand(QStringLiteral("okay go to slide twelve")), CommandType::GoToSlide, 12);
+}
+
+// BUG-12 re-audit — the added filler tolerance must NOT create a false trigger:
+// interior words are never stripped, so an audience sentence keeps its non-filler
+// words and still cannot reduce to a command. Directional aliases (BUG-13) stay
+// deferred (a safe no-command).
+TEST_CASE("UAT2 BUG-12: filler tolerance does not leak a false trigger") {
+    CHECK_FALSE(
+        matchCommand(QStringLiteral("so let's move to the next slide in our roadmap")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("let's pause here for questions")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("that's the next slide")).has_value());
+    CHECK_FALSE(matchCommand(QStringLiteral("the next slide shows our results")).has_value());
+    CHECK_FALSE(
+        matchCommand(QStringLiteral("move to the next slide")).has_value()); // BUG-13 deferred
+    CHECK_FALSE(matchCommand(QStringLiteral("okay please")).has_value());    // pure filler
+}
