@@ -630,6 +630,50 @@ def build_good_longtext():
     write_zip("good_longtext.pptx", parts)
 
 
+def master_xml():
+    return (
+        XML_DECL
+        + f'<p:sldMaster xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + "<p:cSld><p:spTree/></p:cSld><p:txStyles>"
+        + '<p:titleStyle><a:lvl1pPr><a:defRPr sz="4000"/></a:lvl1pPr></p:titleStyle>'
+        + '<p:bodyStyle><a:lvl1pPr><a:defRPr sz="2400"/></a:lvl1pPr>'
+        + '<a:lvl2pPr><a:defRPr sz="2000"/></a:lvl2pPr></p:bodyStyle>'
+        + '<p:otherStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></p:otherStyle>'
+        + "</p:txStyles></p:sldMaster>"
+    )
+
+
+def ph_no_size_sp(text, ph_type, x, y, cx, cy):
+    # A placeholder shape whose run declares NO size or color (both inherited).
+    return (
+        f'<p:sp><p:nvSpPr><p:cNvPr id="2" name="P"/><p:cNvSpPr/>'
+        f'<p:nvPr><p:ph type="{ph_type}"/></p:nvPr></p:nvSpPr>'
+        f'<p:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm></p:spPr>'
+        f"<p:txBody><a:p><a:r><a:t>{text}</a:t></a:r></a:p></p:txBody></p:sp>"
+    )
+
+
+def build_good_inherit_size():
+    bg = '<p:bg><p:bgPr><a:solidFill><a:srgbClr val="000000"/></a:solidFill></p:bgPr></p:bg>'
+    body = ph_no_size_sp("Header", "title", 600000, 400000, 11000000, 1500000) + ph_no_size_sp(
+        "Body line", "body", 600000, 2200000, 11000000, 3000000
+    )
+    slide = (
+        XML_DECL
+        + f'<p:sld xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld>{bg}<p:spTree>{body}</p:spTree></p:cSld></p:sld>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slideMasters/slideMaster1.xml": master_xml(),
+        "ppt/slides/slide1.xml": slide,
+    }
+    write_zip("good_inherit_size.pptx", parts)
+
+
 def build_good_hugefont():
     # An absurd declared font size (audit R1) — must render without hanging/OOM.
     parts = {
@@ -716,4 +760,5 @@ if __name__ == "__main__":
     build_good_linebreak()
     build_good_bullets()
     build_good_longtext()
+    build_good_inherit_size()
     print("fixtures written to", HERE)

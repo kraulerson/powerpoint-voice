@@ -396,3 +396,17 @@ TEST_CASE("BUG-7: bullet marker and indent level are parsed") {
     CHECK(para.bulletChar == QStringLiteral("•"));
     CHECK(para.indentLevel == 1);
 }
+
+// BUG-8 — a run with no inline size inherits the master's txStyles size by
+// placeholder type (was 0 -> 1px -> blank/tiny text on real decks).
+TEST_CASE("BUG-8: font size is inherited from the master text styles") {
+    LoadResult r = DeckLoader::load(fixture("good_inherit_size.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides[0].elements.size() == 2);
+    // Title placeholder -> master titleStyle sz=4000 -> 40pt.
+    const TextRun& title = r.presentation.slides[0].elements[0].textBox.paragraphs[0].runs[0];
+    CHECK(title.fontSizePt == doctest::Approx(40.0));
+    // Body placeholder lvl0 -> master bodyStyle lvl1 sz=2400 -> 24pt.
+    const TextRun& body = r.presentation.slides[0].elements[1].textBox.paragraphs[0].runs[0];
+    CHECK(body.fontSizePt == doctest::Approx(24.0));
+}
