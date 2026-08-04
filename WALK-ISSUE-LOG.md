@@ -491,3 +491,122 @@ identities are Karl) remains fully documented here and in the audit file.
   clang-tidy in CI). A direct consequence of S-25's new gate meeting a 4MB vendored header — the
   fix I added needed a scope carve-out for vendored code, which is standard practice I should have
   applied up front.
+
+- **OBSERVATION-016 — clang-tidy has NEVER run: a gate that silently no-ops, while the Bible claims
+  it is enforced (MODERATE).** Found by the F7 design review. `.github/workflows/ci.yml` guards the
+  lint step with `if: hashFiles('.clang-tidy') != ''` — and **no `.clang-tidy` file has ever
+  existed**, so the step has been skipped on every CI run of the walk while reporting the job green.
+  Meanwhile `PROJECT_BIBLE.md` section 10 states style is "enforced by `.clang-format` ... and
+  `.clang-tidy`". So an approved control was documented as active, appeared green in CI, and was
+  doing nothing — the exact shape of a compliance illusion. Measured the cost of turning it on:
+  108 warnings on existing `src/`, but 82 of them are two stylistic checks
+  (`misc-const-correctness` 46, `misc-include-cleaner` 36); with a focused bug-finding check set only
+  ~12 are substantive (narrowing conversions 8, internal linkage 2, no-recursion 1, and one
+  `bugprone-empty-catch` which is the deliberate audited exception backstop in
+  recognizer_controller.cpp and needs a NOLINT with a reason). Cheap to fix, so it will be enabled.
+  **Framework finding:** a `hashFiles()`-guarded CI step that silently skips when its config is
+  absent is a footgun — the generated pipeline should either ship the config it guards on, or FAIL
+  loudly when a documented control is unconfigured. A skipped control must never look like a passed
+  control. Recorded for the framework's CI-template design.
+
+---
+
+# FINDINGS INDEX & CLASSIFICATION (added 2026-08-04)
+
+**Why this exists.** Karl asked, mid-walk, whether framework-correctable findings were being
+tracked distinctly. Auditing this log to answer honestly turned up three record-keeping defects of
+my own, recorded here rather than hidden:
+
+1. **Two of the walk's most significant FRAMEWORK findings were filed as "smooth notes"** (S-27,
+   S-28) — under a section header that reads "things that worked as promised". They are promoted
+   below to **ISSUE-017** and **ISSUE-018**. The original S-27/S-28 text stays where it is (this
+   log is append-only); the promotion is recorded here.
+2. **OBSERVATION-014/015/016 were written as bullets, not `##` headings** like OBSERVATION-005/009/
+   013, so any structural scan of the log misses them. Their IDs and content stand; noted so the
+   final report reads the whole file, not just the headings.
+3. **There was no FRAMEWORK vs PROJECT split.** Framework findings (things Solo Orchestrator itself
+   could fix), project findings (our own bugs and self-inflicted stumbles), and smooth notes were
+   intermixed. This index separates them.
+
+Classification is the point of the walk's second purpose: **only FRAMEWORK rows below are candidate
+fixes for solo-orchestrator.** PROJECT rows are our own and are not framework defects.
+
+## A. FRAMEWORK findings — candidate fixes for Solo Orchestrator
+
+| ID | Sev | Finding | Status |
+|---|---|---|---|
+| ISSUE-001 | Minor | README language-extension path omits the host directory | Reported |
+| ISSUE-002 | Major | Language auto-discovery accepts a new language, but `generate_ci` silently ships the `other.yml` skeleton — a discovered language gets a non-functional pipeline | Worked around (authored `cpp.yml`) |
+| ISSUE-003 | Major | `get_release_vars`: unknown language yields null `uses:` TODO steps in release.yml | Open (deferred to Phase 4) |
+| ISSUE-004 | Major | Org mode forces a private repo; free-tier GitHub cannot protect private repos → init exits "Setup INCOMPLETE" | Resolved by decision (public repo) |
+| ISSUE-006 | **Blocker** | Org-mode branch protection + a solo GitHub account = unmergeable main, with no documented recovery | Resolved (human-merge protocol + audit file) |
+| ISSUE-007 | Major | Gate-date auto-record + refused advance = self-inflicted deadlock | Worked around (documented knob, single use) |
+| ISSUE-008 | **Blocker** | Org self-approval verifier is unsatisfiable for a solo operator; both advertised remedies are dead ends | Resolved (recorder-identity convention) |
+| ISSUE-010 | Major | Generated `release.yml` is an INVALID workflow for a discovered language; every push logs a red run | Open (deferred to Phase 4) |
+| ISSUE-011 | Minor | Phase 2 `--verify-init` lockfile check has no C++/CMake entry | Reported |
+| OBS-013 | Minor | BL-120 security-audit gate rejects a QUALIFIED "Yes" verdict ("Yes (no open items…)") | Worked around |
+| OBS-014 | Moderate | The ADR/architecture step let a dependency version be pinned without verifying a build exists for every TARGET platform — ADR-0001 pinned Vosk 0.3.45, which ships no macOS build at all | Corrected (0.3.44) |
+| OBS-015 | Minor | No non-interactive way to ABANDON a started Build Loop; `--reset` is interactive-only. A documented `--abandon-feature` (recording the reason) would fit the audit philosophy better than a warning | Reported |
+| OBS-016 | Moderate | **A gate that silently no-ops:** ci.yml guards clang-tidy on `hashFiles('.clang-tidy')`, no such file was ever shipped, so the step skipped on every run while the job reported green — and the Bible documented the control as enforced. A skipped control must never look like a passed control | Being fixed |
+| **ISSUE-017** | **Major** | **No demonstrability checkpoint.** The Build Loop enforces per-feature rigor (tests → audit → docs) and UAT tests *features*, but nothing ever asks "is the PRODUCT runnable end-to-end yet?" Four features shipped to production rigor while the app was still a dark window that could not open a deck — discovered only 6 days before the live talk, by an ad-hoc design review. A "walking skeleton first" / "is it demonstrable?" checkpoint between features would have caught it at F1b. *(promoted from S-27)* | Reported |
+| **ISSUE-018** | **Major** | **UAT remediation gets no re-audit.** The 9-step UAT checklist ends at `gate_passed`; fixes written during remediation never face the adversarial security audit the original feature did. The BUG-11 fix (approved in UAT-2) introduced a SEV-2 regression — a one-word audience un-pause — that then passed the gate, CI and a merge, and was caught only by a later unrelated design review. A remediation is a code change and deserves the same audit. *(promoted from S-28)* | Reported |
+
+**Framework positives worth reporting too:** the per-feature security audit caught real
+ship-blocking bugs on **every** feature (F1a 3 Critical + 1 High; F1b 1 Critical + 2 High; F4
+overflow/wrong-jump; F2/F3 an audio-thread `std::terminate`); UAT-1 caught 7 real-deck bugs incl. 2
+SEV-1 that all prior gates missed; the pending-approval sentinel and the commit/test gates behaved
+exactly as documented. These belong in the report alongside the defects.
+
+## B. PROJECT findings — ours, not the framework's
+
+| ID | Finding |
+|---|---|
+| OBS-005 | Dual-hatted backup maintainer accepted (control weakening, by declared decision) |
+| OBS-009 | PR #4 merged while still in Draft; benign outcome, split verified |
+| S-24 | Self-inflicted: named a local `bool emit` — Qt reserves `emit` as a macro (5 cryptic parse errors) |
+| S-25 | Self-inflicted: formatted sources but not test files; the local gate lacked CI's clang-format check → one wasted CI round-trip. Gap closed |
+| S-26 | Self-inflicted: the clang-format check added in S-25 then stalled a commit on the 4MB vendored `miniaudio.h`; vendored code now excluded from our linters |
+| ISSUE-012 | (positive) The TDD commit gate correctly passed a real test-first feature |
+
+## C. Smooth notes
+S-1 … S-23 (minus those reclassified above): things that worked as promised. Retained for the
+report's balance section — a dogfood report that only lists defects is not an honest one.
+
+## Tally (supersedes earlier counts)
+**18 numbered findings** — 15 FRAMEWORK (2 Blocker, 7 Major, 2 Moderate, 4 Minor) + 3 PROJECT/
+governance — plus 3 self-inflicted project stumbles (S-24/25/26) and ~23 smooth notes.
+
+---
+
+## ISSUE-019 — The Build Loop cannot express a STAGED feature: no `feat:` commit is possible until the whole feature is done (MAJOR)
+
+- **When/where:** 2026-08-04, F7 (`F7-presentation-ui`), first implementation commit.
+- **What happened.** Karl approved the FULL F7 scope, which the design review sized at **10 stages
+  and 214 assertions**. I therefore staged it (Karl-approved: "sequenced inside F7"), gated Stage 1
+  with him, and built the first increment — `PresentationController`, the single slide-index funnel
+  (BUG-16 + the quit-confirm matrix), 28 new tests, 121 green. The `feat:` commit was then **blocked**:
+
+      [FAIL] pre-commit gate: 'feat(F7-presentation-ui)' commit blocked — Build Loop incomplete.
+      Missing step: implemented
+
+- **Why this is a real limitation, not a misuse.** `build_loop:implemented` attests that the FEATURE
+  is implemented. F7 is 1 of 10 stages done, so marking it would be a false attestation — precisely
+  the "synthetic Build Loop step completion" that project CLAUDE.md classifies as
+  `refuse_to_recommend`. The only compliant paths are therefore:
+  (a) accumulate all 10 stages in the working tree and land ONE enormous `feat:` commit — which
+      destroys reviewability, bisectability and incremental CI, and is the exact anti-pattern the
+      rest of the framework works to prevent; or
+  (b) split the feature into many smaller features, one Build Loop each.
+- **Assessment.** The 6-step Build Loop implicitly assumes **one feature = one atomic implement step
+  = one commit-ready unit**. That holds for a small feature (F1a, F4, F2/F3 all fit). It does not
+  hold for any feature large enough to need staging — and the framework provides no vocabulary for
+  a staged feature: no sub-steps, no "increment complete", no way to say "implemented through stage
+  N". The gate then pushes the operator toward either a false attestation or a mega-commit.
+- **Suggested framework fix:** either (1) allow repeatable `--complete-increment "stage name"` inside
+  `implemented`, authorizing `feat:` commits while keeping the step open until an explicit
+  `--complete-step implemented`; or (2) document, in the Builder's Guide, that a feature too large
+  for one implement step MUST be decomposed into multiple features before `--start-feature`, and have
+  `--start-feature` warn when a feature's approved test-gate exceeds some assertion count. Silence
+  here leaves the operator to discover the constraint only after the work is written.
+- **Not bypassed.** No `--no-verify`, no synthetic step completion. Escalated to Karl for the
+  structural decision (split into sub-features vs. one accumulated commit).

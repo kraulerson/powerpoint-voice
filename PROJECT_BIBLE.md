@@ -58,11 +58,38 @@ the WCAG-equivalent bar in one week); Qt + platform-native speech (loses Vosk's 
 grammar, adds a second backend); Tauri/Electron (violate the C++ constraint).
 
 **Key architecture decision carried from the threat model (TM-018, availability is the top
-asset for a live talk):** all slides are **pre-rendered to in-memory QPixmap on a background
-thread at deck-load**, bounded by per-slide complexity caps + a hard per-slide deadline that
-degrades to a placeholder — NOT lazily during the talk. This eliminates mid-talk UI-thread
-stalls from a maliciously or accidentally complex slide. Memory-only (no on-disk render
-cache — TM-011); sliding-window fallback (current ± K) if memory pressure is detected.
+asset for a live talk):** all slides are **pre-rendered to in-memory rasters on a background
+thread at deck-load** — NOT lazily during the talk. This eliminates mid-talk UI-thread stalls
+from a maliciously or accidentally complex slide. Memory-only (no on-disk render cache —
+TM-011).
+
+**AMENDMENT A3-1 (ratified by Karl Raulerson, 2026-08-04, F7 design review).** The original
+wording of this section could not be implemented as written. Amended in three places; the
+protective INTENT of each is preserved exactly.
+
+1. **"QPixmap on a background thread" → QImage on the worker, QPixmap on the GUI thread.**
+   Qt forbids constructing or using a QPixmap outside the GUI thread, and `SlideRenderer::render`
+   already returns a QImage. The worker therefore produces **QImage**; the GUI thread performs the
+   single `QPixmap::fromImage` on receipt. *Intent preserved:* all rasterization still happens
+   off the UI thread at load time.
+2. **"a hard per-slide deadline that degrades to a placeholder" → prevent / contain / isolate.**
+   A deadline cannot abort a paint already in flight: `SlideRenderer::render` is one blocking
+   pure call with no interruption points, and adding cooperative abort checks would make the
+   already-security-audited pure renderer impure. The mandate is therefore met by three
+   mechanisms instead of one: **prevent** — measure slide complexity BEFORE painting and emit a
+   placeholder for any slide exceeding the caps (this is what actually stops the render bomb, and
+   it is pure and unit-testable); **contain** — a render budget fed the measured elapsed time
+   degrades all SUBSEQUENT slides and marks the deck degraded; **isolate** — rendering is
+   off-thread, so even a pathological slide delays only its own readiness and can never block the
+   UI. *Intent preserved:* a pathological slide cannot stall the app mid-talk.
+3. **"sliding-window fallback IF memory pressure is detected" → the window is ALWAYS on, bounded
+   by a 2 GB raster budget.** At 3840×2160 RGB32 a slide raster is ~33 MB, so a 300-slide deck
+   would need ~10 GB and would swap the showtime machine — a worse availability failure than the
+   threat being mitigated, and detecting pressure after the fact is too late. A contiguous window
+   around the current slide is retained within a **2 GB** budget (Karl's ratified figure;
+   minimum ±3 slides). *Intent preserved:* memory cannot be exhausted.
+
+See `docs/design-notes/` for the F7 design and the review that surfaced these.
 
 ## 4. Threat Model & Risk/Mitigation Matrix
 

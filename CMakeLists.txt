@@ -61,7 +61,9 @@ add_library(pptv_core STATIC
   src/render/slide_renderer.cpp
   src/command/number_parser.cpp
   src/command/command_matcher.cpp
-  src/command/recognizer_controller.cpp)
+  src/command/recognizer_controller.cpp
+  src/present/notice.cpp
+  src/present/presentation_controller.cpp)
 target_include_directories(pptv_core PUBLIC src)
 # Qt6::Gui for the renderer (QImage/QPainter/QFont); libzip+pugixml for the loader.
 target_link_libraries(pptv_core PUBLIC Qt6::Core Qt6::Gui

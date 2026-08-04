@@ -20,6 +20,12 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Security
+- **F7a presentation funnel hardened** after adversarial audit: `undoJump()` was a second
+  index-computing entry point that moved the deck behind the quit overlay and the privacy blackout;
+  the blackout could be dismissed by a *rejected* command and by a voice "continue presentation"
+  while paused (an audience-Q&A disclosure path, TM-002/012/019); the quit prompt self-destructed on
+  a real wall clock and its timer was signed-overflow UB. All fixed test-first and verified under
+  ASan+UBSan. Findings: `docs/security-audits/f7a-presentation-funnel-security-audit.md`.
 - **Command grammar requires an object (BUG-17):** a bare "pause"/"continue"/"resume" is no longer
   a command. Accepting single words gave the audience a ONE-WORD un-pause during Q&A — the exact
   window the Paused state exists to protect (TM-002/019) — and the filler strip reduced ordinary
@@ -50,6 +56,12 @@ for handoff clarity. Categories are ordered by impact severity.
   No persisted schema (standalone app).
 
 ### Added
+- **Feature F7a — Presentation Funnel**: `PresentationController`, the single place in the product
+  that computes a slide index, so both input paths (voice, keyboard) are range-checked once and it
+  cannot be bypassed. Rejects out-of-range slide numbers rather than clamping (BUG-16); a
+  quit-confirm state machine in which quitting is unreachable from any command; a privacy blackout
+  (holding screen); and a CLOSED notice vocabulary (an id plus two ints, never free text) so deck
+  content has no channel to a display or a log. See `src/present/`.
 - **Feature F2/F3 — Voice-Command Grammar & Dispatch**: `matchCommand()` maps a recognized
   phrase to one of the five closed-grammar commands (next/previous slide, pause/continue
   presentation, go to slide N) or nothing — phrase-level matching so audience speech never

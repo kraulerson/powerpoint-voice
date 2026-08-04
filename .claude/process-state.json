@@ -1,9 +1,34 @@
 {
   "build_loop": {
-    "feature": "F7-presentation-ui",
+    "feature": null,
     "step": 0,
     "steps_completed": [],
-    "started_at": "2026-08-04T19:20:10Z"
+    "started_at": null,
+    "last_completed": {
+      "feature": "F7a-presentation-funnel",
+      "completed_at": "2026-08-04T21:49:15Z",
+      "steps_completed": [
+        "tests_written",
+        "tests_verified_failing",
+        "implemented",
+        "security_audit",
+        "documentation_updated",
+        "feature_recorded"
+      ],
+      "paths": [
+        "BUGS.md",
+        "CHANGELOG.md",
+        "CMakeLists.txt",
+        "docs/security-audits/f7a-presentation-funnel-security-audit.md",
+        "src/present/notice.cpp",
+        "src/present/notice.hpp",
+        "src/present/presentation_controller.cpp",
+        "src/present/presentation_controller.hpp",
+        "tests/CMakeLists.txt",
+        "tests/test_presentation_controller.cpp",
+        "WALK-ISSUE-LOG.md"
+      ]
+    }
   },
   "uat_session": {
     "session_id": 2,

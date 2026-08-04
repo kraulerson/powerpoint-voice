@@ -537,6 +537,31 @@ like the tool is simply broken.
    to report "40 slides rendered, 0 placeholders, slowest 120 ms." Two seconds of Karl's
    attention converts this threat into a visible warning.
 
+**AMENDMENT TM-018.3-A (ratified by Karl Raulerson, 2026-08-04, F7 design review).**
+Mitigation 3 above specifies "a deadline-checked abort flag polled by the paint loop." That is
+not implementable against the shipped renderer: `SlideRenderer::render` is a single blocking
+pure call with no interruption points, and adding cooperative abort checks would make the
+already-security-audited pure renderer impure (it would require a fresh audit). The abort flag
+would therefore never be polled, and a 45-second slide would still take 45 seconds.
+
+The control is instead delivered by **three mechanisms whose combined effect meets the original
+requirement — the UI thread can never block on deck content:**
+- **PREVENT (the real defense).** Measure slide complexity BEFORE painting and emit a placeholder
+  for any slide over the caps. This is what actually stops the render bomb described above, it
+  runs in microseconds, and it is pure and unit-testable. **All four caps from mitigation 2 are
+  in scope** (text runs ≤5,000/slide; shapes ≤2,000/slide; path vertices ≤10,000/shape; distinct
+  fonts ≤32/deck) — the measurement is the enforcement point.
+- **CONTAIN.** A render budget is fed each slide's MEASURED elapsed time; exceeding it degrades
+  all SUBSEQUENT slides to placeholders and marks the deck degraded, which is surfaced in the
+  load report and in the all-slides pre-show report (mitigation 5).
+- **ISOLATE.** Rendering runs off the UI thread, so a pathological slide that slips past the caps
+  delays only its own readiness. The UI thread never blocks — the property mitigation 3 exists to
+  guarantee — and the presenter sees "Rendering slide N…" rather than a frozen window.
+
+Residual risk accepted: a slide UNDER every cap that is nonetheless slow still takes its full
+time to become ready (as a non-blocking "Rendering…" state, never a freeze), and the deck is
+marked degraded. See PROJECT_BIBLE.md §3 Amendment A3-1 for the companion wording.
+
 #### TM-019 — Audio pipeline wedge kills voice control mid-talk
 **Attack.** Less crafted, more opportunistic, and it will also happen by accident. The
 miniaudio capture callback runs on a real-time audio thread; Vosk's `AcceptWaveform` is a
@@ -838,6 +863,17 @@ keep an LRU raster cache of bounded size (suggest 512 MB) with ±3-slide prefetc
 slide model (a few hundred KB/slide) for everything, rasters for a window. Re-rendering a
 cache miss is bounded by the TM-018 deadline, so a miss degrades latency, never
 availability.
+
+**AMENDMENT B1-A (ratified by Karl Raulerson, 2026-08-04, F7 design review).** Two changes.
+(a) The raster-cache budget is **2 GB**, not the 512 MB suggested above — the showtime machine
+has ample RAM, and a larger window means far fewer evictions, which matters because an evicted
+slide shows "Rendering slide N…" on the projector until it is re-rendered. (b) The retained
+window is **always on**, not a memory-pressure fallback (see PROJECT_BIBLE.md §3 Amendment
+A3-1(3)): reacting after pressure is detected is too late, since swap has already begun.
+Note also that "re-rendering a cache miss is bounded by the TM-018 deadline" no longer holds as
+written — see Amendment TM-018.3-A; a miss is bounded by the COMPLEXITY CAPS (checked before
+painting) and is non-blocking, which preserves the same conclusion: a miss degrades latency,
+never availability.
 
 **B2 — Load-time full validation collides with the two-minutes-before-the-talk workflow,
 and there is no warm path.** TM-018 and TM-014 both push work to load time (validate all
