@@ -20,6 +20,13 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Security
+- Voice-command layer (F2/F3) hardened at the recognizer boundary: the dispatch sink is
+  exception-guarded so a throwing command handler can never cross the audio-thread boundary
+  and crash the app mid-talk; a reentrancy backstop prevents double-dispatch/recursion; the
+  `IRecognizer` contract pins finalized-phrases-only + same-thread delivery (prevents one
+  utterance firing multiple jumps and a `state_` data race). Grammar matching is phrase-level
+  (audience speech cannot false-trigger a command) and logs no heard text (Bible §8). Findings:
+  `docs/security-audits/f2-f3-voice-commands-security-audit.md` (2-agent adversarial audit).
 - Deck loader (F1a) hardened against hostile .pptx input: ZIP64 size-cap wrap bypass closed
   (unsigned comparison), XML descendant walk made iterative to prevent stack-overflow DoS,
   per-slide shape cap added to prevent parse-time memory exhaustion. Findings + remediation:
@@ -36,6 +43,13 @@ for handoff clarity. Categories are ordered by impact severity.
   No persisted schema (standalone app).
 
 ### Added
+- **Feature F2/F3 — Voice-Command Grammar & Dispatch**: `matchCommand()` maps a recognized
+  phrase to one of the five closed-grammar commands (next/previous slide, pause/continue
+  presentation, go to slide N) or nothing — phrase-level matching so audience speech never
+  false-triggers. `RecognizerController` dispatches commands through an Active/Paused listening
+  gate: while paused, navigation is ignored (Q&A protection) and only "continue presentation"
+  resumes. Pure and unit-tested; the speech engine plugs in behind the `IRecognizer` interface
+  (a follow-on feature). See `docs/api and interfaces/voice-commands.md`.
 - **Feature F4 — Slide-Number Parser**: `parseSlideNumber()` turns "go to slide N" text
   (digits, number words, digit-by-digit) into an integer; fails safe (nullopt) on garbage,
   malformed sequences, or overflow so a mis-heard command never jumps to the wrong slide.

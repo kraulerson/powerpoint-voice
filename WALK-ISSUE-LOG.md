@@ -381,3 +381,46 @@ identities are Karl) remains fully documented here and in the audit file.
   9-step UAT checklist forced the full find→triage→remediate→gate cycle before any code landed.
   Also: the BL-125 test-command I wired earlier now runs all 48 tests at every source commit —
   local commit-time test enforcement is live.
+
+## OBSERVATION-013 — BL-120 security-audit gate rejects a QUALIFIED "Yes" verdict (MINOR)
+
+- **When/where:** 2026-08-04, F2/F3 `build_loop:security_audit` step.
+- **What:** The gate parses the audit doc's `**All findings resolved:**` line and requires an
+  UNQUALIFIED `Yes`. I wrote `Yes (no open items; deferred items are Low and logged)` — a
+  natural human phrasing — and the step was blocked with a clear message ("not an unqualified
+  Yes"). Fixed by moving the parenthetical to its own line so the verdict is a bare `Yes`.
+- **Assessment:** Defensible by design (a machine-checkable verdict must be unambiguous) and
+  the error message was clear and actionable, so NOT a defect — but a human writing "Yes, with
+  notes" will hit it. Logged as a minor usability rough edge for the walk report; a one-line
+  relaxation (accept `Yes` as the first token) would remove the surprise.
+
+- **S-22:** THIRD feature, THIRD per-feature audit catching a real ship-blocker. The F2/F3
+  adversarial audit (2 agents) found a High: the dispatch sink runs synchronously inside
+  `onPhrase`, which the real recognizer will call from an AUDIO THREAD via a C callback — a
+  sink exception would cross that boundary as UB / `std::terminate`, i.e. a crash mid-talk. Plus
+  a Medium availability bug (dictation punctuation like "Next slide." silently no-op'd every
+  command) and a Medium reentrancy hole. All fixed test-first (3 red→green regressions), ASan+
+  UBSan clean, Semgrep 0. Equally important, the audit CONFIRMED the two safety-critical
+  properties clean under attack: audience speech cannot false-trigger a command (phrase-level
+  exact match), and no heard text is ever logged (Bible §8). The "audit every feature" claim
+  keeps paying out — including on a small, pure-logic feature where it would be tempting to skip.
+
+- **S-23:** The framework's `pending-approval.sh` sentinel + `escalate` pattern worked cleanly
+  as the STOP mechanism for two structured decisions this session (the F2/F3 test-gate assertion
+  approval, and the scope-split decision). Writing the sentinel before asking Karl, then
+  `--resolve --decision accept` after his pick, kept the pre-commit gate and stop-hook aware
+  that a human was deciding — no premature commit/stop drift. This is the documented "structured
+  decision points" flow behaving exactly as CLAUDE.md prescribes.
+
+- **S-24 (self-inflicted, honest stumble):** My first compile of the controller failed with 5
+  cryptic parse errors — I had named a local `bool emit`, and Qt reserves `emit` as a macro, so
+  it expanded to nothing. Not a framework issue; a normal Qt gotcha. Worth logging only as
+  evidence that the fast local build (~seconds, incremental) caught it instantly with a clear
+  compiler pointer, and the fix (rename to `shouldDispatch`) was trivial — the tight build/test
+  loop the toolchain setup gives makes these self-inflicted errors cheap.
+
+- **Scope decision (2026-08-04):** F2/F3 was split with Karl's approval — this feature delivers
+  the voice-command GRAMMAR + DISPATCH (pure, fully unit-tested, audited); the Vosk speech
+  engine + microphone capture is carved into a follow-on feature (UAT-validated, needs the
+  bundled-model dependency decision). Rationale: the engine can only be validated with real
+  audio, so it does not fit unit-test-first — separating it keeps the tested logic honest.

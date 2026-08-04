@@ -6,7 +6,9 @@ add_executable(pptv_tests
   test_app_info.cpp
   test_deck_loader.cpp
   test_slide_renderer.cpp
-  test_number_parser.cpp)
+  test_number_parser.cpp
+  test_command_matcher.cpp
+  test_recognizer_controller.cpp)
 target_link_libraries(pptv_tests PRIVATE pptv_core doctest::doctest)
 target_compile_definitions(pptv_tests PRIVATE
   FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")

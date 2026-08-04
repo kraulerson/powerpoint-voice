@@ -1,6 +1,6 @@
 # Project Bible — powerpoint-voice
 
-<!-- Last Updated: 2026-08-03 (Phase 1 synthesis) -->
+<!-- Last Updated: 2026-08-04 (Phase 2: F2/F3 voice-command grammar & dispatch built) -->
 
 **Status:** Draft — pending Phase 1 → Phase 2 gate approval (Senior Technical Authority)
 **Phase Gate:** Phase 1 → Phase 2
@@ -96,7 +96,11 @@ Full spec: `docs/phase-1/data-model.md`. Standalone app — no database. Two lay
   (text + font/size/weight/color/style); Image (part ref, decoded pixels, rect, z-order);
   SlideBackground (solid | picture); EMU→pixel scaling; UnsupportedElementPlaceholder +
   LoadWarning records (drive F1's warning list). Command grammar as data: CommandType
-  (5-value closed enum), NumberParseResult (Parsed | Unparseable).
+  (5-value closed enum), NumberParseResult (Parsed | Unparseable). **Realized in F2/F3**
+  (`matchCommand` + `RecognizerController`, Active/Paused dispatch gate); the recognizer
+  boundary carries binding contracts — finalized-phrases-only, same-thread delivery,
+  exception-guarded sink — recorded in the F2/F3 security audit and enforced by the
+  future voice-engine adapter.
 - **Persisted state (`settings.json`, schema-versioned):** `schema_version`,
   `overlay_fade_ms`, `mic_device_id` (null = system default; picker is P2), `keybindings`,
   `rehearsal_log_enabled` (default false), `recent_files` (paths only, max 10). Unknown keys
