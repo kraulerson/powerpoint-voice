@@ -3,10 +3,11 @@
     "F1a-deck-loader",
     "F1b-slide-render",
     "F4-number-parse",
-    "F2-F3-voice-commands"
+    "F2-F3-voice-commands",
+    "F7a-presentation-funnel"
   ],
-  "features_since_last_test": 0,
-  "features_since_last_health_check": 1,
+  "features_since_last_test": 1,
+  "features_since_last_health_check": 2,
   "test_interval": 2,
   "last_test_session": "2026-08-04",
   "testing_required": false,

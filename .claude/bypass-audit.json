@@ -36,5 +36,47 @@
     },
     "user_response": "n/a",
     "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-04T21:29:31Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "commitmsg_buildloop"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-04T21:30:01Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "commitmsg_buildloop"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-04T21:30:48Z",
+    "session_id": null,
+    "type": "escalation",
+    "actor": "framework",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "question": "F7 is 10 approved stages, but the Build Loop blocks every feat: commit until 'implemented' is marked, which would be a false attestation. How should F7 be structured?",
+      "options": [
+        "A1: Split F7 into sequential sub-features (F7a funnel, F7b presenter, F7c pre-render, ...), each its own Build Loop + PR",
+        "A2: Keep one F7 loop and accumulate all 10 stages into one large commit at the end"
+      ],
+      "recommendation": "A1",
+      "rationale": "A1 is the framework-native answer: each stage gets its own gate, audit, PR and green CI, stays reviewable and bisectable, and gives Karl a working presenter he can rehearse with after the first sub-feature instead of after all ten stages."
+    },
+    "user_response": "PENDING",
+    "final_outcome": "escalated"
   }
 ]

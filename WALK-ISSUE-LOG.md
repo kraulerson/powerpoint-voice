@@ -575,3 +575,38 @@ report's balance section — a dogfood report that only lists defects is not an 
 ## Tally (supersedes earlier counts)
 **18 numbered findings** — 15 FRAMEWORK (2 Blocker, 7 Major, 2 Moderate, 4 Minor) + 3 PROJECT/
 governance — plus 3 self-inflicted project stumbles (S-24/25/26) and ~23 smooth notes.
+
+---
+
+## ISSUE-019 — The Build Loop cannot express a STAGED feature: no `feat:` commit is possible until the whole feature is done (MAJOR)
+
+- **When/where:** 2026-08-04, F7 (`F7-presentation-ui`), first implementation commit.
+- **What happened.** Karl approved the FULL F7 scope, which the design review sized at **10 stages
+  and 214 assertions**. I therefore staged it (Karl-approved: "sequenced inside F7"), gated Stage 1
+  with him, and built the first increment — `PresentationController`, the single slide-index funnel
+  (BUG-16 + the quit-confirm matrix), 28 new tests, 121 green. The `feat:` commit was then **blocked**:
+
+      [FAIL] pre-commit gate: 'feat(F7-presentation-ui)' commit blocked — Build Loop incomplete.
+      Missing step: implemented
+
+- **Why this is a real limitation, not a misuse.** `build_loop:implemented` attests that the FEATURE
+  is implemented. F7 is 1 of 10 stages done, so marking it would be a false attestation — precisely
+  the "synthetic Build Loop step completion" that project CLAUDE.md classifies as
+  `refuse_to_recommend`. The only compliant paths are therefore:
+  (a) accumulate all 10 stages in the working tree and land ONE enormous `feat:` commit — which
+      destroys reviewability, bisectability and incremental CI, and is the exact anti-pattern the
+      rest of the framework works to prevent; or
+  (b) split the feature into many smaller features, one Build Loop each.
+- **Assessment.** The 6-step Build Loop implicitly assumes **one feature = one atomic implement step
+  = one commit-ready unit**. That holds for a small feature (F1a, F4, F2/F3 all fit). It does not
+  hold for any feature large enough to need staging — and the framework provides no vocabulary for
+  a staged feature: no sub-steps, no "increment complete", no way to say "implemented through stage
+  N". The gate then pushes the operator toward either a false attestation or a mega-commit.
+- **Suggested framework fix:** either (1) allow repeatable `--complete-increment "stage name"` inside
+  `implemented`, authorizing `feat:` commits while keeping the step open until an explicit
+  `--complete-step implemented`; or (2) document, in the Builder's Guide, that a feature too large
+  for one implement step MUST be decomposed into multiple features before `--start-feature`, and have
+  `--start-feature` warn when a feature's approved test-gate exceeds some assertion count. Silence
+  here leaves the operator to discover the constraint only after the work is written.
+- **Not bypassed.** No `--no-verify`, no synthetic step completion. Escalated to Karl for the
+  structural decision (split into sub-features vs. one accumulated commit).
