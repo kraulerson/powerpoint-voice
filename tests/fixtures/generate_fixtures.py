@@ -674,6 +674,36 @@ def build_good_inherit_size():
     write_zip("good_inherit_size.pptx", parts)
 
 
+
+
+def wide_png():
+    """A 4x1 solid-red PNG (wide aspect) to test aspect-preserving image draw."""
+    import struct, zlib
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag+data) & 0xFFFFFFFF)
+    w, h = 4, 1
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
+    raw = b""
+    for _ in range(h):
+        raw += b"\x00" + b"\xff\x00\x00" * w
+    idat = zlib.compress(raw)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b"")
+
+
+def build_good_wideimage():
+    # 4:1 image placed in a 1:1 (square) frame -> aspect-preserved draw must NOT
+    # fill the frame vertically (background shows above/below).
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([pic_sp("rId1", 2000000, 2000000, 4000000, 4000000)], bg_hex="000000"),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": wide_png(),
+    }
+    write_zip("good_wideimage.pptx", parts)
+
 def build_good_hugefont():
     # An absurd declared font size (audit R1) — must render without hanging/OOM.
     parts = {
@@ -761,4 +791,5 @@ if __name__ == "__main__":
     build_good_bullets()
     build_good_longtext()
     build_good_inherit_size()
+    build_good_wideimage()
     print("fixtures written to", HERE)

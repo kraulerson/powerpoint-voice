@@ -345,6 +345,30 @@ TEST_CASE("BUG-5: multi-run paragraph renders each run's color") {
     CHECK(blue);
 }
 
+// BUG-10 — a wide image in a square frame is drawn aspect-preserved (centered,
+// not squished): the frame's top/bottom bands show background, not stretched image.
+TEST_CASE("BUG-10: image aspect is preserved (no squish)") {
+    LoadResult r = DeckLoader::load(fixture("good_wideimage.pptx"));
+    REQUIRE(r.ok);
+    QImage img = SlideRenderer::render(r.presentation, 0, W, H);
+    // Frame: off(2e6,2e6) ext(4e6,4e6) on 12.192e6 x 6.858e6 -> square frame at
+    // roughly x[210..630], y[210..630] in 1280x720. The 4:1 image fits the width
+    // and is centered vertically, so near the frame's top edge is background (black),
+    // while the vertical center has red.
+    const QColor topOfFrame = img.pixelColor(400, 225); // just inside the frame top
+    CHECK(topOfFrame.red() < 60);                       // background, not stretched red
+    bool center_red = false;
+    for (int y = 380; y < 470 && !center_red; ++y) {
+        for (int x = 230; x < 620 && !center_red; ++x) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.red() > 150 && c.green() < 90 && c.blue() < 90) {
+                center_red = true;
+            }
+        }
+    }
+    CHECK(center_red);
+}
+
 // BUG-4 — long text WRAPS onto multiple lines instead of being truncated to one.
 // The text box is tall and narrow, so wrapped content reaches well below the
 // first line's height.

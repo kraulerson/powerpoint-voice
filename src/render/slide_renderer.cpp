@@ -240,8 +240,14 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
             const QImage decoded = decodeGuarded(e.image.imageData);
             if (decoded.isNull()) {
                 drawPlaceholderBox(p, r, QStringLiteral("missing image"), maxFontPx);
-            } else {
-                p.drawImage(r, decoded);
+            } else if (r.width() >= 1 && r.height() >= 1) {
+                // Preserve aspect ratio (BUG-10): fit within the frame and center,
+                // so a frame whose aspect differs from the image does not squish it.
+                const QSizeF fit = QSizeF(decoded.size()).scaled(r.size(), Qt::KeepAspectRatio);
+                const QRectF dst(r.x() + (r.width() - fit.width()) / 2.0,
+                                 r.y() + (r.height() - fit.height()) / 2.0, fit.width(),
+                                 fit.height());
+                p.drawImage(dst, decoded);
             }
             break;
         }
