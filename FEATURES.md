@@ -79,4 +79,39 @@ test-first (negative overflow, unchecked toInt, malformed-sequence wrong-jump).
 
 ---
 
+## Feature F2/F3: Voice-Command Grammar & Dispatch
+
+**Phase Built:** 2
+**Status:** Complete (command logic; live voice input is the follow-on voice-engine feature)
+**Summary:** The "brain" of voice control. `matchCommand(phrase)` maps a recognized/typed
+phrase to one of the five closed-grammar commands — `next slide`, `previous slide`,
+`pause presentation`, `continue presentation`, `go to slide N` — or nothing. Matching is
+phrase-level (not substring) and case/whitespace/terminal-punctuation tolerant, so ordinary
+speech that merely contains a keyword never fires a command (threat TM-002/019). The number in
+"go to slide N" reuses F4's `parseSlideNumber`. `RecognizerController` dispatches commands
+through an **Active/Paused** listening gate: while Paused (for audience Q&A), navigation is
+dropped and only `continue presentation` resumes — the core false-trigger defense. The speech
+engine + microphone plug in behind the `IRecognizer` interface and are built/validated
+separately (UAT with real audio), keeping this layer pure and deterministic.
+**Key Interfaces:** `src/command/command_matcher.hpp` (`matchCommand`, `Command`, `CommandType`),
+`src/command/recognizer_controller.hpp` (`RecognizerController`, `IRecognizer`); see
+`docs/api and interfaces/voice-commands.md`.
+**Related ADRs:** ADR-0001 (Vosk grammar-constrained recognizer).
+**Test Coverage:** Unit — 20 cases across `tests/test_command_matcher.cpp` and
+`tests/test_recognizer_controller.cpp`: the five commands, case/whitespace/punctuation
+tolerance, fail-safe garbage/partial/in-sentence/no-number rejection, GoToSlide boundary,
+Karl's 3 orchestrator assertions, the full Active/Paused state machine (incl. the
+"Paused ignores next slide" safety property), and 3 security-audit regressions
+(punctuation availability, sink-exception safety, reentrancy).
+**Security:** `docs/security-audits/f2-f3-voice-commands-security-audit.md` — 2-agent
+adversarial audit; 1 High (sink-exception → mid-talk crash) + 1 Medium availability
+(dictation punctuation) + 1 Medium (reentrancy) fixed test-first, plus threading/finals-only
+lifetime contracts documented. Confirmed clean: no false-trigger leak, no heard-text logging.
+**Known Limitations:** English only; strict fixed phrases (no filler tolerance on the four
+non-jump commands, by design). This layer does not capture audio or run the recognizer — that
+is the voice-engine feature (Vosk + miniaudio), which must honor the documented `IRecognizer`
+contract (finalized-phrases-only, same-thread delivery).
+
+---
+
 <!-- Copy the section above for each new feature. Number sequentially. -->

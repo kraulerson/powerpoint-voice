@@ -5,8 +5,8 @@
     "steps_completed": [],
     "started_at": null,
     "last_completed": {
-      "feature": "F4-number-parse",
-      "completed_at": "2026-08-04T02:11:51Z",
+      "feature": "F2-F3-voice-commands",
+      "completed_at": "2026-08-04T10:27:11Z",
       "steps_completed": [
         "tests_written",
         "tests_verified_failing",
@@ -15,7 +15,22 @@
         "documentation_updated",
         "feature_recorded"
       ],
-      "paths": []
+      "paths": [
+        "CHANGELOG.md",
+        "CMakeLists.txt",
+        "docs/api and interfaces/voice-commands.md",
+        "docs/security-audits/f2-f3-voice-commands-security-audit.md",
+        "FEATURES.md",
+        "PROJECT_BIBLE.md",
+        "src/command/command_matcher.cpp",
+        "src/command/command_matcher.hpp",
+        "src/command/recognizer_controller.cpp",
+        "src/command/recognizer_controller.hpp",
+        "tests/CMakeLists.txt",
+        "tests/test_command_matcher.cpp",
+        "tests/test_recognizer_controller.cpp",
+        "WALK-ISSUE-LOG.md"
+      ]
     }
   },
   "uat_session": {
