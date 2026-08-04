@@ -16,8 +16,11 @@ fi
 
 # Format check — mirrors CI's clang-format gate so a formatting-only violation
 # fails HERE (at commit time) instead of only in CI. Fast, so run it first.
+# Excludes third_party/ (vendored code is not held to our style, and clang-format
+# on the 4MB miniaudio.h is needlessly slow).
 if command -v clang-format >/dev/null 2>&1; then
-  git ls-files '*.cpp' '*.hpp' '*.h' '*.cc' '*.cxx' | xargs -r clang-format --dry-run --Werror
+  git ls-files '*.cpp' '*.hpp' '*.h' '*.cc' '*.cxx' ':(exclude)third_party/**' \
+    | xargs -r clang-format --dry-run --Werror
 fi
 
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null

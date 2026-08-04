@@ -46,12 +46,14 @@ jobs:
       - name: Format check (clang-format)
         if: ${{ hashFiles('.clang-format') != '' }}
         run: |
-          git ls-files '*.cpp' '*.hpp' '*.h' '*.cc' '*.cxx' | xargs -r clang-format --dry-run --Werror
+          git ls-files '*.cpp' '*.hpp' '*.h' '*.cc' '*.cxx' ':(exclude)third_party/**' \
+            | xargs -r clang-format --dry-run --Werror
 
       - name: Lint (clang-tidy)
         if: ${{ hashFiles('.clang-tidy') != '' && hashFiles('CMakeLists.txt') != '' }}
         run: |
-          git ls-files '*.cpp' '*.cc' '*.cxx' | xargs -r -n 8 -P 2 clang-tidy -p build --warnings-as-errors='*'
+          git ls-files '*.cpp' '*.cc' '*.cxx' ':(exclude)third_party/**' \
+            | xargs -r -n 8 -P 2 clang-tidy -p build --warnings-as-errors='*'
 
       - name: Security - Secret detection (gitleaks)
         run: |
