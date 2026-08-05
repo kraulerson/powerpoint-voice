@@ -658,6 +658,9 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             // Read from the <a:blipFill>, NOT by descendant search: a group or a
             // nested fill elsewhere in the <p:pic> must not supply this picture's crop.
             if (pugi::xml_node fill = childLocal(node, "blipFill")) {
+                // <a:stretch> means fill the frame. Read as a DIRECT child so a
+                // nested fill elsewhere in the <p:pic> cannot turn it on.
+                e.image.stretchToFill = static_cast<bool>(childLocal(fill, "stretch"));
                 if (pugi::xml_node sr = childLocal(fill, "srcRect")) {
                     bool anyBad = false;
                     struct Side {

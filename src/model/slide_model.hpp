@@ -82,6 +82,13 @@ struct ImageElement {
     SrcRect srcRect;
     // <a:alphaModFix amt="..."> — uniform picture opacity, per-100000. 100000 = opaque.
     int alphaPerMille = 100000;
+    // <a:stretch> — the picture FILLS its frame, aspect be damned. This is what
+    // PowerPoint does and what real decks overwhelmingly ask for: all 51 blipFill
+    // elements in the reference deck carry it. Preserving aspect instead letterboxes
+    // every picture and draws it at the wrong size and shape (BUG-53). Absent
+    // <a:stretch> the aspect-preserving fit of BUG-10 is correct, so this is a flag,
+    // not a replacement.
+    bool stretchToFill = false;
 };
 
 // An element the text+images tier cannot render faithfully (table/chart/SmartArt).
