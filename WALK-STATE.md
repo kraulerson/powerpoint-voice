@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-04 (session 2; F7a merged, building F7b — the first usable presenter)
+**Last updated:** 2026-08-05 (session 2 end; F7a+F7b merged, UAT-3 done, PR #17 open)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -56,104 +56,67 @@ framework's most rigorous path, logging every stumble.
    TWO-word phrases: **"next slide" / "previous slide" / "pause presentation" /
    "continue presentation" / "go to slide N"** (Karl's Q1 change; supersedes intake single words).
 
-## 4. Current position (session 2, 2026-08-04)
+## 4. Current position (end of session 2, 2026-08-05)
 
 - **Phase 2 (Construction), current_phase=2.** Phases 0 & 1 gate-approved by Karl.
-- **Features built (all through the full Build Loop, tests-first, security-audited):**
-  - **F1a DeckLoader::load()** — untrusted .pptx → in-memory slide model (libzip+pugixml).
-  - **F1b SlideRenderer::render()** — slide model → QImage (QTextLayout text, images, placeholders).
-    Handles REAL decks: theme colors, master-txStyles font inheritance, layout placeholders,
-    group recursion, wrap, multi-run color, line breaks, bullets, aspect-preserved images.
-  - **F4 parseSlideNumber()** — "go to slide N" text → int, fails safe on garbage/overflow.
-  - **F2/F3 voice-command grammar & dispatch** (PR #12, merged 2e3ad38) — `matchCommand()`
-    (phrase-level closed grammar, no false-trigger) + `RecognizerController` (Active/Paused
-    dispatch gate; Paused drops nav for Q&A). Pure/unit-tested; engine plugs in behind
-    `IRecognizer`. 2-agent audit fixed 1 High (sink-exception mid-talk crash) + 2 Med test-first.
-  - **90 tests green** on macOS + Ubuntu CI; ASan+UBSan clean; semgrep 0.
-  - **UAT session 2 done** (branch walk/uat-2, PR #13, merged 05823ff): 3 agent-testers confirmed
-    the safety property SOLID (could not force a false command or crash). Fixed BUG-11 (SEV-1
-    stuck-in-Paused → resume synonyms) + BUG-12 (SEV-2 natural filler tolerance) test-first per
-    Karl triage Option A; BUG-13..16 (SEV-3: directional aliases, spoken-number naturalness,
-    unicode punctuation, out-of-range clamp) DEFERRED to the voice-engine feature / F7.
-    `tools/command_probe` added (typed phrase → command). No open SEV-1/2.
-- **UAT session 1 done** (7 real-deck bugs fixed) + real-deck remediation (BUG-8 font-size,
-  BUG-10 aspect, EMF→PNG tool). Karl confirmed his real deck renders readably (2 EMF images
-  blank due to LibreOffice conversion limits — Karl to re-export in PowerPoint).
-- **test-gate: counter reset after UAT-2; clear to continue (2 features until next UAT).**
-- **SCOPE SPLIT (Karl-approved):** the Vosk speech engine + mic capture is a SEPARATE feature,
-  NOT part of F2/F3. Its deps are already vendored (git-LFS, pinned + SHA-256); it is now
-  RESEQUENCED to run after F7/F6/UAT-3 — see NEXT.
-- **BUG-17 fixed (design review):** bare "pause"/"continue"/"resume" no longer match; every command
-  requires its object, closing a one-word audience un-pause during Q&A (TM-002/019). 93 tests green.
-- Local commit gate (`scripts/run-tests.sh`) now ALSO runs clang-format (S-25 gap closed).
+- **THE PRODUCT PRESENTS.** This is the milestone of session 2. Run it:
+  `./build/powerpoint_voice.app/Contents/MacOS/powerpoint_voice <deck.pptx>` — it opens the deck
+  off-thread, pre-renders every slide off-thread, and shows it fullscreen with keyboard control.
+- **Features complete (each through the full Build Loop, tests-first, security-audited):**
+  F1a deck loader · F1b slide renderer · F4 number parser · F2/F3 command grammar + dispatch ·
+  **F7a presentation funnel** · **F7b usable presenter**.
+- **183 tests green** (macOS + Ubuntu CI), in TWO binaries: `pptv_tests` (core, QGuiApplication) and
+  `pptv_ui_tests` (widgets, QApplication). ASan+UBSan clean; ThreadSanitizer clean; Semgrep 0.
+- **UAT sessions 1, 2 and 3 all complete and ARCHIVED** to `docs/test-results/` (session 3 same-day).
+  Counter reset — clear to start the next feature.
+- **Karl's real deck is 10 slides** (~316 MB of rasters) — so BUG-22 (unbounded raster cache) is
+  **not a risk for the 2026-08-10 talk**. He has NOT yet run the UAT-3 human scenarios
+  (`tests/uat/sessions/2026-08-05-session-3/test-session-3-v1.md`) against it; that is still open
+  and is the best remaining fidelity check.
+- **PR #17 (UAT-3 remediation) is OPEN** at session end. On resume: `git checkout main && git pull`;
+  if not merged it is on branch `walk/uat-3`.
+- Voice is NOT wired yet. The deps (libvosk 0.3.44 + the 40MB model + miniaudio) are vendored via
+  git-LFS, pinned + SHA-256 verified (`third_party/PROVENANCE.md`).
 
 ## 5. NEXT (in order) — resume here
 
-> **RESEQUENCED 2026-08-04 (Karl decision).** An 8-agent pre-implementation design review of the
-> voice engine found that every voice-failure path ended in a keyboard fallback that did not exist —
-> and that the app had **no presentation UI at all** (dark StartView only) with 6 days to the talk
-> (BUG-18). Four features were built to production rigor without the product ever being usable.
-> **New order: F7 presentation UI -> F6 keyboard parity -> UAT-3 (Karl drives his REAL deck by
-> keyboard) -> voice engine.** Rationale: guarantee a working presenter first; voice then becomes an
-> enhancement with a real fallback behind it, not a single point of failure.
-> The voice design + all critic findings are preserved in `docs/design-notes/voice-engine-design.md`.
-
-1. **F7 = SEQUENTIAL SUB-FEATURES** (Karl decision after ISSUE-019: the Build Loop cannot express a
-   staged feature without a false attestation or a 10-stage mega-commit). Design + all critic
-   findings: `docs/design-notes/`; the revision-2 design and assertion list are the source for each
-   sub-feature's gate.
-   - **F7a presentation funnel — DONE** (PR #15, merged 5b1e0f0). PresentationController: the single
-     slide-index funnel, BUG-16 rejection, quit unreachable from any command, one pause bit, closed
-     notice vocabulary. 6 audit findings fixed (2 HIGH gate bypasses).
-   - **F7b minimum usable presenter — IN PROGRESS** (branch `walk/f7b-presenter`, Build Loop open,
-     Karl approved its 44-assertion gate: 26 carried over from the Stage-1 gate + 18 new).
-     **This is the first point the product actually presents.** Modules, in order:
-     1. `src/present/display_geometry.*` — DONE (fitRect letterboxing, renderTargetPolicy clamp,
-        surfaceStateFor grace window). 137 tests green.
-     2. `src/present/key_translator.*` — TODO (group G, 14 assertions: arrows/space/PgDn, P=pause,
-        typed digits + Enter with 3 s staleness and a 6-digit cap, Esc's three meanings, Ctrl+Shift
-        chords, ConfirmQuit consumes everything).
-     3. `src/present/deck_load_worker.*` — TODO (group P, 6: off-thread parse, cancel, typed
-        failures, queued handoff with no deep copy).
-     4. `src/present/pre_render_worker.*` — TODO (group O, 11: PROVEN off-thread, never a null
-        image, bounded cancel/shutdown, mid-flight re-steer, emits QImage never QPixmap).
-     5. `src/ui/` widgets + a NEW `pptv_ui` lib and `pptv_ui_tests` binary with its own
-        QApplication main (group U, 7: keys reach the window, **Esc must NOT close it** — Qt's
-        default would, closeEvent refused unless quitConfirmed, SlideSurface draws at fitRect,
-        NoticeStrip bounded/eliding/exception-contained), plus main.cpp wiring.
-     NOTE (ISSUE-019): no `feat:` commit is possible until `implemented` is marked, so work
-     accumulates in the working tree until F7b is complete. If resuming cold, check
-     `git status` for uncommitted F7b modules before re-deriving anything.
-   - **F7c+** pre-render caps/budget/cache window (all four TM-018 caps, 2 GB always-on window),
-     load report, display routing + mirror, exit path, pre-show report + logging, settings,
-     accessibility. Each its own gate/audit/PR.
-2. **F6 KEYBOARD PARITY.** All five commands on keys, routed through the SAME matchCommand ->
-   RecognizerController dispatch path the voice engine will use (so keyboard and voice share one
-   code path, and the keyboard is the audited fallback). Covers the residual stuck-in-Paused risk
-   left by BUG-17.
-3. **UAT session 3** (2 features since UAT-2): Karl presents his REAL deck with the keyboard.
-4. **VOICE-ENGINE FEATURE (deferred to after UAT-3).** Makes voice actually work: Vosk +
-   miniaudio mic capture implementing the audited `IRecognizer` interface.
-   **Deps are DONE** — libvosk (macOS universal2 + Linux x86_64), the ~40MB model, miniaudio and
-   `vosk_api.h` are vendored via git-LFS, pinned + SHA-256 verified (`third_party/PROVENANCE.md`).
-   Vosk pinned **0.3.44** (0.3.45 ships no macOS build). macOS still needs
-   `NSMicrophoneUsageDescription` in the app Info.plist (TCC mic permission).
-   **START FROM `docs/design-notes/voice-engine-design.md`** — the full design PLUS the three
-   critics' NEEDS_CHANGES findings, which must be folded in BEFORE implementation. Highest-value:
+0. **Sync:** `git checkout main && git pull`; delete merged branches; append a
+   `WALK-UNBLOCK-AUDIT.md` row for the PR #17 merge. Run `bash scripts/check-versions.sh`
+   (session-start obligation) and report.
+1. **Ask Karl for his UAT-3 human results** if he has run them — scenarios 1-20 in
+   `tests/uat/sessions/2026-08-05-session-3/test-session-3-v1.md`, against his REAL deck. The
+   fidelity check (do all 10 slides look right?) is the one thing no agent can do, and the
+   double-letterbox fix (BUG-25) really wants confirming on his actual projector.
+2. **F7c — the deferred hardening** (`--start-feature "F7c-render-hardening"`). Closes:
+   - **BUG-21**: the TM-018 caps count shapes + text runs only. Add total CHARACTERS and total
+     DECLARED image pixels to `SlideComplexity`, completing the ratified four-cap set
+     (TM-018.3-A). Measured under-cap bombs: 2000 pictures of one 31 Mpx image ~309 s; 5000 runs
+     x 300k chars ~657 s.
+   - **BUG-22**: the always-on **2 GB** raster window (ratified Bible section 3 A3-1(3) / B1-A).
+   - **BUG-23**: isPlaceholder discarded; `HoldLastGood` unused (jumping to an un-rendered slide
+     flashes the projector black); a `const` `std::move`; two parentless widgets.
+   - **BUG-29**: the 19 SEV-3/4 UAT-3 findings — full detail in
+     `tests/uat/sessions/2026-08-05-session-3/submissions/uat-3-triage.md`. Highest-value ones:
+     notices never expire (a message band sits on the projector all talk); Ctrl+Shift+F/R are
+     consumed then dropped; typed slide numbers give no feedback; the blackout hint is shown to the
+     AUDIENCE and is factually wrong; **8 of the ctest entries execute ZERO test cases** (they cover
+     the blackout, the two-step quit, BUG-16 and BUG-11/17 — investigate, this may be a doctest
+     name-with-semicolon issue); libpng writes deck-derived bytes to stderr (TM-012/013).
+3. **F6 keyboard parity** — formalise the five commands + keybinding config on the shared
+   matchCommand -> PresentationController path (most of the mechanism already exists in
+   `key_translator`).
+4. **UAT session 4** (fires after 2 more features).
+5. **Voice engine** — see `docs/design-notes/voice-engine-design.md` for the full design AND the
+   three critics' NEEDS_CHANGES findings, which must be folded in first. Highest-value: 
    `vosk_recognizer_set_grm` is NOT exported by the 0.3.44 macOS lib (builds green on Ubuntu CI,
    fails on the showtime Mac); a model without the expected layout makes the grammar constraint
-   silently degrade to a full ~200k-word decoder (destroying the false-trigger defense); invalid
-   grammar JSON SEGFAULTS rather than returning null; out-of-vocabulary grammar tokens are silently
-   dropped (a dropped "resume" = stuck in Paused); `assert()` is a no-op in this forced-Release
-   build. MUST honor the `IRecognizer` contract: finalized-phrases-only + same-thread delivery.
-   Also address deferred BUG-13/14 (directional aliases, spoken-number naturalness).
-5. **F5 transcript overlay** + listening-state glyph + pre-show voice check (final MVP item).
-6. **Phase 2 exit → Phase 3 (Validation):** requires no open SEV-1/2, all MVP features, CI green.
-   Then the Phase 3 five-scanner gate (`run-phase3-validation.sh`), six-reviewer eval
-   (`evaluation-prompts/Projects/run-reviews.sh desktop-app`), Karl's auditor sign-offs
-   (security / legal / UAT / pen-test), dual Application-Owner + IT-Security 3→4 approval.
-7. **Phase 4 (Release):** author the C++ macOS build/sign steps in `release.yml` (WALK ISSUE-003/010,
-   deferred to here), rollback test, go-live smoke test, HANDOFF.md, tag **v1.0.0**. Walk DONE.
+   silently degrade to a full ~200k-word decoder; invalid grammar JSON SEGFAULTs; OOV grammar
+   tokens are silently dropped; `assert()` is a no-op in this forced-Release build.
+6. **F5 transcript overlay** + listening glyph + pre-show check (final MVP item).
+7. **Phase 2 exit -> Phase 3** (no open SEV-1/2, all MVP features, CI green), then the five-scanner
+   gate, six-reviewer eval, Karl's auditor sign-offs, dual 3->4 approval.
+8. **Phase 4** — author the C++ macOS build/sign steps in `release.yml` (ISSUE-003/010), rollback
+   test, go-live smoke test, HANDOFF.md, tag **v1.0.0**. Walk DONE.
 
 ## 6. Build / run recipe (macOS local — REQUIRED env)
 
@@ -190,21 +153,34 @@ kraulerson-reviewer), semgrep/gitleaks/snyk/docker.
 ## 9. Findings tally (for WALK-REPORT.md at the end)
 
 **See the `FINDINGS INDEX & CLASSIFICATION` section at the END of `WALK-ISSUE-LOG.md`** — it splits
-every entry into **A. FRAMEWORK findings** (the only ones that are candidate fixes for
-solo-orchestrator), **B. PROJECT findings** (ours, incl. self-inflicted stumbles), and **C. smooth
-notes**, and is the source for WALK-REPORT.md.
+every entry into **A. FRAMEWORK** (the only candidate fixes for solo-orchestrator), **B. PROJECT**
+(ours), and **C. smooth notes**, and is the source for WALK-REPORT.md. Keep appending there; the log
+is append-only, so corrections go in as new entries rather than edits.
 
-**18 numbered findings** — 15 FRAMEWORK (2 Blocker, 7 Major, 2 Moderate, 4 Minor) + 3 PROJECT/
-governance — plus 3 self-inflicted project stumbles and ~23 smooth notes.
+**21 numbered findings** — ~16 FRAMEWORK (2 Blocker, 8 Major, 3 Moderate, 4 Minor) + PROJECT ones —
+plus ~23 smooth notes. Newest and highest-value:
+- **ISSUE-017** (Major): the Build Loop never asks whether the PRODUCT is demonstrable end-to-end.
+  Four features shipped at full rigor while the app was still a dark window.
+- **ISSUE-018** (Major): UAT remediation gets no re-audit — the BUG-11 fix introduced the SEV-2
+  BUG-17 regression and passed the gate, CI and a merge.
+- **ISSUE-019** (Major): the Build Loop cannot express a STAGED feature without either a false
+  attestation or a ten-stage mega-commit. Resolved by splitting F7 into sub-features.
+- **ISSUE-020** (Moderate): the enforced 9-step UAT checklist omits the archive step the same
+  document mandates — two sessions passed `gate_passed` with nothing archived. Found because KARL
+  asked. Now archived, and session 3 was archived same-day.
+- **OBSERVATION-016** (Moderate): clang-tidy has never run — CI guards it on a `.clang-tidy` that
+  has never existed, so a documented control reported green while doing nothing.
+- **OBSERVATION-021** (PROJECT, mine): three times "fixed" meant *edited and the suite still passes*
+  rather than *verified*. New rule: re-run the instrument that FOUND the defect.
 
-Blocker-class framework findings, both resolved by convention: ISSUE-006 (org protection + solo
-account = unmergeable main → human-merge protocol) and ISSUE-008 (self-approval verifier
-unsatisfiable solo → recorder identity). Highest-value NEW framework findings: **ISSUE-017** (the
-Build Loop never asks whether the PRODUCT is demonstrable end-to-end — four features shipped at full
-rigor while the app was still a dark window) and **ISSUE-018** (UAT remediation gets no re-audit —
-the BUG-11 fix introduced the SEV-2 BUG-17 regression and passed the gate, CI and a merge).
+**The recurring shape across ISSUE-016/017/019/020: the enforced control and the documented
+procedure disagree, and enforcement is what gets followed.** That is the single most useful thing
+this walk has produced for the framework.
 
-The framework's per-feature security audits + UAT have EACH caught real ship-blocking bugs (F1a: 3
-Crit+1 High; F1b: 1 Crit+2 High; UAT-1: 2 SEV-1 incl. invisible-text; F4: overflow/wrong-jump;
-F2/F3: an audio-thread std::terminate) — the strongest evidence the rigor works, and it belongs in
-the report next to the defects. Multi-session walk; sessions 1-2 covered interview → F2/F3 → UAT-2.
+**The framework's strongest evidence FOR itself** (belongs in the report beside the defects): the
+per-feature security audit has caught real ship-blocking bugs in EVERY feature — F1a 3 Critical +
+1 High; F1b 1 Critical + 2 High; F4 overflow/wrong-jump; F2/F3 an audio-thread `std::terminate`;
+F7a 2 HIGH gate-bypasses; F7b **5 Criticals** including a use-after-free that SEGV'd on the first
+key press. UAT has caught what audits missed: UAT-1 seven real-deck bugs (2 SEV-1, invisible text);
+UAT-3 the privacy blackout un-blanking itself and a double-letterbox that would have shown 75% of
+the deck on the projector for the whole talk. Neither control is redundant.
