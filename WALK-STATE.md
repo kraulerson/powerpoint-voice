@@ -67,6 +67,29 @@ Binding consequences for the voice work:
   `.app` (~33 MB zipped) and FAILS LOUDLY if anything still references `/opt/homebrew`. First launch
   needs right-click -> Open. This is not the release build — that is Phase 4 (ISSUE-003/010).
 
+## 2c. TESTING PROTOCOL — Karl's ruling, 2026-08-05
+
+Karl asked, fairly: *"So what is the purpose of me testing on my macbook pro?"* For a keyboard-only
+build there was no good answer, because I had handed him a build without a question attached.
+
+**His decision: NO MORE BUILDS until voice lands.** Then ONE build with a clear test script covering
+voice, the projector and the full deck together.
+
+**Rule earned:** every build handed to Karl carries a SPECIFIC question it exists to answer, or it is
+not handed over. A build with no question wastes the one testing resource this project has — and it
+is the scarcest one, since every SEV-1 that reached a merged PR came from his hands, not the agents'.
+
+**RISK ACCEPTED BY THIS DECISION — carry it forward and raise it before the talk:**
+The **projector path has never been verified on real hardware.** BUG-25 (fixed by inspection, never
+confirmed) was: on a Retina laptop plus a 1080p projector we picked the laptop's resolution, baked
+letterbox bars into every raster, then letterboxed AGAIN against the window — the deck covering 75%
+of the projector with 13% smaller text, for the whole talk. It is INVISIBLE unless a second screen of
+a different aspect is attached. Neither this Mac mini (RustDesk presents a virtual display) nor any
+agent can test it. Also unverified on hardware: which screen is chosen, whether Ctrl+Shift+D moves it,
+and whether the Esc blackout really blanks the projector.
+**The single test with the highest talk-risk reduction is still: plug in the projector.** It must be
+in the one build handed over after voice lands.
+
 ## 3. Standing protocols (LEARNED — keep applying)
 
 1. **Merges to main:** agent prepares PR + green CI on BOTH platforms, then STOPS. Karl
