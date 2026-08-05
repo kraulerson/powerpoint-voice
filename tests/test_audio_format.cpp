@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "audio/audio_format.hpp"
@@ -97,7 +98,8 @@ TEST_CASE("AF: the full path converts a MacBook Pro's 48 kHz stereo to 16 kHz mo
         interleaved[static_cast<std::size_t>(i) * 2] = v;
         interleaved[static_cast<std::size_t>(i) * 2 + 1] = v;
     }
-    const auto out = toRecognizerFormat(interleaved.data(), 4800, AudioFormat{48000, 2});
+    const auto out =
+        toRecognizerFormat(interleaved.data(), interleaved.size(), 4800, AudioFormat{48000, 2});
     CHECK(out.size() == 1600);
     std::int16_t peak = 0;
     for (std::int16_t v : out) {
@@ -108,7 +110,7 @@ TEST_CASE("AF: the full path converts a MacBook Pro's 48 kHz stereo to 16 kHz mo
 
 TEST_CASE("AF: a device already at 16 kHz mono is passed through untouched") {
     const std::int16_t in[] = {1, -2, 3, -4};
-    const auto out = toRecognizerFormat(in, 4, AudioFormat{16000, 1});
+    const auto out = toRecognizerFormat(in, 4, 4, AudioFormat{16000, 1});
     REQUIRE(out.size() == 4);
     CHECK(out[0] == 1);
     CHECK(out[3] == -4);
@@ -116,10 +118,10 @@ TEST_CASE("AF: a device already at 16 kHz mono is passed through untouched") {
 
 TEST_CASE("AF: malformed input yields nothing rather than a guess") {
     const std::int16_t one[] = {1};
-    CHECK(toRecognizerFormat(nullptr, 10, AudioFormat{48000, 2}).empty());
-    CHECK(toRecognizerFormat(one, 0, AudioFormat{48000, 2}).empty());
-    CHECK(toRecognizerFormat(one, 1, AudioFormat{0, 2}).empty());     // no rate reported
-    CHECK(toRecognizerFormat(one, 1, AudioFormat{48000, 0}).empty()); // no channels
+    CHECK(toRecognizerFormat(nullptr, 100, 10, AudioFormat{48000, 2}).empty());
+    CHECK(toRecognizerFormat(one, 1, 0, AudioFormat{48000, 2}).empty());
+    CHECK(toRecognizerFormat(one, 1, 1, AudioFormat{0, 2}).empty());     // no rate reported
+    CHECK(toRecognizerFormat(one, 1, 1, AudioFormat{48000, 0}).empty()); // no channels
     CHECK(resampleMono({}, 48000, 16000).empty());
     CHECK(resampleMono({1, 2, 3}, 0, 16000).empty());
     CHECK(downmixToMono(nullptr, 4, 2).empty());
@@ -161,6 +163,40 @@ TEST_CASE("AF/audit F8a-1: an implausible device-reported format is REJECTED, no
 
     SUBCASE("a 1 Hz device cannot allocate through the full conversion path") {
         const std::vector<std::int16_t> buf(4096, 0);
-        CHECK(toRecognizerFormat(buf.data(), 2048, AudioFormat{1, 2}).empty());
+        CHECK(toRecognizerFormat(buf.data(), buf.size(), 2048, AudioFormat{1, 2}).empty());
+    }
+}
+
+// BUG-56 — the API could not express buffer length, so a device that changed shape
+// mid-stream produced a heap over-read. Both events are ones this module's own audit
+// predicted: a sample-rate change and a channel-count change.
+TEST_CASE("AF/BUG-56: a buffer smaller than the format claims is REFUSED, not over-read") {
+    std::vector<std::int16_t> buf(1024, 0);
+
+    SUBCASE("the sample count required by a format is computed, not assumed") {
+        CHECK(sampleCountFor(512, AudioFormat{48000, 2}) == 1024);
+        CHECK(sampleCountFor(512, AudioFormat{48000, 1}) == 512);
+        CHECK(sampleCountFor(0, AudioFormat{48000, 2}) == 0);
+        CHECK(sampleCountFor(512, AudioFormat{0, 0}) == 0); // invalid format
+    }
+
+    SUBCASE("a frame count that would overflow the multiply yields 0, not a wrap") {
+        CHECK(sampleCountFor(std::numeric_limits<std::size_t>::max(), AudioFormat{48000, 2}) == 0);
+    }
+
+    SUBCASE("the device says stereo but hands over a mono-sized buffer") {
+        // 512 frames x 2 channels = 1024 samples needed; only 512 are available.
+        CHECK(toRecognizerFormat(buf.data(), 512, 512, AudioFormat{48000, 2}).empty());
+    }
+
+    SUBCASE("the device raises its channel count between describing and delivering") {
+        // 1024 samples available, but 8 channels x 512 frames needs 4096.
+        CHECK(toRecognizerFormat(buf.data(), buf.size(), 512, AudioFormat{48000, 8}).empty());
+    }
+
+    SUBCASE("an exactly-sized buffer is accepted — the check is not over-broad") {
+        CHECK_FALSE(toRecognizerFormat(buf.data(), buf.size(), 512, AudioFormat{48000, 2}).empty());
+        CHECK_FALSE(
+            toRecognizerFormat(buf.data(), buf.size(), 1024, AudioFormat{48000, 1}).empty());
     }
 }

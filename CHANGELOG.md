@@ -19,6 +19,25 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Added
+- **F8b — microphone capture.** Captures from the system default input device through miniaudio →
+  CoreAudio and converts whatever the device provides into the recogniser's 16 kHz mono. Bound to the
+  API rather than to hardware: default device only, never an index or name, and the format is asked
+  for rather than requested — a requested rate would make CoreAudio resample silently and leave us
+  unable to tell what we were actually given. Every capture failure is recoverable by construction,
+  because the keyboard is the guaranteed control path and no microphone problem may end a talk.
+  Not yet wired to a recogniser; that is F8c.
+- **The vendored Vosk library is now loadable (BUG-49) and the model is extracted into the build
+  (BUG-50).** The shipped library's install name is a bare leaf, so dyld never consults `@rpath` and
+  it failed at process start; a prepared copy is fixed up at build time, leaving `third_party/`
+  byte-identical and SHA-256-verifiable. The 39 MB model is unzipped at build time rather than first
+  run, because TM-011 forbids writing to disk during a talk.
+
+### Fixed
+- **BUG-56 — the audio API could not express buffer length**, so a device changing sample rate or
+  channel count mid-stream produced a heap over-read. Confirmed under AddressSanitizer.
+
+
 ### Fixed
 - **BUG-47 — a picture saved in ISO 29500 Strict format became completely invisible.** `amt="50%"`
   and `l="25%"` are the Strict spellings, written by PowerPoint's own "Strict Open XML Presentation"

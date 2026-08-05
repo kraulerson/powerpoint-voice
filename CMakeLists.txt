@@ -55,11 +55,23 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 FetchContent_MakeAvailable(doctest)
 
 # ---------------------------------------------------------------------------
+# Vendored speech engine. Prepared (not modified) at build time — see the comment
+# in cmake/VendorVosk.cmake for why the shipped file cannot be loaded as-is.
+# ---------------------------------------------------------------------------
+if(APPLE)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VendorVosk.cmake")
+  pptv_prepare_vosk(PPTV_VOSK_LIB)
+  pptv_prepare_vosk_model(PPTV_VOSK_MODEL)
+endif()
+
+# ---------------------------------------------------------------------------
 # Library target (app logic — testable without the GUI event loop)
 # ---------------------------------------------------------------------------
 add_library(pptv_core STATIC
   src/core/app_info.cpp
   src/audio/audio_format.cpp
+  src/audio/audio_capture.cpp
+  src/audio/miniaudio_capture.cpp
   src/loader/deck_loader.cpp
   src/render/slide_renderer.cpp
   src/command/number_parser.cpp
@@ -71,8 +83,12 @@ add_library(pptv_core STATIC
   src/present/key_translator.cpp
   src/present/deck_load_worker.cpp
   src/present/pre_render_worker.cpp)
-target_include_directories(pptv_core PUBLIC src)
+target_include_directories(pptv_core PUBLIC src PRIVATE third_party/miniaudio)
 # Qt6::Gui for the renderer (QImage/QPainter/QFont); libzip+pugixml for the loader.
+if(APPLE)
+  target_link_libraries(pptv_core PRIVATE "-framework CoreAudio" "-framework AudioToolbox"
+    "-framework AudioUnit" "-framework CoreFoundation")
+endif()
 target_link_libraries(pptv_core PUBLIC Qt6::Core Qt6::Gui
   PRIVATE PkgConfig::LIBZIP PkgConfig::PUGIXML)
 target_compile_definitions(pptv_core PUBLIC

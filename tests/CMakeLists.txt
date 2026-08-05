@@ -5,6 +5,7 @@ add_executable(pptv_tests
   test_main.cpp
   test_app_info.cpp
   test_audio_format.cpp
+  test_audio_capture.cpp
   test_deck_loader.cpp
   test_slide_renderer.cpp
   test_number_parser.cpp
