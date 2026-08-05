@@ -1,12 +1,16 @@
 #include <doctest/doctest.h>
 
+#include <QCoreApplication>
 #include <QDeadlineTimer>
+#include <QEventLoop>
 #include <QMetaMethod>
 #include <QSignalSpy>
 #include <QThread>
 #include <atomic>
 
+#include "loader/deck_loader.hpp"
 #include "present/pre_render_worker.hpp"
+#include "render/slide_renderer.hpp"
 
 using namespace pptv;
 
@@ -291,4 +295,138 @@ TEST_CASE("O: progress is reported honestly for every slide") {
         CHECK(prog.at(i).at(1).toInt() == 3);     // total
         CHECK(prog.at(i).at(2).toLongLong() >= 0);
     }
+}
+
+// ===========================================================================
+// GROUP RT — the REAL renderer, on a REAL worker thread.
+//
+// Why this group exists: every other test in this file injects a fake renderFn,
+// so until BUG-30 the production SlideRenderer had NEVER been executed off the GUI
+// thread by any test. Karl's real deck then SEGFAULTED on launch — the renderer
+// called QImageReader::format(), which PROBES Qt's image plugins to identify an
+// unrecognised format, and that plugin load crashes when it happens on a worker
+// thread. Five agent-testers and 183 green tests missed it because the seam
+// between the two was the one thing nothing exercised.
+//
+// These tests are deliberately thin on assertions: their value is that they RUN
+// the real thing in the real place. A crash here is the finding.
+// ===========================================================================
+namespace {
+
+// Loads a fixture deck and pre-renders EVERY slide through the production
+// SlideRenderer on a worker thread, returning the rasters the worker emitted.
+struct RealRenderRun {
+    int emitted = 0;
+    int placeholders = 0;
+    int nullImages = 0;
+    bool finished = false;
+};
+
+RealRenderRun renderFixtureOffThread(const char* name, const QSize& target = QSize(640, 360)) {
+    const QString path = QString::fromUtf8(FIXTURES_DIR) + QLatin1Char('/') + QLatin1String(name);
+    LoadResult lr = DeckLoader::load(path);
+    REQUIRE(lr.ok);
+
+    auto deck = std::make_shared<const Presentation>(lr.presentation);
+    const Emu slideW = deck->slideWidth;
+    const Emu slideH = deck->slideHeight;
+
+    QThread thread;
+    PreRenderWorker worker;
+    worker.setDeck(deck);
+    worker.setTarget(target);
+    // The PRODUCTION render function, wired exactly as AppShell wires it.
+    worker.setRenderFn([slideW, slideH](const Slide& s, const QSize& sz) {
+        return SlideRenderer::render(s, slideW, slideH, sz.width(), sz.height());
+    });
+    worker.setPlaceholderFn([](int, const QSize& sz) {
+        QImage img(sz, QImage::Format_RGB32);
+        img.fill(Qt::black);
+        return img;
+    });
+
+    RealRenderRun run;
+    // The receiver context MUST be an object living on THIS thread, not the worker.
+    // With `&worker` as context the lambdas run on the worker thread and race this
+    // thread's polling loop below — ThreadSanitizer caught exactly that in the first
+    // version of this harness. A main-thread context makes the connections queued,
+    // so the counters are only ever touched here, which is also how AppShell (itself
+    // a main-thread QObject) receives these same signals.
+    QObject sink;
+    QObject::connect(&worker, &PreRenderWorker::slideReady, &sink,
+                     [&run](int, const QImage& img, bool isPlaceholder) {
+                         ++run.emitted;
+                         if (isPlaceholder) {
+                             ++run.placeholders;
+                         }
+                         if (img.isNull()) {
+                             ++run.nullImages;
+                         }
+                     });
+    QObject::connect(&worker, &PreRenderWorker::finished, &sink, [&run]() { run.finished = true; });
+
+    worker.moveToThread(&thread);
+    QObject::connect(&thread, &QThread::started, &worker, &PreRenderWorker::start);
+    thread.start();
+
+    // Pump the GUI thread's event loop so the queued signals are delivered here,
+    // then insist the worker terminates within a deadline rather than hanging CI.
+    QDeadlineTimer deadline(20000);
+    while (!run.finished && !deadline.hasExpired()) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    worker.cancel();
+    thread.quit();
+    REQUIRE(thread.wait(QDeadlineTimer(5000)));
+    return run;
+}
+
+} // namespace
+
+TEST_CASE("RT1: a text deck pre-renders through the production renderer off-thread") {
+    RealRenderRun run = renderFixtureOffThread("good_text.pptx");
+    CHECK(run.finished);
+    CHECK(run.emitted == 2);
+    CHECK(run.nullImages == 0);
+    CHECK(run.placeholders == 0);
+}
+
+TEST_CASE("RT2: a deck with a PNG pre-renders through the production renderer off-thread") {
+    RealRenderRun run = renderFixtureOffThread("good_image.pptx");
+    CHECK(run.finished);
+    CHECK(run.emitted == 1);
+    CHECK(run.nullImages == 0);
+}
+
+// BUG-30 regression. The fixture's picture part carries EMF bytes — a format NO
+// Qt image plugin handles. That distinction is the whole bug: identifying a GIF is
+// cheap because Qt HAS a gif plugin, but EMF matches nothing, so
+// QImageReader::format() enumerates and dlopen()s every installed image plugin
+// hunting for a handler. That sweep, on the pre-render WORKER thread, is what
+// killed the app on Karl's deck (5 EMF parts). The renderer must now see the bytes
+// are not allow-listed and substitute a placeholder WITHOUT constructing any Qt
+// decoder. If this test crashes rather than fails, that IS the bug.
+//
+// Verified to catch it: with isAllowedImageFormat() reverted, this test aborts.
+TEST_CASE("RT3/BUG-30: EMF bytes do not crash the pre-render worker thread") {
+    RealRenderRun run = renderFixtureOffThread("good_emf_image.pptx");
+    CHECK(run.finished);
+    CHECK(run.emitted == 1);
+    CHECK(run.nullImages == 0);
+}
+
+TEST_CASE("RT3b/BUG-30: GIF bytes likewise reach no decoder on the worker thread") {
+    RealRenderRun run = renderFixtureOffThread("good_gif_image.pptx");
+    CHECK(run.finished);
+    CHECK(run.emitted == 1);
+    CHECK(run.nullImages == 0);
+}
+
+// The inherited backgrounds of BUG-32 have to survive the same trip: the loader
+// resolves them, and it is the worker thread that paints them.
+TEST_CASE("RT4: a deck whose backgrounds are inherited pre-renders off-thread") {
+    RealRenderRun run = renderFixtureOffThread("good_bg_inherit.pptx");
+    CHECK(run.finished);
+    CHECK(run.emitted == 4);
+    CHECK(run.nullImages == 0);
 }

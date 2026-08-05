@@ -410,3 +410,103 @@ TEST_CASE("BUG-8: font size is inherited from the master text styles") {
     const TextRun& body = r.presentation.slides[0].elements[1].textBox.paragraphs[0].runs[0];
     CHECK(body.fontSizePt == doctest::Approx(24.0));
 }
+
+// ---------------------------------------------------------------------------
+// BUG-32 — background inheritance (slide -> layout -> master).
+//
+// Karl's real deck renders every slide white. Its structure explains why: NOT ONE
+// of its 10 slides carries a <p:bg>; the background lives on the master (1/1) and
+// on 12 of its 17 layouts. A loader that reads only the slide level therefore sees
+// nothing to paint. Same bug class as BUG-1 (theme colors) and BUG-2 (placeholder
+// geometry) — the inheritance chain was not followed.
+// ---------------------------------------------------------------------------
+namespace {
+// A background assertion that names the expected color, so a failure says which
+// level of the chain was resolved rather than just "not equal".
+void checkSolid(const Background& bg, int r, int g, int b) {
+    REQUIRE(bg.kind == BackgroundKind::Solid);
+    REQUIRE(bg.solid.has_value());
+    CHECK(int(bg.solid->r) == r);
+    CHECK(int(bg.solid->g) == g);
+    CHECK(int(bg.solid->b) == b);
+}
+
+int backgroundWarnings(const Presentation& p, int slideIndex) {
+    int n = 0;
+    for (const LoadWarning& w : p.warnings) {
+        if (w.slideIndex == slideIndex && w.elementType == QStringLiteral("background")) {
+            ++n;
+        }
+    }
+    return n;
+}
+} // namespace
+
+TEST_CASE("BUG-32: a slide with no background of its own inherits layout then master") {
+    LoadResult r = DeckLoader::load(fixture("good_bg_inherit.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 4);
+
+    SUBCASE("the slide's own background still wins over both") {
+        checkSolid(r.presentation.slides[0].background, 0xAA, 0xBB, 0xCC);
+    }
+
+    SUBCASE("no slide background -> the layout's, in preference to the master's") {
+        checkSolid(r.presentation.slides[1].background, 0x00, 0x76, 0xA3);
+    }
+
+    SUBCASE("neither slide nor layout -> the master's, resolved through the theme") {
+        // The master declares <a:schemeClr val="dk1"/>; the fixture theme maps
+        // dk1 -> 1E2430. Resolving to None (white) would be the shipped bug.
+        checkSolid(r.presentation.slides[2].background, 0x1E, 0x24, 0x30);
+    }
+
+    SUBCASE("a slide with no layout relationship at all still reaches the master") {
+        checkSolid(r.presentation.slides[3].background, 0x1E, 0x24, 0x30);
+    }
+
+    SUBCASE("inheritance is not a warning condition") {
+        CHECK(r.presentation.warnings.empty());
+    }
+}
+
+TEST_CASE("BUG-32: a background we cannot paint warns instead of rendering silently white") {
+    LoadResult r = DeckLoader::load(fixture("good_bg_unsupported.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 3);
+
+    SUBCASE("an unsupported fill on the SLIDE does not fall through to the layout") {
+        // slide1 declares a gradient; slideLayout1 declares solid 00FF00. Painting
+        // the layout's green would be a silent wrong render (Manifesto F1) — the
+        // slide's own declaration is what applies, supported or not.
+        CHECK(r.presentation.slides[0].background.kind == BackgroundKind::None);
+        CHECK_FALSE(r.presentation.slides[0].background.solid.has_value());
+        CHECK(backgroundWarnings(r.presentation, 1) == 1);
+    }
+
+    SUBCASE("an unsupported fill on the LAYOUT warns against the slide that uses it") {
+        CHECK(r.presentation.slides[1].background.kind == BackgroundKind::None);
+        CHECK(backgroundWarnings(r.presentation, 2) == 1);
+    }
+
+    SUBCASE("a bgRef whose theme entry is a plain solidFill resolves to its phClr") {
+        // <p:bgRef idx="1001"><a:srgbClr val="123456"/></p:bgRef> and a
+        // bgFillStyleLst whose first entry is <a:solidFill><a:schemeClr
+        // val="phClr"/></a:solidFill> is an exact resolution, not a guess.
+        checkSolid(r.presentation.slides[2].background, 0x12, 0x34, 0x56);
+        CHECK(backgroundWarnings(r.presentation, 3) == 0);
+    }
+
+    SUBCASE("a background warning carries no deck content") {
+        for (const LoadWarning& w : r.presentation.warnings) {
+            if (w.elementType != QStringLiteral("background")) {
+                continue;
+            }
+            // TM-012/013: the warning list reaches an operator-facing surface, so
+            // it must describe the FILL KIND and nothing drawn from the deck.
+            CHECK_FALSE(w.detail.contains(QStringLiteral("ppt/")));
+            CHECK_FALSE(w.detail.contains(QStringLiteral(".xml")));
+            CHECK(w.detail.size() < 64);
+        }
+    }
+}
