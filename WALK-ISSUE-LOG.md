@@ -648,3 +648,33 @@ governance — plus 3 self-inflicted project stumbles (S-24/25/26) and ~23 smoot
 - **My share of it, stated plainly:** the instruction is in the project CLAUDE.md, I had read that
   file, and I did not do it — I followed the enforced gates and treated their completion as
   completeness. That is exactly the trap the finding describes, and I walked into it.
+
+---
+
+## OBSERVATION-021 — A pattern in my own work: "fixed" repeatedly meant "edited", not "verified" (PROJECT finding)
+
+- **When/where:** three times across F7a and F7b/UAT-3, 2026-08-04/05.
+- **The pattern.** Three separate times I applied a fix, saw the suite go green, and reported the
+  finding as resolved — and each time a later independent check proved the fix was incomplete:
+  1. **The `onTick` signed-overflow (F7a MED-4).** I clamped the *direction* of the clock
+     comparison. UBSan still fired: `INT64_MAX - INT64_MIN` overflows regardless of direction. Only
+     the sanitizer run caught it; the tests were green either way.
+  2. **The privacy blackout (F7b H3).** I gated `refresh()` on the mode and called it fixed. UAT-3
+     proved the *raster* path (`onSlideReady → showSlide`) was never gated, so the pre-render worker
+     painted the Confidential deck back onto the blanked projector 1-3 s later — measured at 56.2%
+     of the projector lit while the controller still said `Holding`. The control I "fixed" did not
+     work in its single most likely real use.
+  3. **Bounded shutdown (F7b H2).** I added `terminate()` after a timeout. UAT-3 showed the path
+     still reached a `qFatal` abort (and that `terminate()` can strand allocator locks).
+- **What is common to all three:** I verified the change against the *tests I already had*, which by
+  construction did not cover the thing that was broken — and in cases 2 and 3 the untested area was
+  the same one the audit had just told me was untested (`AppShell`). Green tests after a fix say
+  "nothing I already checked regressed", not "the defect is gone".
+- **The rule this earns, applied from now on:** a fix is not done until it is verified by the
+  *same instrument that found it* — re-run the original reproduction, not the suite. Where the
+  finder was a sanitizer, re-run the sanitizer; where it was a pixel probe, re-check the pixels;
+  where it was an adversarial agent, hand the fix back for re-test. This is now recorded in the F7b
+  audit doc too.
+- **Not a framework finding.** The framework's per-feature audit + UAT cadence is exactly what
+  caught all three. The gap was mine, and the framework's own instrument found it each time —
+  which is a point in the framework's favour and belongs in the report that way.

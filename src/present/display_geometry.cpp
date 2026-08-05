@@ -59,6 +59,42 @@ QSize renderTargetPolicy(const std::vector<ScreenInfo>& screens) {
                  qMax(1, static_cast<int>(bestH * scale)));
 }
 
+QSize renderTargetForDeck(const std::vector<ScreenInfo>& screens, const QSize& deckAspect) {
+    // The screen we will actually present on: the external display when one exists,
+    // because renderTargetPolicy's "largest by device pixels" picks the Retina laptop
+    // over a 1080p projector — the wrong aspect AND the wrong screen.
+    const ScreenInfo* target = nullptr;
+    for (const auto& s : screens) {
+        if (s.geometry.width() <= 0 || s.geometry.height() <= 0) {
+            continue;
+        }
+        if (!s.primary) {
+            target = &s;
+            break;
+        }
+        if (!target) {
+            target = &s;
+        }
+    }
+    if (!target || deckAspect.width() <= 0 || deckAspect.height() <= 0) {
+        return renderTargetPolicy(screens);
+    }
+    const qreal dpr = target->devicePixelRatio > 0.0 ? target->devicePixelRatio : 1.0;
+    const qreal screenW = target->geometry.width() * dpr;
+    const qreal screenH = target->geometry.height() * dpr;
+    const qreal aspect = static_cast<qreal>(deckAspect.width()) / deckAspect.height();
+
+    // Fit the deck's aspect inside the screen, then clamp (same bound as above).
+    qreal w = screenW;
+    qreal h = w / aspect;
+    if (h > screenH) {
+        h = screenH;
+        w = h * aspect;
+    }
+    const qreal scale = qMin(1.0, qMin(kMaxTargetW / w, kMaxTargetH / h));
+    return QSize(qMax(1, static_cast<int>(w * scale)), qMax(1, static_cast<int>(h * scale)));
+}
+
 SurfaceState surfaceStateFor(bool hasRaster, bool hasLastGood, qint64 msSinceRequest,
                              qint64 graceMs) {
     if (hasRaster) {
