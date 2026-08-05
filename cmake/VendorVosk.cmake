@@ -11,11 +11,35 @@
 # So we fix a COPY at build time. third_party/ keeps its pinned, SHA-256-verified
 # bytes (third_party/PROVENANCE.md) and the repo stays reproducible.
 function(pptv_prepare_vosk OUT_LIB)
-  set(_src "${CMAKE_SOURCE_DIR}/third_party/vosk/lib/macos-universal2/libvosk.dyld")
-  set(_dst "${CMAKE_BINARY_DIR}/vosk/libvosk.dylib")
+  # Linux ships a normal libvosk.so that links and loads without help; only macOS
+  # needs the install-name repair below. The engine compiles on BOTH, so it must
+  # link on both — putting this behind if(APPLE) is what broke the Ubuntu CI build.
+  if(APPLE)
+    set(_src "${CMAKE_SOURCE_DIR}/third_party/vosk/lib/macos-universal2/libvosk.dyld")
+    set(_dst "${CMAKE_BINARY_DIR}/vosk/libvosk.dylib")
+  elseif(UNIX)
+    set(_src "${CMAKE_SOURCE_DIR}/third_party/vosk/lib/linux-x86_64/libvosk.so")
+    set(_dst "${CMAKE_BINARY_DIR}/vosk/libvosk.so")
+  else()
+    message(FATAL_ERROR "no vendored vosk for this platform")
+  endif()
   if(NOT EXISTS "${_src}")
     message(FATAL_ERROR "vendored vosk missing: ${_src}")
   endif()
+
+  if(NOT APPLE)
+    add_custom_command(
+      OUTPUT "${_dst}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/vosk"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_src}" "${_dst}"
+      DEPENDS "${_src}"
+      COMMENT "Staging vendored libvosk"
+      VERBATIM)
+    add_custom_target(pptv_vosk_lib DEPENDS "${_dst}")
+    set(${OUT_LIB} "${_dst}" PARENT_SCOPE)
+    return()
+  endif()
+
   add_custom_command(
     OUTPUT "${_dst}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/vosk"

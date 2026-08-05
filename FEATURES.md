@@ -176,3 +176,22 @@ device actually provides into the recogniser's 16 kHz mono, and hands it to a si
 - `docs/security-audits/f8b-audio-capture-security-audit.md`
 
 **Not yet wired to a recogniser** — that is F8c. Until then the sink has no production consumer.
+
+## F8d — Voice decode and wiring
+
+**Voice now drives the deck.** Microphone -> 16 kHz mono -> grammar-constrained Vosk -> the
+existing recognizer gate -> the presentation controller.
+
+- **BUG-65 closed:** every grammar word is round-tripped through the model's vocabulary before the
+  recogniser is created. Vosk drops unknown grammar tokens silently, which would quietly widen what
+  can be recognised.
+- Vosk's stderr logging is silenced before any model loads — it prints heard words.
+- Recognised text goes from the decoder straight into the gate. It is never stored, logged or
+  rendered; only closed-vocabulary `Notice` ids reach any surface.
+- Decoding is off the GUI thread; the phrase crosses by queued signal.
+- Voice is armed AFTER the window is shown, and the model and grammar are validated BEFORE the
+  microphone is opened. Any failure leaves voice off with an operator-facing reason and does not
+  affect the keyboard.
+- 15 tests across GROUP VE and GROUP VP, including the real engine loading the real model.
+
+**Unverified:** no live-audio test exists or can exist on this machine.

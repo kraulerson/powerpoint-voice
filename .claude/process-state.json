@@ -5,8 +5,8 @@
     "steps_completed": [],
     "started_at": null,
     "last_completed": {
-      "feature": "F8c-vosk-recognizer",
-      "completed_at": "2026-08-05T21:59:54Z",
+      "feature": "F8d-voice-decode",
+      "completed_at": "2026-08-05T22:10:21Z",
       "steps_completed": [
         "tests_written",
         "tests_verified_failing",
@@ -16,14 +16,19 @@
         "feature_recorded"
       ],
       "paths": [
-        "BUGS.md",
         "CHANGELOG.md",
         "CMakeLists.txt",
-        "docs/security-audits/f8c-vosk-recognizer-security-audit.md",
-        "src/command/vosk_recognizer.cpp",
-        "src/command/vosk_recognizer.hpp",
+        "docs/security-audits/f8d-voice-decode-security-audit.md",
+        "FEATURES.md",
+        "src/audio/voice_pipeline.cpp",
+        "src/audio/voice_pipeline.hpp",
+        "src/command/vosk_engine.cpp",
+        "src/command/vosk_engine.hpp",
+        "src/ui/app_shell.cpp",
+        "src/ui/app_shell.hpp",
         "tests/CMakeLists.txt",
-        "tests/test_vosk_recognizer.cpp"
+        "tests/test_voice_pipeline.cpp",
+        "tests/test_vosk_engine.cpp"
       ]
     }
   },

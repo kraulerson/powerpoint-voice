@@ -15,6 +15,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 (v7.0.1)
         with:
           fetch-depth: 0
+          # The vendored speech engine and model live in git-LFS, and checkout does
+          # NOT fetch LFS by default — without this the build links against a
+          # ~130-byte pointer file instead of libvosk.so and fails in a way that
+          # looks nothing like the actual cause.
+          lfs: true
 
       - name: Install C++ toolchain
         run: |
