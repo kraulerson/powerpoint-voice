@@ -5,8 +5,8 @@
     "steps_completed": [],
     "started_at": null,
     "last_completed": {
-      "feature": "F8b-audio-capture",
-      "completed_at": "2026-08-05T19:06:34Z",
+      "feature": "F8c-vosk-recognizer",
+      "completed_at": "2026-08-05T21:59:54Z",
       "steps_completed": [
         "tests_written",
         "tests_verified_failing",
@@ -16,19 +16,14 @@
         "feature_recorded"
       ],
       "paths": [
+        "BUGS.md",
         "CHANGELOG.md",
-        "cmake/VendorVosk.cmake",
         "CMakeLists.txt",
-        "docs/context-health-check-2026-08-05.md",
-        "docs/security-audits/f8b-audio-capture-security-audit.md",
-        "FEATURES.md",
-        "PROJECT_BIBLE.md",
-        "src/audio/audio_capture.cpp",
-        "src/audio/audio_capture.hpp",
-        "src/audio/miniaudio_capture.cpp",
-        "src/audio/miniaudio_capture.hpp",
+        "docs/security-audits/f8c-vosk-recognizer-security-audit.md",
+        "src/command/vosk_recognizer.cpp",
+        "src/command/vosk_recognizer.hpp",
         "tests/CMakeLists.txt",
-        "tests/test_audio_capture.cpp"
+        "tests/test_vosk_recognizer.cpp"
       ]
     }
   },
