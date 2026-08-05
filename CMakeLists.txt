@@ -58,11 +58,9 @@ FetchContent_MakeAvailable(doctest)
 # Vendored speech engine. Prepared (not modified) at build time — see the comment
 # in cmake/VendorVosk.cmake for why the shipped file cannot be loaded as-is.
 # ---------------------------------------------------------------------------
-if(APPLE)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VendorVosk.cmake")
-  pptv_prepare_vosk(PPTV_VOSK_LIB)
-  pptv_prepare_vosk_model(PPTV_VOSK_MODEL)
-endif()
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VendorVosk.cmake")
+pptv_prepare_vosk(PPTV_VOSK_LIB)
+pptv_prepare_vosk_model(PPTV_VOSK_MODEL)
 
 # ---------------------------------------------------------------------------
 # Library target (app logic — testable without the GUI event loop)
@@ -88,15 +86,20 @@ add_library(pptv_core STATIC
   src/present/pre_render_worker.cpp)
 target_include_directories(pptv_core PUBLIC src PRIVATE third_party/miniaudio third_party/vosk/include)
 # Qt6::Gui for the renderer (QImage/QPainter/QFont); libzip+pugixml for the loader.
+# The Vosk engine compiles on every platform, so it must LINK on every platform.
+# Guarding this with if(APPLE) left Ubuntu compiling vosk_engine.cpp against nothing
+# and failing at link with ten undefined references.
+add_dependencies(pptv_core pptv_vosk_lib pptv_vosk_model)
+target_link_libraries(pptv_core PRIVATE "${PPTV_VOSK_LIB}")
+# libvosk announces itself as @rpath/libvosk.dylib on macOS (we give it that install
+# name in VendorVosk.cmake), so every consumer needs the prepared copy on its rpath.
+# CMake infers this for some targets and not others — the sanitizer trees came out
+# without it and every test died at dyld before main(). Stated explicitly, and on
+# Linux too, where the .so must likewise be findable at run time.
+target_link_options(pptv_core PUBLIC "-Wl,-rpath,${CMAKE_BINARY_DIR}/vosk")
+
+# Only the audio backend is Apple-specific.
 if(APPLE)
-  add_dependencies(pptv_core pptv_vosk_lib pptv_vosk_model)
-  target_link_libraries(pptv_core PRIVATE "${PPTV_VOSK_LIB}")
-  # libvosk announces itself as @rpath/libvosk.dylib (we give it that install name
-  # in VendorVosk.cmake), so every consumer needs the prepared copy on its rpath.
-  # CMake infers this for some targets and not others — the sanitizer trees came out
-  # without it and every test died at dyld before main(). State it explicitly.
-  set(PPTV_VOSK_DIR "${CMAKE_BINARY_DIR}/vosk")
-  target_link_options(pptv_core PUBLIC "-Wl,-rpath,${PPTV_VOSK_DIR}")
   target_link_libraries(pptv_core PRIVATE "-framework CoreAudio" "-framework AudioToolbox"
     "-framework AudioUnit" "-framework CoreFoundation")
 endif()
