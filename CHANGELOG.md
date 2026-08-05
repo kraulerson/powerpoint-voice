@@ -19,6 +19,25 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Security
+- **The app would have been killed by macOS the first time voice was armed (BUG-45).** `MACOSX_BUNDLE ON`
+  makes CMake generate a default `Info.plist` with no `NSMicrophoneUsageDescription`, and macOS
+  *terminates* a process — not an error return, not a catchable dialog — when it opens an audio input
+  device without one. It would have failed **only on the presenter's MacBook Pro**: the development
+  Mac mini has no microphone to trigger it. `cmake/MacOSXBundleInfo.plist.in` now supplies the key,
+  with a consent string that states plainly that recognition is on-device and nothing is transmitted.
+
+### Added
+- **`src/audio/audio_format.*` — capture-format conversion as pure functions** (BUG-46). The talk runs
+  on a MacBook Pro M3 Max whose built-in microphone is a three-element array that CoreAudio typically
+  presents at 48 kHz; a headset or AirPods can be 44.1 kHz and/or stereo. Vosk needs 16 kHz mono, and
+  feeding it 48 kHz does not error — it decodes audio at three times the intended speed as plausible
+  words, the worst failure mode for a command recogniser. The device now reports its format and we
+  downmix and resample. Multi-channel input is **averaged, never sampled on channel 0**: the array
+  elements are not equivalent, and taking one discards most of the beam-formed signal.
+  Nine tests, including a sine-shape assertion — a length-only check would pass for silence.
+
+
 ### Fixed
 - **BUG-43 — the quit prompt advertised the macOS system "Log Out" shortcut.** My own BUG-35 fix
   changed the hint to "Cmd+Shift+Q", which is ⇧⌘Q — the system Log Out shortcut. Printing that on a

@@ -126,5 +126,17 @@
     },
     "user_response": "n/a",
     "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-05T14:16:44Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "commitmsg_buildloop"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
   }
 ]
