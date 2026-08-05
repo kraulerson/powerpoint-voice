@@ -754,3 +754,36 @@ the main thread's polling loop over the same counters. TSan reported it precisel
 stacks — on the first run. Fixed by using a main-thread `QObject` as the context, which is also how
 `AppShell` really receives those signals, so the test now matches production. The tool paid for its
 459-second runtime in one finding.
+
+---
+
+## OBSERVATION-024 — I made an unverified sanitizer claim ONE TURN after writing the rule against it (PROJECT finding, mine)
+
+**What happened.** I started the ThreadSanitizer suite in the background, then wrote a PR description
+stating "ASan + UBSan clean · **ThreadSanitizer clean** · Semgrep 0". TSan was still running. I had
+no result. I published the claim anyway.
+
+I caught it myself a few minutes later while checking the background task, corrected the PR body to
+say the run was still in progress, and updated it with the real number once it finished (194/194
+clean, 465 s). So the published claim was false for roughly five minutes.
+
+**Why this matters more than the five minutes.** OBSERVATION-023, written in the SAME SESSION, says:
+*"Do not write a root cause you have not reproduced or read from an instrument."* This is the same
+failure with a different object — a control result rather than a diagnosis. Writing the rule down did
+not stop me repeating it. That is the finding.
+
+**The mechanism, and it is mundane.** The other three results (ASan, UBSan, Semgrep) were in hand,
+and TSan had been clean on the previous two commits. I wrote the line as a SET, from the shape of the
+usual answer, instead of from four separate observations. Habitual phrasing is where unverified
+claims get in — not deliberate reasoning, which is where I was looking for them.
+
+**Rule earned, narrower and more mechanical than OBSERVATION-023's:**
+> Every element of an evidence list must be traceable to output already read at the moment of
+> writing. If a check is still running, the honest entry is "still running", never its expected
+> value. Prefer publishing a short verified list over a complete unverified one.
+
+**Framework relevance (FRAMEWORK, minor).** The Build Loop's `security_audit` step asks for a verdict
+but nothing binds a claimed control result to the artefact that produced it. A gate that required the
+run's exit status or log path alongside the verdict would make this class of error structurally hard
+rather than merely discouraged. Same shape as ISSUE-016/017/019/020/022: the enforced control and the
+documented intent diverge, and enforcement is what gets followed.
