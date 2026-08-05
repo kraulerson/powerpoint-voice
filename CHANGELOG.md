@@ -20,6 +20,10 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Fixed
+- **BUG-43 — the quit prompt advertised the macOS system "Log Out" shortcut.** My own BUG-35 fix
+  changed the hint to "Cmd+Shift+Q", which is ⇧⌘Q — the system Log Out shortcut. Printing that on a
+  projector invites the presenter to log the machine out mid-talk. The macOS hint is now **"Cmd+Q"**,
+  which the translator already accepts and which, per Karl's BUG-36 ruling, quits from any mode.
 - **BUG-41 — a picture placeholder was silently dropped; slide 1's main photograph never rendered.**
   PowerPoint writes a picture placed into a layout's picture placeholder as a `<p:pic>` carrying
   `<p:ph type="pic" idx="11"/>` and **no `<p:spPr>`** — the layout positions it. `placeholderKey()`

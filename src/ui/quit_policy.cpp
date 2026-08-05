@@ -64,9 +64,20 @@ bool applicationQuitInProgress() {
 
 QString quitConfirmChord() {
 #ifdef Q_OS_MACOS
-    // Qt::ControlModifier IS the Command key here (Qt swaps Ctrl and Cmd on macOS
-    // unless AA_MacDontSwapCtrlAndMeta is set, which this app does not set).
-    return QStringLiteral("Cmd+Shift+Q");
+    // Cmd+Q, NOT Cmd+Shift+Q. Two reasons, in order of importance:
+    //
+    //  1. Shift+Cmd+Q is the system "Log Out" shortcut on macOS. Printing it on a
+    //     projector during a live talk invites the presenter to log the machine out
+    //     mid-presentation. Advertising a chord we do not own is not acceptable.
+    //  2. Cmd+Q genuinely quits from any mode now (Karl's ruling, 2026-08-05: "Cmd+q
+    //     is a deliberate key press. Leave it to quit immediately."). AppKit routes
+    //     it through the application menu to the application-quit path, which the
+    //     quit filter above obeys. So Cmd+Q is both safe to advertise and true.
+    //
+    // The translator also accepts it: it matches Qt::ControlModifier + Key_Q and
+    // ignores Shift, and Qt::ControlModifier IS the Command key on macOS (Qt swaps
+    // Ctrl and Cmd unless AA_MacDontSwapCtrlAndMeta is set, which this app does not).
+    return QStringLiteral("Cmd+Q");
 #else
     return QStringLiteral("Ctrl+Shift+Q");
 #endif
