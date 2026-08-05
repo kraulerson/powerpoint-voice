@@ -143,3 +143,17 @@ yet wired (the recognizer arrives with the voice-engine feature).
 ---
 
 <!-- Copy the section above for each new feature. Number sequentially. -->
+
+## F8a — Audio capture format conversion
+
+Converts whatever the capture device provides into the 16 kHz mono the recogniser requires.
+Pure functions, no hardware dependency — deliberately, because the talk runs on a MacBook Pro
+M3 Max and the development machine has no microphone at all.
+
+- Accepts 8-192 kHz, 1-64 channels; rejects anything else rather than converting it
+- Multi-channel input is AVERAGED (a MacBook Pro's mic is a 3-element array), not channel-0 sampled
+- Linear resampling, dependency-free
+- Rate/channel bounds are a resource cap: a device claiming 1 Hz would otherwise turn one
+  4096-frame callback into 131 MB (audit F8a-1)
+- Performs no I/O of any kind, so audio cannot reach disk or a log (TM-011/012/013)
+- `docs/api and interfaces/audio-capture-format.md`, `docs/security-audits/f8a-audio-capture-format-security-audit.md`
