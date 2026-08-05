@@ -59,6 +59,13 @@ Binding consequences for the voice work:
 - Both machines are arm64 (dev M4 Pro, showtime M3 Max) and `libvosk.dyld` is universal2 with an
   arm64 slice, so the architecture is not a risk. The MICROPHONE is.
 - **Voice cannot be verified on the dev box at all.** Karl's MacBook Pro is the only instrument.
+- **Both machines run macOS 26 (Tahoe)** — confirmed by Karl 2026-08-05. That matters because Homebrew
+  builds against the machine's own OS, so `libzip`/`pugixml` carry a **minos of 26.0** and set the
+  bundle's floor (Qt itself only needs 14.0). A test build from this Mac mini therefore runs on his
+  MacBook Pro as-is; it would NOT run on anything older.
+- **Test builds:** `bash scripts/make-test-build.sh [outdir]` produces a self-contained, ad-hoc-signed
+  `.app` (~33 MB zipped) and FAILS LOUDLY if anything still references `/opt/homebrew`. First launch
+  needs right-click -> Open. This is not the release build — that is Phase 4 (ISSUE-003/010).
 
 ## 3. Standing protocols (LEARNED — keep applying)
 
