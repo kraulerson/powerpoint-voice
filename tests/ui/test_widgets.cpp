@@ -308,7 +308,14 @@ TEST_CASE("Q/BUG-31: the on-screen quit hint names a chord this platform actuall
     CHECK(hint.contains(QStringLiteral("Ctrl")));
 #endif
 
-    // And the chord the hint names must be the one the translator accepts.
+    // And the chord the hint names must be the one the translator accepts. On macOS
+    // the hint names Cmd+Q (Qt::ControlModifier), deliberately NOT Cmd+Shift+Q —
+    // that is the system Log Out shortcut and must never be printed on a projector.
+#ifdef Q_OS_MACOS
+    CHECK_FALSE(hint.contains(QStringLiteral("Shift")));
+    QTest::keyClick(&w, Qt::Key_Q, Qt::ControlModifier);
+#else
     QTest::keyClick(&w, Qt::Key_Q, Qt::ControlModifier | Qt::ShiftModifier);
+#endif
     CHECK(c.quitConfirmed());
 }

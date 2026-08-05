@@ -35,6 +35,31 @@ framework's most rigorous path, logging every stumble.
 - **Architecture (ADR-0001, Karl-selected):** C++20, **Qt 6** (from-scratch OOXML renderer),
   **Vosk** on-device speech, libzip+pugixml parse, CMake+Ninja. Fully offline; no auth/network.
 
+## 2b. DEPLOYMENT FACT — the showtime machine is NOT the dev machine (Karl, 2026-08-05)
+
+**The talk runs on Karl's MacBook Pro M3 Max. Development and all agent testing happen on a Mac
+mini, which has NO MICROPHONE.** Karl's instruction, verbatim: *"If it relies on talking to specific
+hardware instead of a hardware api, it may fail on the macbook pro."*
+
+Binding consequences for the voice work:
+- **Bind to the API, never to a device.** Use CoreAudio's DEFAULT input device through miniaudio;
+  never a device index, name, or enumeration order. Verified: miniaudio resolves AudioUnit/
+  AudioComponent symbols at runtime — an OS API, not hardware.
+- **Never assume the capture format.** The recogniser needs 16 kHz mono; a MacBook Pro's built-in
+  microphone is a three-element ARRAY that CoreAudio typically presents at 48 kHz, and a headset or
+  AirPods can be 44.1 kHz and/or stereo. Ask the device what it is and convert
+  (`src/audio/audio_format.*`, GROUP AF tests). Assuming 16 kHz does not fail loudly on the wrong
+  machine — it feeds the recogniser audio at 3x speed, which decodes as confident nonsense.
+- **A multi-channel device is MIXED, never sampled on channel 0** — the array elements are not
+  equivalent.
+- **`NSMicrophoneUsageDescription` is mandatory.** macOS TERMINATES the process when it opens an
+  audio input device without one; CMake's default generated Info.plist has no such key. Now supplied
+  by `cmake/MacOSXBundleInfo.plist.in`. This would have crashed the app on the MacBook Pro and
+  nowhere else — the Mac mini has no microphone to trigger it.
+- Both machines are arm64 (dev M4 Pro, showtime M3 Max) and `libvosk.dyld` is universal2 with an
+  arm64 slice, so the architecture is not a risk. The MICROPHONE is.
+- **Voice cannot be verified on the dev box at all.** Karl's MacBook Pro is the only instrument.
+
 ## 3. Standing protocols (LEARNED — keep applying)
 
 1. **Merges to main:** agent prepares PR + green CI on BOTH platforms, then STOPS. Karl

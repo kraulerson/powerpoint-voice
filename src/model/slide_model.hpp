@@ -57,10 +57,31 @@ struct TextBox {
 // media part path and loads its raw (still-encoded) bytes; the render layer
 // (F1b) decodes them with QImage. Decoding is deliberately NOT done in the
 // parse layer, keeping image-codec exposure out of the untrusted-XML walk.
+// A <a:srcRect> source crop, in DrawingML's units: thousandths of a percent of the
+// image edge, inset from each side. l=29178 means "discard the leftmost 29.178%".
+// Values may be NEGATIVE, which pads rather than crops.
+struct SrcRect {
+    int leftPerMille = 0; // actually per-100000; kept as the raw OOXML value
+    int topPerMille = 0;
+    int rightPerMille = 0;
+    int bottomPerMille = 0;
+
+    bool isIdentity() const {
+        return leftPerMille == 0 && topPerMille == 0 && rightPerMille == 0 && bottomPerMille == 0;
+    }
+};
+
 struct ImageElement {
     RectEmu rect;
     QString mediaPart;    // e.g. "ppt/media/image1.png"
     QByteArray imageData; // raw encoded bytes (PNG/JPEG/...); decoded at render
+    // The part of the source image the deck actually shows (BUG-37). Ignoring this
+    // draws margins PowerPoint crops away — on the real deck a picture cropped 29.178%
+    // off EACH side was being drawn whole, so its white surround appeared on a dark
+    // slide as a box around the artwork.
+    SrcRect srcRect;
+    // <a:alphaModFix amt="..."> — uniform picture opacity, per-100000. 100000 = opaque.
+    int alphaPerMille = 100000;
 };
 
 // An element the text+images tier cannot render faithfully (table/chart/SmartArt).

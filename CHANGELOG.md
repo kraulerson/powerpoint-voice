@@ -20,6 +20,75 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Fixed
+- **BUG-47 — a picture saved in ISO 29500 Strict format became completely invisible.** `amt="50%"`
+  and `l="25%"` are the Strict spellings, written by PowerPoint's own "Strict Open XML Presentation"
+  save option. `QString::toInt()` returns **0** for them without reporting failure, and 0 means fully
+  transparent for opacity and no-crop for the source rectangle. This was introduced by the BUG-37/38
+  fix itself — a new way to silently lose a picture, in the same change set whose sibling commit
+  exists because a picture was being silently lost. Both spellings now parse, failures are reported
+  rather than swallowed, and the fallbacks are chosen so a parse failure can never hide anything: an
+  unreadable opacity draws **opaque**, an unreadable crop shows the **whole** picture, each with a
+  warning.
+- **BUG-48 — an over-crop drew a mirrored region the deck explicitly excluded.** With `l+r > 100000`
+  the computed width is negative, and `QRectF::intersected` *normalises* it — swapping the edges and
+  returning a valid rectangle over exactly the excluded region. The downstream "cropped to nothing"
+  guard never fired, because the normalised width is positive. Insets that meet or cross are now
+  rejected before any rectangle is built.
+
+### Changed
+- Test fixtures for source cropping now cover top/bottom insets, asymmetric left/right, both
+  percentage spellings, over-crop, and unparseable garbage. **Mutation-tested**: six mutations that
+  previously survived the whole suite — dropping the `t` parse, dropping the `b` parse, swapping `l`
+  and `r`, reverting to `toInt()`, removing the over-crop guard, and making an unreadable opacity
+  transparent — now each turn the suite red.
+
+
+### Security
+- **The app would have been killed by macOS the first time voice was armed (BUG-45).** `MACOSX_BUNDLE ON`
+  makes CMake generate a default `Info.plist` with no `NSMicrophoneUsageDescription`, and macOS
+  *terminates* a process — not an error return, not a catchable dialog — when it opens an audio input
+  device without one. It would have failed **only on the presenter's MacBook Pro**: the development
+  Mac mini has no microphone to trigger it. `cmake/MacOSXBundleInfo.plist.in` now supplies the key,
+  with a consent string that states plainly that recognition is on-device and nothing is transmitted.
+
+### Added
+- **`src/audio/audio_format.*` — capture-format conversion as pure functions** (BUG-46). The talk runs
+  on a MacBook Pro M3 Max whose built-in microphone is a three-element array that CoreAudio typically
+  presents at 48 kHz; a headset or AirPods can be 44.1 kHz and/or stereo. Vosk needs 16 kHz mono, and
+  feeding it 48 kHz does not error — it decodes audio at three times the intended speed as plausible
+  words, the worst failure mode for a command recogniser. The device now reports its format and we
+  downmix and resample. Multi-channel input is **averaged, never sampled on channel 0**: the array
+  elements are not equivalent, and taking one discards most of the beam-formed signal.
+  Nine tests, including a sine-shape assertion — a length-only check would pass for silence.
+
+
+### Fixed
+- **BUG-43 — the quit prompt advertised the macOS system "Log Out" shortcut.** My own BUG-35 fix
+  changed the hint to "Cmd+Shift+Q", which is ⇧⌘Q — the system Log Out shortcut. Printing that on a
+  projector invites the presenter to log the machine out mid-talk. The macOS hint is now **"Cmd+Q"**,
+  which the translator already accepts and which, per Karl's BUG-36 ruling, quits from any mode.
+- **BUG-41 — a picture placeholder was silently dropped; slide 1's main photograph never rendered.**
+  PowerPoint writes a picture placed into a layout's picture placeholder as a `<p:pic>` carrying
+  `<p:ph type="pic" idx="11"/>` and **no `<p:spPr>`** — the layout positions it. `placeholderKey()`
+  looked for `<p:ph>` only under `<p:nvSpPr>`, which a `<p:pic>` does not have, so it matched no
+  layout entry, kept a 0x0 rect, and the renderer skipped it. No warning was produced: the picture
+  was simply absent. `<p:ph>` is now looked for under `nvSpPr`, `nvPicPr`, `nvGraphicFramePr` and
+  `nvCxnSpPr`, layouts index their `<p:pic>` placeholders too, and a picture with no geometry of its
+  own adopts the layout's — the same inheritance already used for text (BUG-2) and backgrounds (BUG-32).
+- **BUG-37 — `<a:srcRect>` source cropping was ignored, so pictures were drawn whole.** Karl reported
+  a slide-1 graphic sitting in a white box on the dark navy background. That picture is a JPEG, and
+  JPEG cannot store transparency — the white is in the pixels. The deck's answer is to **crop it
+  away**: `l="29178" r="29178"`, 29.178% off each side. We drew all of it. Slide 9's picture is
+  cropped 31.6%/40.9% and was equally wrong. `<a:srcRect>` is now read from the `<p:blipFill>` (a
+  direct child, so a nested fill elsewhere in the `<p:pic>` cannot supply the wrong crop) and passed
+  as the source rectangle; negative insets, which ask for padding outside the image, clamp to the
+  image bounds instead of producing an out-of-bounds source rect.
+- **BUG-38 — `<a:alphaModFix>` picture opacity was ignored.** Slide 1's two EMF graphics are declared
+  at 70% opacity and rendered fully opaque. Opacity is now applied per draw and restored immediately,
+  so one translucent picture cannot wash out everything drawn after it.
+
+
+### Fixed
 - **BUG-31 — the application could not be quit by any graceful means. Second attempt; the first fix
   was insufficient.** Not the window button, not Cmd+Q, not Dock → Quit, not even Activity Monitor's
   Quit — only Force Quit (SIGKILL). Qt documents the mechanism for `QCoreApplication::quit()`: the

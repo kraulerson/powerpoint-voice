@@ -754,3 +754,57 @@ the main thread's polling loop over the same counters. TSan reported it precisel
 stacks — on the first run. Fixed by using a main-thread `QObject` as the context, which is also how
 `AppShell` really receives those signals, so the test now matches production. The tool paid for its
 459-second runtime in one finding.
+
+---
+
+## ISSUE-025 — `fix:` commits bypass the entire Build Loop, so bug fixes get NO security audit and NO independent review (MAJOR, FRAMEWORK)
+
+**Found because KARL ASKED**, not because any control raised it: *"Have all PRs had an adversarial PR
+reviewer go over them before they are submitted?"* The answer was no, and nothing in the framework
+had noticed.
+
+**The structure.** The Build Loop's six steps — including `security_audit`, which is machine-checked
+and demands a findings file — apply to a FEATURE. The pre-commit gate enforces them for `feat:`
+commits. `fix:` commits are deliberately exempt so that bug remediation is not blocked behind a
+feature loop. The consequence nobody stated: **a `fix:` commit gets no security audit, no
+documentation step, and no independent review of any kind.**
+
+**Why that is not a small gap.** In this session, `fix:` commits were the overwhelming majority of
+what shipped, and they carried the highest-risk changes in the project — the crash fix, the quit
+fix, and three loader/renderer changes touching the OOXML inheritance chain.
+
+**Measured outcome of the unaudited path. Five defects, all mine, all in `fix:` commits:**
+| Defect | What escaped |
+|---|---|
+| BUG-30 first fix | Root cause was an unreproduced hypothesis and WRONG. Shipped in a merged PR |
+| BUG-31 first fix | Addressed the symptom, not the defect. Shipped in a merged PR; Karl hit it again |
+| BUG-43 | My BUG-35 fix put the macOS **Log Out** shortcut on the projector. Caught only because I happened to run an unrelated workflow |
+| BUG-37 first test | Regression test passed with the fix disabled — tested nothing. Caught only by my own disable-and-rerun habit |
+| BUG-41 | I destroyed my own fix with `git checkout --` on an unstaged file. Caught by the suite, not by review |
+
+Every feature that went through the full loop got a multi-agent adversarial audit, and those audits
+caught real ship-blockers in EVERY feature (F1a 3 Critical, F1b 1 Critical, F7b 5 Criticals including
+a first-keypress SEGV). The control works. It simply is not applied where most of the risk now lives.
+
+**Suggested fix.** Either (a) require a lightweight audit artefact for `fix:` commits that touch
+source — proportionate to the diff, not a full feature audit — or (b) make severity the trigger
+rather than commit type: any fix for a SEV-1/SEV-2 bug requires the audit step. (b) matches the
+existing severity vocabulary and would have caught four of the five above.
+
+**Same shape as ISSUE-016/017/018/019/020/022:** the enforced control and the documented intent
+disagree, and enforcement is what gets followed. This is now the SIXTH instance, which makes it the
+single strongest pattern this walk has produced.
+
+---
+
+## OBSERVATION-026 — I did not notice the gap in ISSUE-025 myself, in four sessions
+
+Worth recording separately from the framework finding. I ran adversarial audits diligently when the
+Build Loop told me to, and never once asked whether the fixes I was shipping outside it deserved the
+same treatment — including immediately after three of them turned out to be defective. The framework
+prompted me for audits on features; nothing prompted me for fixes; so I did not do them.
+
+**That is the failure mode the whole walk keeps documenting, applied to myself: I follow enforcement,
+not intent.** ISSUE-025 says the framework has that shape. This says I do too, and that a control I
+am not prompted to run is a control I will not run — which is precisely why it has to be enforced
+rather than merely documented.

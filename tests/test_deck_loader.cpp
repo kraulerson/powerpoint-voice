@@ -510,3 +510,118 @@ TEST_CASE("BUG-32: a background we cannot paint warns instead of rendering silen
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// BUG-37 — <a:srcRect> source cropping and <a:alphaModFix> picture opacity.
+//
+// Karl's slide 1 shows artwork sitting in a white box on a dark navy background.
+// The deck crops that picture 29.178% off EACH side (l="29178" r="29178"); we drew
+// it whole, so the margins PowerPoint discards came along with it.
+// ---------------------------------------------------------------------------
+TEST_CASE("BUG-37: a picture's source crop and opacity are read from its blipFill") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 3);
+
+    SUBCASE("srcRect insets are read in DrawingML units, per side") {
+        const SrcRect& sr = els[0].image.srcRect;
+        CHECK(sr.leftPerMille == 25000);
+        CHECK(sr.rightPerMille == 25000);
+        CHECK(sr.topPerMille == 0);
+        CHECK(sr.bottomPerMille == 0);
+        CHECK_FALSE(sr.isIdentity());
+    }
+
+    SUBCASE("a picture with no srcRect is the identity crop, not a zero-size one") {
+        CHECK(els[1].image.srcRect.isIdentity());
+    }
+
+    SUBCASE("alphaModFix is read; a picture without one is fully opaque") {
+        CHECK(els[0].image.alphaPerMille == 100000);
+        CHECK(els[1].image.alphaPerMille == 100000);
+        CHECK(els[2].image.alphaPerMille == 50000);
+    }
+}
+
+// BUG-41 — a picture placeholder inherits its geometry from the layout.
+//
+// Found on the real deck: slide 1's main photograph is a <p:pic> carrying
+// <p:ph type="pic" idx="11"/> and NO <p:spPr> — the layout positions it. We looked
+// for <p:ph> only under <p:nvSpPr>, which a picture does not have, so it matched no
+// layout placeholder, stayed 0x0, and the renderer skipped it. The picture was
+// silently absent from the slide, with no warning.
+TEST_CASE("BUG-41: a picture placeholder takes its geometry from the layout") {
+    LoadResult r = DeckLoader::load(fixture("good_pic_placeholder.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 1);
+    REQUIRE(els[0].kind == ElementKind::Image);
+
+    SUBCASE("the layout's rect is adopted, so the picture is not 0x0 and dropped") {
+        CHECK(els[0].image.rect.x == 8017727);
+        CHECK(els[0].image.rect.y == 0);
+        CHECK(els[0].image.rect.cx == 4174273);
+        CHECK(els[0].image.rect.cy == 6858000);
+    }
+
+    SUBCASE("the picture bytes still resolve") {
+        CHECK_FALSE(els[0].image.imageData.isEmpty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Adversarial-review findings on BUG-37/38. Every case here corresponds to a
+// mutation of the production code that survived the ORIGINAL tests — i.e. the
+// first version of this feature could not tell right from wrong along these axes.
+// ---------------------------------------------------------------------------
+TEST_CASE("BUG-37 review: crop and opacity survive both OOXML percentage spellings") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect_edge.pptx"));
+    REQUIRE(r.ok);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 5);
+
+    SUBCASE("Strict-spelling percentages parse, instead of silently meaning zero") {
+        // amt="50%" and l="25%" are what PowerPoint writes when a deck is saved as
+        // Strict Open XML. QString::toInt() returns 0 for them WITHOUT reporting
+        // failure — and 0 means fully transparent for alpha and no-crop for srcRect,
+        // so every affected picture vanished. A new way to silently lose a picture,
+        // in the same change set that exists because a picture was silently lost.
+        CHECK(els[0].image.srcRect.leftPerMille == 25000);
+        CHECK(els[0].image.srcRect.rightPerMille == 25000);
+        CHECK(els[0].image.alphaPerMille == 50000);
+    }
+
+    SUBCASE("TOP and BOTTOM insets are read — the real deck uses b=36909") {
+        // Deleting either the t or the b parse line survived the entire suite.
+        CHECK(els[1].image.srcRect.topPerMille == 25000);
+        CHECK(els[1].image.srcRect.bottomPerMille == 25000);
+        CHECK(els[1].image.srcRect.leftPerMille == 0);
+    }
+
+    SUBCASE("l and r are not interchangeable") {
+        // Swapping l and r in the parser survived the entire suite, because the only
+        // fixture that existed was symmetric.
+        CHECK(els[2].image.srcRect.leftPerMille == 10000);
+        CHECK(els[2].image.srcRect.rightPerMille == 40000);
+    }
+
+    SUBCASE("an over-crop is kept as declared, for the renderer to reject") {
+        CHECK(els[3].image.srcRect.leftPerMille == 60000);
+        CHECK(els[3].image.srcRect.rightPerMille == 60000);
+    }
+
+    SUBCASE("unreadable values WARN and fall back, and never hide the picture") {
+        CHECK(els[4].image.srcRect.isIdentity());    // whole picture, not a guess
+        CHECK(els[4].image.alphaPerMille == 100000); // opaque, never transparent
+        int imageWarnings = 0;
+        for (const LoadWarning& w : r.presentation.warnings) {
+            if (w.elementType == QStringLiteral("image")) {
+                ++imageWarnings;
+            }
+        }
+        CHECK(imageWarnings >= 2);
+    }
+}

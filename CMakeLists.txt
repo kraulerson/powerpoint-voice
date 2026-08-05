@@ -59,6 +59,7 @@ FetchContent_MakeAvailable(doctest)
 # ---------------------------------------------------------------------------
 add_library(pptv_core STATIC
   src/core/app_info.cpp
+  src/audio/audio_format.cpp
   src/loader/deck_loader.cpp
   src/render/slide_renderer.cpp
   src/command/number_parser.cpp
@@ -100,7 +101,16 @@ qt_add_executable(powerpoint_voice
 target_link_libraries(powerpoint_voice PRIVATE pptv_ui)
 set_target_properties(powerpoint_voice PROPERTIES
   WIN32_EXECUTABLE ON
-  MACOSX_BUNDLE ON)
+  MACOSX_BUNDLE ON
+  # The generated Info.plist MUST carry NSMicrophoneUsageDescription: macOS kills a
+  # process outright when it opens an audio input device without one. CMake's default
+  # template has no such key, so voice would have crashed the app on the presenter's
+  # MacBook Pro and nowhere else — the dev Mac mini has no microphone to trigger it.
+  MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in"
+  MACOSX_BUNDLE_BUNDLE_NAME "powerpoint-voice"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "com.kraulerson.powerpoint-voice"
+  MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+  MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
 
 # Headless dev/UAT utility: render a deck's slides to PNGs for fidelity checks.
 add_executable(render_preview tools/render_preview.cpp)

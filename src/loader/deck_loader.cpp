@@ -490,8 +490,54 @@ BackgroundSource partBackground(const QByteArray& xml, const ThemeColors& theme,
 }
 
 // Placeholder key "type:idx" for matching a shape against layout geometry (BUG-2).
+// Parse an ISO/IEC 29500 ST_Percentage-style attribute into thousandths of a
+// percent. BOTH spellings occur in the wild and PowerPoint writes each depending on
+// which format the deck was saved in:
+//   Transitional: amt="50000"   (already per-100000)
+//   Strict:       amt="50%"     (a literal percentage)
+// QString::toInt() returns 0 for "50%" WITHOUT reporting failure, and 0 means fully
+// transparent for alphaModFix and no-crop for srcRect. So a Strict-saved deck made
+// every affected picture VANISH (adversarial review F1) — a brand-new way to lose a
+// picture silently, introduced in the same change set whose sibling commit exists
+// because a picture was being lost silently. Parse failures are reported, never
+// swallowed as zero.
+bool parsePercentAttr(const QString& raw, int& outPerMille) {
+    QString v = raw.trimmed();
+    if (v.isEmpty()) {
+        return false;
+    }
+    bool ok = false;
+    if (v.endsWith(QLatin1Char('%'))) {
+        v.chop(1);
+        const double pct = v.trimmed().toDouble(&ok);
+        if (!ok) {
+            return false;
+        }
+        outPerMille = static_cast<int>(pct * 1000.0);
+        return true;
+    }
+    const int n = v.toInt(&ok);
+    if (!ok) {
+        return false;
+    }
+    outPerMille = n;
+    return true;
+}
+
 QString placeholderKey(const pugi::xml_node& sp) {
-    pugi::xml_node ph = descendantLocal(childLocal(sp, "nvSpPr"), "ph");
+    // The <p:ph> lives under a DIFFERENT non-visual-properties element per shape
+    // type: <p:nvSpPr> for a shape, <p:nvPicPr> for a picture, <p:nvGraphicFramePr>
+    // for a frame. Looking only under nvSpPr meant PICTURE placeholders matched
+    // nothing, so a <p:pic> with no <p:spPr> of its own — which is exactly how
+    // PowerPoint writes a picture dropped into a layout's picture placeholder —
+    // inherited no geometry, ended up 0x0, and was silently never drawn (BUG-41).
+    pugi::xml_node ph;
+    for (const char* holder : {"nvSpPr", "nvPicPr", "nvGraphicFramePr", "nvCxnSpPr"}) {
+        ph = descendantLocal(childLocal(sp, holder), "ph");
+        if (ph) {
+            break;
+        }
+    }
     if (!ph) {
         return {};
     }
@@ -512,7 +558,8 @@ QHash<QString, RectEmu> parseLayoutPlaceholders(const QByteArray& xml) {
     }
     pugi::xml_node spTree = descendantLocal(doc.first_child(), "spTree");
     for (pugi::xml_node sp = spTree.first_child(); sp; sp = sp.next_sibling()) {
-        if (localName(sp.name()) != QLatin1String("sp")) {
+        const QString tag = localName(sp.name());
+        if (tag != QLatin1String("sp") && tag != QLatin1String("pic")) {
             continue;
         }
         const QString key = placeholderKey(sp);
@@ -575,10 +622,75 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             ShapeElement e;
             e.kind = ElementKind::Image;
             e.image.rect = parseXfrm(childLocal(node, "spPr"));
+            // A picture placeholder carries no geometry of its own; the layout
+            // positions it (BUG-41, same inheritance as text shapes in BUG-2).
+            // Without this the picture is 0x0 and the renderer skips it entirely —
+            // on the real deck that silently dropped slide 1's main photograph.
+            if (e.image.rect.cx <= 0 || e.image.rect.cy <= 0) {
+                const QString key = placeholderKey(node);
+                if (!key.isEmpty() && layoutPh.contains(key)) {
+                    e.image.rect = layoutPh.value(key);
+                }
+            }
             pugi::xml_node blip = descendantLocal(node, "blip");
             const QString rid = attrLocal(blip, "embed");
             if (!rid.isEmpty() && slideRels.contains(rid)) {
                 e.image.mediaPart = resolveTarget(slideDir, slideRels.value(rid));
+            }
+            // <a:srcRect> — the part of the source the deck actually shows (BUG-37).
+            // Read from the <a:blipFill>, NOT by descendant search: a group or a
+            // nested fill elsewhere in the <p:pic> must not supply this picture's crop.
+            if (pugi::xml_node fill = childLocal(node, "blipFill")) {
+                if (pugi::xml_node sr = childLocal(fill, "srcRect")) {
+                    bool anyBad = false;
+                    struct Side {
+                        const char* attr;
+                        int* out;
+                    };
+                    const Side sides[] = {{"l", &e.image.srcRect.leftPerMille},
+                                          {"t", &e.image.srcRect.topPerMille},
+                                          {"r", &e.image.srcRect.rightPerMille},
+                                          {"b", &e.image.srcRect.bottomPerMille}};
+                    for (const Side& side : sides) {
+                        const QString raw = attrLocal(sr, side.attr);
+                        if (raw.isEmpty()) {
+                            continue; // an absent side is legitimately zero
+                        }
+                        if (!parsePercentAttr(raw, *side.out)) {
+                            anyBad = true;
+                        }
+                    }
+                    if (anyBad) {
+                        // Do not crop on a half-understood rectangle: showing the
+                        // whole picture is wrong, but showing an arbitrary part of
+                        // it is worse, and silently is worst of all.
+                        e.image.srcRect = SrcRect{};
+                        LoadWarning w;
+                        w.slideIndex = index;
+                        w.elementType = QStringLiteral("image");
+                        w.detail = QStringLiteral("unreadable crop; showing the whole picture");
+                        slide.warnings.push_back(w);
+                    }
+                }
+            }
+            // <a:alphaModFix amt="..."> — uniform picture opacity.
+            if (pugi::xml_node amf = descendantLocal(blip, "alphaModFix")) {
+                const QString amt = attrLocal(amf, "amt");
+                int parsed = 0;
+                if (!amt.isEmpty()) {
+                    if (parsePercentAttr(amt, parsed)) {
+                        e.image.alphaPerMille = qBound(0, parsed, 100000);
+                    } else {
+                        // Fully OPAQUE on a parse failure, never transparent: an
+                        // unreadable opacity must not be able to hide a picture.
+                        e.image.alphaPerMille = 100000;
+                        LoadWarning w;
+                        w.slideIndex = index;
+                        w.elementType = QStringLiteral("image");
+                        w.detail = QStringLiteral("unreadable opacity; drawing it opaque");
+                        slide.warnings.push_back(w);
+                    }
+                }
             }
             slide.elements.push_back(std::move(e));
         } else if (name == QLatin1String("grpSp")) {

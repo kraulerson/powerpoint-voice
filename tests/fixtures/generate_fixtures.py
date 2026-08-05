@@ -788,6 +788,144 @@ def build_good_emf_image():
     write_zip("good_emf_image.pptx", parts)
 
 
+def pic_sp_cropped(rid, x, y, cx, cy, l=0, t=0, r=0, b=0, alpha=None):
+    """A <p:pic> carrying <a:srcRect> crop insets and optional <a:alphaModFix>.
+
+    Inset values may be ints (Transitional, per-100000) or strings such as "25%"
+    (ISO 29500 Strict) or outright garbage, so the parser's tolerance is testable.
+    """
+    amf = f'<a:alphaModFix amt="{alpha}"/>' if alpha is not None else ""
+    src = f'<a:srcRect l="{l}" t="{t}" r="{r}" b="{b}"/>' if (l or t or r or b) else ""
+    return (
+        "<p:pic><p:blipFill>"
+        f'<a:blip r:embed="{rid}">{amf}</a:blip>{src}<a:stretch><a:fillRect/></a:stretch>'
+        "</p:blipFill>"
+        f'<p:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm></p:spPr>'
+        "</p:pic>"
+    )
+
+
+def stripe_png():
+    """A 4x1 PNG: white, white, RED, white. Cropping the outer 25% each side leaves
+    the middle 2 px (white+RED); the point is that the WHITE margins disappear."""
+    import struct, zlib
+    def chunk(tag, data):
+        return (struct.pack(">I", len(data)) + tag + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+    px = [(255, 255, 255), (255, 255, 255), (255, 0, 0), (255, 255, 255)]
+    raw = b"\x00" + b"".join(bytes(c) for c in px)
+    return (b"\x89PNG\r\n\x1a\x0a".replace(b"\x0a", b"\n")
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", 4, 1, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def build_good_srcrect():
+    # BUG-37: <a:srcRect> selects the part of the source the deck actually shows.
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        # Three pictures of the SAME 4x1 source (white, white, RED, white):
+        #   [0] cropped 25% off each side, opaque  -> shows 2 px: white, RED (50% red)
+        #   [1] uncropped, opaque                  -> shows 4 px (25% red)
+        #   [2] uncropped, 50% opacity             -> red must composite to pink
+        # [0] vs [1] differ ONLY by the crop, so the assertion cannot pass by accident.
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 6000000, 3000000, l=25000, r=25000),
+            pic_sp_cropped("rId1", 6000000, 0, 6000000, 3000000),
+            pic_sp_cropped("rId1", 0, 3500000, 6000000, 3000000, alpha=50000),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": stripe_png(),
+    }
+    write_zip("good_srcrect.pptx", parts)
+
+
+def build_good_pic_placeholder():
+    # BUG-41: a <p:pic> dropped into a layout's PICTURE placeholder carries a
+    # <p:ph type="pic"> and NO <p:spPr> of its own — PowerPoint writes it exactly
+    # this way. Its geometry lives in the layout. Without inheritance it is 0x0 and
+    # the renderer skips it, silently losing the picture.
+    pic = (
+        '<p:pic><p:nvPicPr><p:cNvPr id="7" name="Picture Placeholder 6"/><p:cNvPicPr/>'
+        '<p:nvPr><p:ph type="pic" sz="quarter" idx="11"/></p:nvPr></p:nvPicPr>'
+        '<p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+        "</p:pic>"  # NOTE: no <p:spPr> at all
+    )
+    layout_pic = (
+        '<p:pic><p:nvPicPr><p:cNvPr id="3" name="Picture Placeholder 2"/><p:cNvPicPr/>'
+        '<p:nvPr><p:ph type="pic" sz="quarter" idx="11"/></p:nvPr></p:nvPicPr>'
+        "<p:blipFill/>"
+        '<p:spPr><a:xfrm><a:off x="8017727" y="0"/>'
+        '<a:ext cx="4174273" cy="6858000"/></a:xfrm></p:spPr></p:pic>'
+    )
+    layout = (
+        XML_DECL
+        + f'<p:sldLayout xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld><p:spTree>{layout_pic}</p:spTree></p:cSld></p:sldLayout>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([pic]),
+        "ppt/slides/_rels/slide1.xml.rels": XML_DECL
+        + f'<Relationships xmlns="{PR}">'
+        + f'<Relationship Id="rId1" Type="{R}/image" Target="../media/image1.png"/>'
+        + f'<Relationship Id="rId2" Type="{R}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
+        + "</Relationships>",
+        "ppt/slideLayouts/slideLayout1.xml": layout,
+        "ppt/media/image1.png": tiny_png(),
+    }
+    write_zip("good_pic_placeholder.pptx", parts)
+
+
+def wide_red_png():
+    """A 16x1 all-red PNG. Width matters: with a 4px source an over-crop's mirrored
+    region rounds to under one pixel and the renderer's separate width guard catches
+    it by accident, so the over-crop guard itself goes untested. 16px makes the
+    mirrored region ~3px — big enough to actually be drawn if the guard is removed."""
+    import struct, zlib
+    def chunk(tag, data):
+        return (struct.pack(">I", len(data)) + tag + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+    raw = b"\x00" + b"\xff\x00\x00" * 16
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", 16, 1, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def build_good_srcrect_edge():
+    # Adversarial-review fixtures. Each of these survived a mutation of the
+    # production code, i.e. the original tests could not tell them apart:
+    #   [0] Strict-spelling percentages ("25%") — parsed as 0 by QString::toInt(),
+    #       which silently meant "no crop" for srcRect and "invisible" for alpha
+    #   [1] TOP/BOTTOM insets only — the real deck uses b=36909 and nothing pinned it
+    #       (deleting the t or b parse line survived the whole suite)
+    #   [2] ASYMMETRIC l/r — swapping l and r in the parser survived the whole suite
+    #   [3] OVER-CROP l+r > 100000 — negative width, which QRectF::intersected
+    #       normalises into a MIRRORED draw of the region the deck excluded
+    #   [4] unreadable garbage — must warn and show the whole picture, never vanish
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 2000000, 2000000, l="25%", r="25%", alpha="50%"),
+            pic_sp_cropped("rId1", 2000000, 0, 2000000, 2000000, t=25000, b=25000),
+            pic_sp_cropped("rId1", 4000000, 0, 2000000, 2000000, l=10000, r=40000),
+            pic_sp_cropped("rId1", 6000000, 0, 2000000, 2000000, l=60000, r=60000),
+            pic_sp_cropped("rId1", 8000000, 0, 2000000, 2000000, l="banana", alpha="banana"),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": wide_red_png(),
+    }
+    write_zip("good_srcrect_edge.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -964,6 +1102,9 @@ if __name__ == "__main__":
     build_good_hugefont()
     build_good_gif_image()
     build_good_emf_image()
+    build_good_srcrect()
+    build_good_srcrect_edge()
+    build_good_pic_placeholder()
     build_good_overflow()
     build_good_manypara()
     build_good_theme()

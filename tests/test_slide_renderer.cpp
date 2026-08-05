@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <algorithm>
+
 #include <QColor>
 #include <QImage>
 
@@ -383,4 +385,91 @@ TEST_CASE("BUG-4: long text wraps onto multiple lines") {
     int lowerBand = countNonBackground(img, 0, 160, W, 400, black);
     CHECK(topBand > 0);
     CHECK(lowerBand > 0); // wrapped continuation exists below the first line
+}
+
+// ---------------------------------------------------------------------------
+// BUG-37 — the crop must actually change the pixels drawn.
+// ---------------------------------------------------------------------------
+TEST_CASE("BUG-37: a cropped picture draws only the cropped region") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect.pptx"));
+    REQUIRE(r.ok);
+    const QImage img = SlideRenderer::render(r.presentation, 0, 800, 400);
+    REQUIRE_FALSE(img.isNull());
+
+    auto share = [&img](int x0, int x1, int y0, int y1, auto pred) {
+        int hits = 0, total = 0;
+        for (int y = y0; y < y1; ++y) {
+            for (int x = x0; x < x1; ++x) {
+                if (pred(img.pixelColor(x, y))) {
+                    ++hits;
+                }
+                ++total;
+            }
+        }
+        return total > 0 ? double(hits) / total : 0.0;
+    };
+    auto isRed = [](const QColor& c) { return c.red() > 200 && c.green() < 60 && c.blue() < 60; };
+
+    // Top-left and top-right hold the SAME 4x1 source (white, white, RED, white) at
+    // the same size, differing ONLY by the crop. Cropping 25% off each side leaves
+    // 2 px of which one is red, so red must cover about twice the share it does in
+    // the uncropped copy. If the crop were ignored the two would be identical — the
+    // first version of this test could not tell them apart and passed with the fix
+    // disabled.
+    const int midX = img.width() / 2;
+    const int topY0 = 5, topY1 = img.height() / 3;
+    const double croppedRed = share(0, midX, topY0, topY1, isRed);
+    const double wholeRed = share(midX, img.width(), topY0, topY1, isRed);
+    REQUIRE(wholeRed > 0.0); // the uncropped copy really does draw red
+    CHECK(croppedRed > wholeRed * 1.5);
+
+    SUBCASE("alphaModFix makes the picture translucent, not opaque") {
+        // The third picture is the uncropped source at 50% opacity, so its red
+        // composites toward pink over the light slide and must NOT read as pure red.
+        const double lowerRed = share(0, midX, img.height() * 2 / 3, img.height() - 5, isRed);
+        CHECK(lowerRed < 0.01);
+        const double pink =
+            share(0, midX, img.height() * 2 / 3, img.height() - 5, [](const QColor& c) {
+                return c.red() > 200 && c.green() > 90 && c.green() < 190 && c.blue() > 90 &&
+                       c.blue() < 190;
+            });
+        CHECK(pink > 0.0);
+    }
+}
+
+// Adversarial-review finding F2 — an over-crop must draw NOTHING, not a mirror.
+TEST_CASE("BUG-37 review: an over-crop is rejected, never drawn mirrored") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect_edge.pptx"));
+    REQUIRE(r.ok);
+    // l+r = 120000 > 100000, so the requested span is empty. Computing it anyway
+    // gives a negative width, and QRectF::intersected NORMALISES that — swapping the
+    // edges and returning a valid rectangle covering exactly the region the deck
+    // excluded, drawn mirrored. The downstream width guard never fires because the
+    // normalised width is positive.
+    const QImage img = SlideRenderer::render(r.presentation, 0, 1000, 500);
+    REQUIRE_FALSE(img.isNull());
+    // Map EMU -> pixels through the SAME letterbox the renderer applies, then sample
+    // only the middle of that picture's frame. A naive width-proportional window
+    // spills into the neighbouring picture, which legitimately draws red — the first
+    // version of this test failed for exactly that reason.
+    const double slideW = static_cast<double>(r.presentation.slideWidth);
+    const double slideH = static_cast<double>(r.presentation.slideHeight);
+    const double scale = std::min(img.width() / slideW, img.height() / slideH);
+    const double offX = (img.width() - slideW * scale) / 2.0;
+    const double frameL = offX + 6000000.0 * scale;
+    const double frameR = offX + 8000000.0 * scale;
+    const double inset = (frameR - frameL) * 0.2;
+    const int x0 = static_cast<int>(frameL + inset);
+    const int x1 = static_cast<int>(frameR - inset);
+    REQUIRE(x1 > x0);
+    int red = 0;
+    for (int y = 0; y < img.height(); ++y) {
+        for (int x = x0; x < x1; ++x) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.red() > 200 && c.green() < 60 && c.blue() < 60) {
+                ++red;
+            }
+        }
+    }
+    CHECK(red == 0);
 }
