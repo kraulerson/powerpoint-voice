@@ -5,8 +5,8 @@
     "steps_completed": [],
     "started_at": null,
     "last_completed": {
-      "feature": "F8a-audio-capture-format",
-      "completed_at": "2026-08-05T14:22:19Z",
+      "feature": "F8b-audio-capture",
+      "completed_at": "2026-08-05T19:06:34Z",
       "steps_completed": [
         "tests_written",
         "tests_verified_failing",
@@ -16,13 +16,19 @@
         "feature_recorded"
       ],
       "paths": [
-        "docs/api and interfaces/audio-capture-format.md",
-        "docs/security-audits/f8a-audio-capture-format-security-audit.md",
+        "CHANGELOG.md",
+        "cmake/VendorVosk.cmake",
+        "CMakeLists.txt",
+        "docs/context-health-check-2026-08-05.md",
+        "docs/security-audits/f8b-audio-capture-security-audit.md",
         "FEATURES.md",
-        "src/audio/audio_format.cpp",
-        "src/audio/audio_format.hpp",
+        "PROJECT_BIBLE.md",
+        "src/audio/audio_capture.cpp",
+        "src/audio/audio_capture.hpp",
+        "src/audio/miniaudio_capture.cpp",
+        "src/audio/miniaudio_capture.hpp",
         "tests/CMakeLists.txt",
-        "tests/test_audio_format.cpp"
+        "tests/test_audio_capture.cpp"
       ]
     }
   },

@@ -32,3 +32,28 @@ function(pptv_prepare_vosk OUT_LIB)
   add_custom_target(pptv_vosk_lib DEPENDS "${_dst}")
   set(${OUT_LIB} "${_dst}" PARENT_SCOPE)
 endfunction()
+
+# Extract the speech model into the app bundle at BUILD time (BUG-50).
+#
+# It ships as a 39 MB zip and nothing copied it anywhere, so it was not in the
+# bundle at all. Extraction must happen at build time, not first run: TM-011 forbids
+# writing a cache to disk during a talk, and a first-launch unzip of 39 MB in front
+# of an audience is exactly the kind of delay that has no upside.
+function(pptv_prepare_vosk_model OUT_DIR)
+  set(_zip "${CMAKE_SOURCE_DIR}/third_party/vosk/model/vosk-model-small-en-us-0.15.zip")
+  set(_out "${CMAKE_BINARY_DIR}/vosk/model")
+  set(_stamp "${CMAKE_BINARY_DIR}/vosk/model.stamp")
+  if(NOT EXISTS "${_zip}")
+    message(FATAL_ERROR "vendored vosk model missing: ${_zip}")
+  endif()
+  add_custom_command(
+    OUTPUT "${_stamp}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_out}"
+    COMMAND ${CMAKE_COMMAND} -E chdir "${_out}" ${CMAKE_COMMAND} -E tar xf "${_zip}"
+    COMMAND ${CMAKE_COMMAND} -E touch "${_stamp}"
+    DEPENDS "${_zip}"
+    COMMENT "Extracting vendored Vosk model (39 MB, once)"
+    VERBATIM)
+  add_custom_target(pptv_vosk_model DEPENDS "${_stamp}")
+  set(${OUT_DIR} "${_out}/vosk-model-small-en-us-0.15" PARENT_SCOPE)
+endfunction()

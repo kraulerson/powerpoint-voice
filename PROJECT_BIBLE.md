@@ -31,7 +31,10 @@ unsustainable at zero marginal cost.
 Full ADR: `docs/ADR documentation/ADR-0001-architecture-qt6-vosk.md` (Accepted, Karl,
 2026-08-03). Selected stack:
 
-- **Language/UI:** C++ (hard constraint) on Qt 6.8 LTS, qtbase modules only
+- **Language/UI:** C++ (hard constraint) on Qt 6, qtbase modules only. CMake requires >= 6.2 so the
+  same tree configures on brew and on ubuntu apt; the development and showtime machines both run
+  **6.11.1** (corrected 2026-08-05 by the context health check — this line said "6.8 LTS", which no
+  machine in this project has ever used)
   (Core/Gui/Widgets), LGPLv3 dynamically linked.
 - **Renderer:** from-scratch OOXML → in-memory slide model → QPainter/QTextLayout
   (text shaping, wrapping), QRawFont (embedded fonts), QImage (image codecs). Text+images

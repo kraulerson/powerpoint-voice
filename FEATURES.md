@@ -157,3 +157,22 @@ M3 Max and the development machine has no microphone at all.
   4096-frame callback into 131 MB (audit F8a-1)
 - Performs no I/O of any kind, so audio cannot reach disk or a log (TM-011/012/013)
 - `docs/api and interfaces/audio-capture-format.md`, `docs/security-audits/f8a-audio-capture-format-security-audit.md`
+
+## F8b — Microphone capture
+
+Captures from the system DEFAULT input device via miniaudio -> CoreAudio, converts what the
+device actually provides into the recogniser's 16 kHz mono, and hands it to a sink.
+
+- Binds to the **API, not the hardware**: default device only, never an index, name or
+  enumeration order. The talk machine is not the development machine.
+- Asks the device what format it chose; never requests one, because a requested rate would make
+  CoreAudio resample silently and we would not know what we were given.
+- **Every** capture failure is recoverable by construction — the keyboard is the guaranteed
+  control path and no microphone problem may end a talk.
+- Error vocabulary is CLOSED: five fixed strings, none derived from the device, each naming the
+  keyboard as the way forward.
+- Performs no I/O at all, so room audio cannot reach disk or a log (TM-011/012/013).
+- 8 GROUP AC tests, all against a fake device — the development machine has no microphone.
+- `docs/security-audits/f8b-audio-capture-security-audit.md`
+
+**Not yet wired to a recogniser** — that is F8c. Until then the sink has no production consumer.
