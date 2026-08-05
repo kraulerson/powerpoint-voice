@@ -7,11 +7,13 @@
 #include <QMimeData>
 #include <QPixmap>
 #include <QPushButton>
+#include <QShortcut>
 #include <QSignalSpy>
 #include <QTest>
 #include <QUrl>
 
 #include "present/presentation_controller.hpp"
+#include "ui/app_shell.hpp"
 #include "ui/notice_strip.hpp"
 #include "ui/presentation_window.hpp"
 #include "ui/quit_policy.hpp"
@@ -379,5 +381,64 @@ TEST_CASE("S/BUG-18: only a LOCAL file is accepted from a drop") {
     SUBCASE("the view accepts drops at all — without this the handler is unreachable") {
         StartView v;
         CHECK(v.acceptDrops());
+    }
+}
+
+// BUG-60 (SEV-1) — the suite could not detect BUG-18's return.
+//
+// Three mutations each left all 224 tests green and together restored the exact
+// pre-BUG-18 state: delete the Cmd+O shortcut, stop dropEvent emitting, delete the
+// two connect() calls in AppShell. The existing test asserts the button EMITS a
+// signal; nothing asserted that anything was LISTENING. app_shell.cpp — every wire
+// in the application — had no tests at all.
+TEST_CASE("S/BUG-60: AppShell actually wires the start screen to opening a deck") {
+    AppShell shell;
+    shell.showStart();
+    StartView* view = shell.startViewForTest();
+    REQUIRE(view != nullptr);
+
+    SUBCASE("a dropped path reaches the shell's open path") {
+        // Emitting fileDropped must cause an open ATTEMPT. A nonexistent path is
+        // used deliberately: the observable is that the shell tried and reported,
+        // which proves the wire exists without needing a real deck on disk.
+        QSignalSpy attempts(&shell, &AppShell::deckOpenAttempted);
+        emit view->fileDropped(QStringLiteral("/nonexistent/deck.pptx"));
+        CHECK(attempts.count() == 1);
+        CHECK(attempts.at(0).at(0).toString() == QStringLiteral("/nonexistent/deck.pptx"));
+    }
+
+    SUBCASE("the browse request is connected to something") {
+        // browseRequested opens a modal dialog, which cannot run here — so assert
+        // the CONNECTION exists rather than driving it. Deleting the connect() in
+        // AppShell is precisely mutation m24, and this is what catches it.
+        CHECK(view->browseListeners() > 0);
+        CHECK(view->dropListeners() > 0);
+    }
+
+    SUBCASE("the drop handler really emits — not just the pure path rule") {
+        QSignalSpy dropped(view, &StartView::fileDropped);
+        QMimeData mime;
+        mime.setUrls({QUrl::fromLocalFile(QStringLiteral("/tmp/x.pptx"))});
+        view->acceptDroppedMime(&mime);
+        CHECK(dropped.count() == 1);
+    }
+
+    SUBCASE("the platform Open shortcut is installed") {
+        // Deleting the QShortcut removes Cmd+O entirely and is invisible to any
+        // behavioural assertion, because a shortcut needs a shown, focused,
+        // event-looped widget to fire (BUG-60 mutation m22).
+        bool hasOpen = false;
+        for (QShortcut* sc : view->findChildren<QShortcut*>()) {
+            if (sc->key() == QKeySequence(QKeySequence::Open)) {
+                hasOpen = true;
+            }
+        }
+        CHECK(hasOpen);
+    }
+
+    SUBCASE("the start screen still offers both routes in") {
+        REQUIRE(view->openButton() != nullptr);
+        CHECK(view->openButton()->isEnabled());
+        CHECK(view->acceptDrops());
     }
 }

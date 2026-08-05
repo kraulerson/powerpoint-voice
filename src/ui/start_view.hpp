@@ -35,6 +35,16 @@ class StartView : public QWidget {
 
     // Test seam: the button the user clicks to browse.
     QPushButton* openButton() const { return m_open; }
+    // Test seam for BUG-60: is anything actually LISTENING? The application's
+    // wiring had no tests, so deleting AppShell's connect() calls restored the
+    // "no way to open a deck" state with the entire suite green.
+    int browseListeners() const { return receivers(SIGNAL(browseRequested())); }
+    int dropListeners() const { return receivers(SIGNAL(fileDropped(QString))); }
+    // The drop HANDLING, callable without Qt's drag-and-drop machinery — a
+    // synthetic QDropEvent is not dispatched by QWidget::event, so dropEvent()
+    // itself is unreachable from a test. dropEvent is a one-line forward to this,
+    // so testing it tests the real path (BUG-60 mutation m23).
+    void acceptDroppedMime(const QMimeData* mime);
 
   signals:
     // The user asked to choose a file. AppShell owns the dialog.

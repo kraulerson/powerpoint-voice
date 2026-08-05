@@ -28,6 +28,17 @@ class AppShell : public QObject {
     Q_OBJECT
 
   public:
+    // Test seams for BUG-60. The application's WIRING had no tests, so three
+    // mutations could restore the "no way to open a deck" state with the whole
+    // suite green. These expose enough to assert the wires exist, and nothing more.
+    StartView* startViewForTest() const { return start_; }
+
+  signals:
+    // Emitted whenever a deck open is ATTEMPTED, whatever the outcome. Its only
+    // purpose is to make the start-screen wiring observable.
+    void deckOpenAttempted(const QString& path);
+
+  public:
     explicit AppShell(QObject* parent = nullptr);
     ~AppShell() override;
 

@@ -200,3 +200,54 @@ TEST_CASE("AF/BUG-56: a buffer smaller than the format claims is REFUSED, not ov
             toRecognizerFormat(buf.data(), buf.size(), 1024, AudioFormat{48000, 1}).empty());
     }
 }
+
+// BUG-63 — the downmix arithmetic was unconstrained: every existing case used TWO
+// channels, so `sum / channels` -> `sum / 2` survived the whole suite. A MacBook
+// Pro's built-in microphone is a THREE-element array, and at three channels that
+// mutation is a full-scale polarity flip, not a rounding difference.
+TEST_CASE("AF/BUG-63: the divisor is the CHANNEL COUNT, at every channel count") {
+    SUBCASE("three channels — the shape of a MacBook Pro's microphone array") {
+        const std::int16_t f[] = {24000, 24000, 24000, 100, 200, 300};
+        const auto mono = downmixToMono(f, 2, 3);
+        REQUIRE(mono.size() == 2);
+        CHECK(mono[0] == 24000); // dividing by 2 here wraps to -29536
+        CHECK(mono[1] == 200);
+    }
+
+    SUBCASE("one channel is a pass-through, not a halving") {
+        const std::int16_t f[] = {1000, -2000};
+        const auto mono = downmixToMono(f, 2, 1);
+        REQUIRE(mono.size() == 2);
+        CHECK(mono[0] == 1000);
+        CHECK(mono[1] == -2000);
+    }
+
+    SUBCASE("four and eight channels average correctly") {
+        const std::int16_t q[] = {100, 200, 300, 400};
+        const auto m4 = downmixToMono(q, 1, 4);
+        REQUIRE(m4.size() == 1);
+        CHECK(m4[0] == 250);
+        const std::int16_t e[] = {8, 8, 8, 8, 8, 8, 8, 8};
+        const auto m8 = downmixToMono(e, 1, 8);
+        REQUIRE(m8.size() == 1);
+        CHECK(m8[0] == 8);
+    }
+
+    SUBCASE("three full-scale channels do not overflow the accumulator") {
+        const std::int16_t loud[] = {32767, 32767, 32767, -32768, -32768, -32768};
+        const auto mono = downmixToMono(loud, 2, 3);
+        REQUIRE(mono.size() == 2);
+        CHECK(mono[0] == 32767);
+        CHECK(mono[1] == -32768);
+    }
+}
+
+// BUG-63 — the round-half-up in the resampler was likewise unconstrained: dropping
+// it loses one sample per callback, forever, and no test noticed.
+TEST_CASE("AF/BUG-63: the resampled sample count is exact, not one short") {
+    // 1000 frames @44.1k -> 16k is 362.8, which must round to 363. Truncation gives
+    // 362 and silently discards audio on every buffer for the length of a talk.
+    CHECK(resampleMono(std::vector<std::int16_t>(1000, 0), 44100, 16000).size() == 363);
+    CHECK(resampleMono(std::vector<std::int16_t>(1000, 0), 48000, 16000).size() == 333);
+    CHECK(resampleMono(std::vector<std::int16_t>(3, 0), 48000, 16000).size() == 1);
+}

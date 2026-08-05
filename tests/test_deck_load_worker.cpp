@@ -8,6 +8,14 @@
 
 #include "present/deck_load_worker.hpp"
 
+// NOTE on the pattern `REQUIRE(spy.count() > 0 || spy.wait(N))`:
+// QSignalSpy::wait() runs an event loop and counts only what arrives DURING it. A
+// worker thread that emits BEFORE the main thread reaches wait() is invisible to it,
+// so the wait burns its full timeout and fails while the spy already holds the
+// signal. Measured by a UAT-4 tester: 199 of 200 iterations. That made five tests in
+// these two files fail ~19% of clean runs and 30% under load (BUG-40) — and I
+// re-ran past it three times instead of fixing it. Check the count FIRST.
+
 using namespace pptv;
 
 namespace {
@@ -70,7 +78,7 @@ TEST_CASE("P: the deck crosses to the GUI thread as a pointer, not a deep copy")
     });
     QSignalSpy spy(&h.worker, &DeckLoadWorker::loaded);
     h.thread.start();
-    REQUIRE(spy.wait(5000));
+    REQUIRE((spy.count() > 0 || spy.wait(5000)));
     REQUIRE(spy.count() == 1);
     const auto out = spy.at(0).at(0).value<DeckLoadOutcome>();
     REQUIRE(out.ok);
@@ -94,7 +102,7 @@ TEST_CASE("P: loading runs OFF the calling thread") {
     });
     QSignalSpy spy(&h.worker, &DeckLoadWorker::loaded);
     h.thread.start();
-    REQUIRE(spy.wait(5000));
+    REQUIRE((spy.count() > 0 || spy.wait(5000)));
     CHECK(seen != nullptr);
     CHECK(seen != QThread::currentThread());
 }
@@ -115,7 +123,7 @@ TEST_CASE("P: a result arriving after cancel is discarded, never delivered late"
     QThread::msleep(50); // let the worker enter the parse
     h.worker.cancel();
     gate.release(); // the parse now completes — its result must be dropped
-    REQUIRE(finishedSpy.wait(5000));
+    REQUIRE((finishedSpy.count() > 0 || finishedSpy.wait(5000)));
     CHECK(loadedSpy.count() == 0);
 }
 
@@ -138,7 +146,18 @@ TEST_CASE("P: every failure kind survives the thread boundary, typed") {
         });
         QSignalSpy spy(&h.worker, &DeckLoadWorker::loaded);
         h.thread.start();
-        REQUIRE(spy.wait(5000));
+        // This case builds and tears down EIGHT worker threads in a loop. The
+        // spy-race fix above cut the group failure rate from ~15-30%% to ~2.5%%, but
+        // THIS case still fails at that rate and polling to a 15 s deadline did NOT
+        // change it — so the residual is neither the spy race nor scheduling delay,
+        // and I have not diagnosed it. Recorded honestly rather than claimed fixed
+        // (BUG-40 stays open with this measurement). Polling is kept only because a
+        // count check is authoritative — QSignalSpy records from the emitting thread
+        // — not because it helped.
+        QDeadlineTimer deadline(15000);
+        while (spy.count() == 0 && !deadline.hasExpired()) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        }
         REQUIRE(spy.count() == 1);
         const auto out = spy.at(0).at(0).value<DeckLoadOutcome>();
         CHECK_FALSE(out.ok);
@@ -161,7 +180,7 @@ TEST_CASE("P: a worker that is cancelled before it starts does no work at all") 
     QSignalSpy finishedSpy(&h.worker, &DeckLoadWorker::finished);
     h.worker.cancel();
     h.thread.start();
-    REQUIRE(finishedSpy.wait(5000));
+    REQUIRE((finishedSpy.count() > 0 || finishedSpy.wait(5000)));
     CHECK(loadedSpy.count() == 0);
     CHECK_FALSE(called);
 }
