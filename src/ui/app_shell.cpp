@@ -11,6 +11,7 @@
 #include "present/display_geometry.hpp"
 #include "render/slide_renderer.hpp"
 #include "ui/presentation_window.hpp"
+#include "ui/quit_policy.hpp"
 #include "ui/slide_surface.hpp"
 #include "ui/start_view.hpp"
 
@@ -282,8 +283,7 @@ void AppShell::refresh() {
         // The prompt must be VISIBLE — it swallows every key, so an invisible one
         // reads as a frozen app.
         window_->setSlideImage(QImage());
-        window_->surface()->setStatusText(
-            QStringLiteral("Quit the presentation?  Ctrl+Shift+Q to quit  ·  Esc to go back"));
+        window_->surface()->setStatusText(quitConfirmHint());
         window_->setNotice(QString());
         return;
     case Mode::Idle:

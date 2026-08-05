@@ -5,6 +5,7 @@
 
 #include "core/app_info.hpp"
 #include "ui/app_shell.hpp"
+#include "ui/quit_policy.hpp"
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
@@ -33,6 +34,10 @@ int main(int argc, char** argv) {
     //     families (Mulish, Century Gothic, Segoe UI, ...) and almost none exist on
     //     macOS, so nearly every run takes the slow full-fallback path through the
     //     database — which is what made his window of exposure so wide.
+    // An application quit must be obeyed even before any presentation window exists
+    // (BUG-31). PresentationWindow installs this too; the filter is a singleton.
+    pptv::installApplicationQuitFilter();
+
     QApplication::setFont(QApplication::font());
     (void)QFontDatabase::families();
 

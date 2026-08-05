@@ -20,6 +20,41 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Fixed
+- **BUG-31 — the application could not be quit by any graceful means. Second attempt; the first fix
+  was insufficient.** Not the window button, not Cmd+Q, not Dock → Quit, not even Activity Monitor's
+  Quit — only Force Quit (SIGKILL). Qt documents the mechanism for `QCoreApplication::quit()`: the
+  request "may be ignored if the application prevents the quit, for example if one of its windows
+  can't be closed." An application quit is delivered by asking every top-level window to close, and
+  Qt cancels the shutdown if any window refuses. `closeEvent` refused every close request from every
+  source, so the app was structurally unquittable. The previous fix raised the quit prompt on a close
+  request but still `ignore()`d it, so it changed the symptom and not the defect.
+  The two requests are now told apart: an application-level `QEvent::Quit` — the interception point
+  Qt documents — closes the windows with an "application is quitting" flag raised, so the window
+  accepts from any mode with no prompt; an ordinary window close is still refused and still raises the
+  deliberate two-step prompt. The flag is scoped to that single call, so it never leaks into a later
+  window.
+  **Reproduced and verified with the real instrument**: `NSRunningApplication::terminate()`, which is
+  exactly what Activity Monitor's Quit button calls, against a real `PresentationWindow` — refused
+  before the fix, terminates gracefully after it.
+- **BUG-35 — the quit prompt named a chord that cannot be typed on macOS.** It said "Ctrl+Shift+Q",
+  but Qt maps the Command key to `Qt::ControlModifier` on macOS and the physical Control key to
+  `Qt::MetaModifier`, so a Mac user following the hint presses a chord that arrives as `Meta|Shift`
+  and matches nothing. The hint is now platform-correct ("Cmd+Shift+Q" on macOS), and a test asserts
+  the hint names the chord the translator actually accepts.
+
+### Added
+- `src/ui/quit_policy.{hpp,cpp}` — the single place that decides who may end a presentation.
+- **GROUP Q** tests: an application quit is obeyed from every mode including the privacy blackout; an
+  ordinary window close is still refused; the quit flag does not leak to a later window; the on-screen
+  hint names a chord this platform actually delivers. Three of the four fail with the fix disabled.
+
+### Changed
+- The existing test "a close request is REFUSED unless quitting was confirmed" was **asserting the
+  bug** — it pinned refusal for close requests from every source, which is what made the app
+  unquittable. Narrowed to user-initiated closes and cross-referenced to GROUP Q.
+
+
+### Fixed
 - **BUG-32 — every slide background rendered white.** The loader read `<p:bg>` only at slide level,
   but real decks almost never put it there: Karl's carries a background on **zero of its 10 slides**,
   on **12 of its 17 layouts** and on **its master**. Backgrounds now resolve up the OOXML chain —

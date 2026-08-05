@@ -88,6 +88,7 @@ add_library(pptv_ui STATIC
   src/ui/slide_surface.cpp
   src/ui/notice_strip.cpp
   src/ui/presentation_window.cpp
+  src/ui/quit_policy.cpp
   src/ui/app_shell.cpp)
 target_link_libraries(pptv_ui PUBLIC pptv_core Qt6::Widgets)
 
