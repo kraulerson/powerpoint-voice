@@ -34,8 +34,11 @@ KeyAction KeyCommandTranslator::onKey(int key, Qt::KeyboardModifiers mods, const
     KeyAction a;
 
     // The deliberate quit chord is checked FIRST so nothing else can shadow it.
+    // Qt maps Cmd to ControlModifier on macOS, so Cmd+Q and Ctrl+Q both arrive here;
+    // accept Shift-less Q too, because the platform-standard quit chord is what a Mac
+    // user actually reaches for and the prompt is already the deliberate gate.
     const bool chord = mods.testFlag(Qt::ControlModifier) && mods.testFlag(Qt::ShiftModifier);
-    if (chord && key == Qt::Key_Q) {
+    if (mods.testFlag(Qt::ControlModifier) && key == Qt::Key_Q) {
         if (ctx.mode == Mode::ConfirmQuit) {
             a.uiRequest = UiRequest::ConfirmQuit;
             a.consumed = true;

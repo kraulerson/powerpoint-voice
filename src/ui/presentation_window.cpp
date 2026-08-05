@@ -69,11 +69,18 @@ void PresentationWindow::keyPressEvent(QKeyEvent* e) {
 }
 
 void PresentationWindow::closeEvent(QCloseEvent* e) {
-    // A close request — window button, Cmd-Q, a stray shortcut — is REFUSED unless
-    // quitting was actually confirmed through the deliberate two-step. Nothing else
-    // can end a presentation in progress.
+    // A close request — the window button, Cmd-Q, Quit from the Dock — must not end a
+    // presentation outright. But it must not be SILENTLY SWALLOWED either: doing that
+    // made the app impossible to quit by any normal means, and Karl had to force-quit
+    // from Activity Monitor (UAT-3 human run). So a close request now RAISES THE QUIT
+    // PROMPT, which is the same deliberate two-step the keyboard uses, and the user
+    // gets a visible way out.
     if (controller_ && !controller_->quitConfirmed()) {
         e->ignore();
+        if (uiSink_) {
+            uiSink_(controller_->mode() == Mode::Holding ? UiRequest::RequestQuitConfirm
+                                                         : UiRequest::RequestHolding);
+        }
         return;
     }
     e->accept();

@@ -38,9 +38,29 @@ QColor toQColor(const Color& c) {
 // Decode an image only if it is an allow-listed format within the size bounds
 // (audit R2/R3). Returns a null QImage on any rejection -> caller draws a
 // placeholder. Never invokes a non-PNG/JPEG codec on attacker bytes.
+// True only for the two formats we allow, decided from the file's own magic bytes.
+// This runs BEFORE any Qt decoder is constructed, which matters for two reasons:
+//  1. SAFETY — attacker-controlled bytes never reach a codec we have not allow-listed.
+//  2. STABILITY — QImageReader::format() PROBES the installed image plugins to
+//     identify an unknown format. That plugin load happens on whatever thread calls
+//     it, and the pre-render worker is not the GUI thread; on macOS this crashed the
+//     app outright on a deck containing EMF parts (Karl's real deck, UAT-3 human run).
+bool isAllowedImageFormat(const QByteArray& d) {
+    static const QByteArray kPng("\x89PNG\r\n\x1a\n", 8);
+    if (d.size() >= 8 && d.left(8) == kPng) {
+        return true;
+    }
+    // JPEG: SOI marker FF D8 FF
+    return d.size() >= 3 && static_cast<unsigned char>(d[0]) == 0xFF &&
+           static_cast<unsigned char>(d[1]) == 0xD8 && static_cast<unsigned char>(d[2]) == 0xFF;
+}
+
 QImage decodeGuarded(const QByteArray& data) {
     if (data.isEmpty()) {
         return {};
+    }
+    if (!isAllowedImageFormat(data)) {
+        return {}; // EMF/WMF/TIFF/WebP/GIF/... -> placeholder, no decoder touched
     }
     QByteArray buf = data;
     QBuffer device(&buf);
