@@ -34,6 +34,9 @@ class AppShell : public QObject {
     void showStart();
     // Open a deck: parse off-thread, then pre-render off-thread, then present.
     void openDeck(const QString& path);
+    // Asks the user for a deck, then opens it. Separate from openDeck so the load
+    // path stays testable without a modal dialog.
+    void browseForDeck();
 
   private slots:
     void onDeckLoaded(DeckLoadOutcome outcome);
