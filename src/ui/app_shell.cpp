@@ -56,8 +56,24 @@ AppShell::~AppShell() {
 void AppShell::showStart() {
     if (!start_) {
         start_ = new StartView();
+        // The view offers the ways in; choosing and loading the file is ours
+        // (BUG-18 — it shipped with neither, so the app could only be driven from
+        // the command line and was unusable to anyone who launched it normally).
+        connect(start_, &StartView::browseRequested, this, &AppShell::browseForDeck);
+        connect(start_, &StartView::fileDropped, this, &AppShell::openDeck);
     }
     start_->show();
+    start_->raise();
+    start_->activateWindow();
+}
+
+void AppShell::browseForDeck() {
+    const QString path =
+        QFileDialog::getOpenFileName(start_, tr("Open presentation"), QString(),
+                                     tr("PowerPoint presentations (*.pptx);;All files (*)"));
+    if (!path.isEmpty()) {
+        openDeck(path);
+    }
 }
 
 void AppShell::teardownWorkers() {

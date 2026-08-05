@@ -1,16 +1,22 @@
 #include <doctest/doctest.h>
 
 #include <QCloseEvent>
+#include <QDropEvent>
 #include <QImage>
 #include <QKeyEvent>
+#include <QMimeData>
 #include <QPixmap>
+#include <QPushButton>
+#include <QSignalSpy>
 #include <QTest>
+#include <QUrl>
 
 #include "present/presentation_controller.hpp"
 #include "ui/notice_strip.hpp"
 #include "ui/presentation_window.hpp"
 #include "ui/quit_policy.hpp"
 #include "ui/slide_surface.hpp"
+#include "ui/start_view.hpp"
 
 using namespace pptv;
 
@@ -318,4 +324,60 @@ TEST_CASE("Q/BUG-31: the on-screen quit hint names a chord this platform actuall
     QTest::keyClick(&w, Qt::Key_Q, Qt::ControlModifier | Qt::ShiftModifier);
 #endif
     CHECK(c.quitConfirmed());
+}
+
+// ===========================================================================
+// GROUP S — BUG-18: the start screen must offer a way IN.
+//
+// StartView shipped as two labels and nothing else. A deck could only be supplied
+// as a command-line argument, so anyone who launched the app normally got a dark
+// window and no way forward — which is exactly what happened the first time Karl
+// ran a build on his MacBook Pro. Nothing in 211 tests noticed, because nothing
+// asserted that the application is USABLE.
+// ===========================================================================
+
+TEST_CASE("S/BUG-18: the start screen offers a control that asks to open a deck") {
+    StartView v;
+    REQUIRE(v.openButton() != nullptr);
+    CHECK(v.openButton()->isEnabled());
+    CHECK_FALSE(v.openButton()->text().isEmpty());
+
+    QSignalSpy browse(&v, &StartView::browseRequested);
+    v.openButton()->click();
+    CHECK(browse.count() == 1);
+}
+
+TEST_CASE("S/BUG-18: only a LOCAL file is accepted from a drop") {
+    // Tested as a pure function on purpose: a synthetic QDropEvent is not dispatched
+    // by QWidget::event, so driving this through the widget would test the harness
+    // rather than the rule. The rule is the security-relevant part.
+    SUBCASE("a local file yields its path") {
+        QMimeData mime;
+        mime.setUrls({QUrl::fromLocalFile(QStringLiteral("/tmp/example.pptx"))});
+        CHECK(localDeckPathFrom(&mime) == QStringLiteral("/tmp/example.pptx"));
+    }
+
+    SUBCASE("a REMOTE url is refused — this app never touches the network") {
+        QMimeData mime;
+        mime.setUrls({QUrl(QStringLiteral("https://example.com/deck.pptx"))});
+        CHECK(localDeckPathFrom(&mime).isEmpty());
+    }
+
+    SUBCASE("a local file is still found when a remote url is dropped alongside it") {
+        QMimeData mime;
+        mime.setUrls({QUrl(QStringLiteral("https://example.com/x.pptx")),
+                      QUrl::fromLocalFile(QStringLiteral("/tmp/real.pptx"))});
+        CHECK(localDeckPathFrom(&mime) == QStringLiteral("/tmp/real.pptx"));
+    }
+
+    SUBCASE("nothing droppable yields nothing, never a crash") {
+        QMimeData empty;
+        CHECK(localDeckPathFrom(&empty).isEmpty());
+        CHECK(localDeckPathFrom(nullptr).isEmpty());
+    }
+
+    SUBCASE("the view accepts drops at all — without this the handler is unreachable") {
+        StartView v;
+        CHECK(v.acceptDrops());
+    }
 }
