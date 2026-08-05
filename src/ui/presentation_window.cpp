@@ -1,5 +1,7 @@
 #include "ui/presentation_window.hpp"
 
+#include "ui/quit_policy.hpp"
+
 #include <QCloseEvent>
 #include <QKeyEvent>
 #include <QResizeEvent>
@@ -11,6 +13,9 @@ namespace pptv {
 
 PresentationWindow::PresentationWindow(PresentationController* controller, QWidget* parent)
     : QWidget(parent), controller_(controller) {
+    // The window is what refuses close requests, so it is what must also recognise
+    // an application-level quit and stand aside for it (BUG-31).
+    installApplicationQuitFilter();
     surface_ = new SlideSurface(this);
     strip_ = new NoticeStrip(this);
     setFocusPolicy(Qt::StrongFocus);
@@ -75,6 +80,15 @@ void PresentationWindow::closeEvent(QCloseEvent* e) {
     // from Activity Monitor (UAT-3 human run). So a close request now RAISES THE QUIT
     // PROMPT, which is the same deliberate two-step the keyboard uses, and the user
     // gets a visible way out.
+    // ...unless the APPLICATION is being quit. Dock -> Quit, Activity Monitor ->
+    // Quit and Cmd+Q all arrive as a close on every top-level window, and Qt cancels
+    // the whole shutdown if any window refuses — which is what left the tester with
+    // Force Quit as his only exit. That request came from outside the app and is
+    // already deliberate, so it is obeyed from any mode, with no prompt (BUG-31).
+    if (applicationQuitInProgress()) {
+        e->accept();
+        return;
+    }
     if (controller_ && !controller_->quitConfirmed()) {
         e->ignore();
         if (uiSink_) {

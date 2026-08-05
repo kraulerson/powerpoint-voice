@@ -11,6 +11,7 @@
 #include "present/display_geometry.hpp"
 #include "render/slide_renderer.hpp"
 #include "ui/presentation_window.hpp"
+#include "ui/quit_policy.hpp"
 #include "ui/slide_surface.hpp"
 #include "ui/start_view.hpp"
 
@@ -203,7 +204,10 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
     connect(renderWorker_, &PreRenderWorker::slideReady, this, &AppShell::onSlideReady);
     connect(renderWorker_, &PreRenderWorker::finished, renderThread_, &QThread::quit);
     connect(renderThread_, &QThread::finished, renderWorker_, &QObject::deleteLater);
-    renderThread_->start();
+    // NOTE: renderThread_->start() is deliberately NOT called here — see the end of
+    // this function (BUG-30). Starting it before the window exists put the worker
+    // inside Qt's font database at the exact moment showing the window made the GUI
+    // thread rebuild the theme, and that data race SEGV'd the app on Karl's deck.
 
     if (start_) {
         start_->hide();
@@ -223,6 +227,28 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
     window_->activateWindow();
     window_->setFocus();
     refresh();
+
+    // BUG-30 — only NOW start rendering. Creating and showing a widget window is
+    // what makes the GUI thread run QApplicationPrivate::handleThemeChanged(), and
+    // that rewrites the font state the renderer reads. Karl's crash report caught
+    // the two threads in exactly that pair of call stacks. Deferring the start
+    // through the event loop lets the theme settle first, so the worker never
+    // overlaps the one window we know triggers it.
+    //
+    // This narrows the race to spontaneous theme changes (macOS switching to dark
+    // mode at sunset, a display being attached, a remote-desktop session
+    // reconnecting) that land WHILE the deck is still pre-rendering. For a 10-slide
+    // deck that window is ~0.2 s; it grows with deck size. Closing it completely
+    // means not touching Qt's font database off the GUI thread at all — tracked as
+    // BUG-34 for F7c.
+    QMetaObject::invokeMethod(
+        this,
+        [this]() {
+            if (renderThread_ && !renderThread_->isRunning()) {
+                renderThread_->start();
+            }
+        },
+        Qt::QueuedConnection);
 }
 
 void AppShell::onSlideReady(int index, QImage image, bool /*isPlaceholder*/) {
@@ -257,8 +283,7 @@ void AppShell::refresh() {
         // The prompt must be VISIBLE — it swallows every key, so an invisible one
         // reads as a frozen app.
         window_->setSlideImage(QImage());
-        window_->surface()->setStatusText(
-            QStringLiteral("Quit the presentation?  Ctrl+Shift+Q to quit  ·  Esc to go back"));
+        window_->surface()->setStatusText(quitConfirmHint());
         window_->setNotice(QString());
         return;
     case Mode::Idle:

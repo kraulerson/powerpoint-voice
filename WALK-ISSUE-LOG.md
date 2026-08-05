@@ -678,3 +678,79 @@ governance — plus 3 self-inflicted project stumbles (S-24/25/26) and ~23 smoot
 - **Not a framework finding.** The framework's per-feature audit + UAT cadence is exactly what
   caught all three. The gap was mine, and the framework's own instrument found it each time —
   which is a point in the framework's favour and belongs in the report that way.
+
+---
+
+## ISSUE-022 — The UAT checklist reaches `gate_passed` on the AGENT arm alone; the human tester has no representation (MAJOR, FRAMEWORK)
+
+**Where:** `scripts/process-checklist.sh --start-uat N`, the 9 enforced steps.
+
+**What happened.** UAT session 3 was driven to 9/9 and `gate_passed`, the counter was reset, and the
+remediation was merged as PR #17 — all on the strength of FIVE AGENT testers. Karl, the human tester,
+then ran the same session against his real deck and found **two SEV-1s the agents had all missed**:
+BUG-30 (the app segfaults on launch) and BUG-31 (the app cannot be quit by any normal means). A
+product that crashes on launch and cannot be exited had passed a nine-step enforced validation gate.
+
+**The defect.** The checklist's `results_received` and `completeness_verified` steps do not
+distinguish WHO the results came from. `agents_dispatched` is a step; "human tester's results
+received" is not. So the arm that finds the bugs agents structurally cannot find — does it look
+right, does it run on the real machine, can I get out of it — is invisible to enforcement, and the
+gate closes without it.
+
+**Evidence this is not a one-off.** Every SEV-1 in this walk that reached a merged PR came from the
+human arm: UAT-1 (invisible text on the real deck), UAT-3 (BUG-30, BUG-31). The agent arm has never
+independently found a SEV-1 on a real deck.
+
+**Suggested fix.** Split `results_received` into `agent_results_received` and
+`human_results_received`, and make `gate_passed` require both — or, if a session is deliberately
+agent-only, require that to be recorded as an explicit, audited waiver.
+
+**Same shape as ISSUE-016/017/019/020:** the enforced control and the documented procedure disagree,
+and enforcement is what gets followed.
+
+---
+
+## OBSERVATION-023 — I shipped a root-cause diagnosis I had never reproduced, and it was wrong (PROJECT finding, mine)
+
+**What happened.** Karl reported a segfault. I inspected the deck, found 5 EMF parts, reasoned that
+`QImageReader::format()` probes Qt's image plugins to identify an unknown format and that the plugin
+load would crash on a worker thread, wrote a magic-byte allow-list to avoid it, marked BUG-30
+**Fixed**, and told Karl the crash was found and fixed.
+
+**It was wrong.** The macOS crash report was on the machine the whole time
+(`~/Library/Logs/DiagnosticReports/powerpoint_voice-2026-08-04-190008.ips`). It names the fault
+precisely: faulting thread 5 is our pre-render `QThread` inside
+`QFontDatabasePrivate::findFont` -> `initFontDef` -> `QString::operator=`, while the main thread is
+inside `QApplicationPrivate::handleThemeChanged()`. A data race on Qt's font/theme globals — nothing
+to do with images.
+
+**How it was caught.** Only because I tried to write the regression test the fix implied. The test
+passed with the fix REVERTED, which meant either the test was wrong or the diagnosis was. Both
+candidate fixtures (GIF, then a synthetic EMF) still passed reverted; 25 headless runs of the real
+deck with the fix reverted did not crash either. That is what sent me to the crash report.
+
+**This is OBSERVATION-021 one level up.** There the pattern was "fixed" meaning *edited, suite still
+passes*. Here it is **"root cause" meaning *plausible mechanism I did not reproduce***. A plausible
+mechanism that is never reproduced is a guess, and a fix built on it protects nothing.
+
+**Rules earned:**
+1. **Do not write a root cause you have not reproduced or read from an instrument.** Say "hypothesis"
+   until then, and say so to Karl too.
+2. **Look for the artefact before theorising.** A crash on macOS writes a full backtrace to
+   `~/Library/Logs/DiagnosticReports/`. I theorised for an entire cycle without reading it.
+3. **A regression test that passes with the fix reverted is a finding, not an inconvenience.** It is
+   the cheapest possible disproof of a diagnosis, and it worked here.
+
+**Cost:** one merged PR whose headline claim ("found it, fixed it") was false, and a re-test asked of
+Karl on a fix that would not have helped him.
+
+---
+
+## SMOOTH NOTE S-29 — ThreadSanitizer caught a data race in the very test written to catch a data race
+
+The new off-thread renderer tests (GROUP RT) used `&worker` as the `connect()` context object. After
+`moveToThread`, that object lives on the worker thread, so the receiving lambdas ran there and raced
+the main thread's polling loop over the same counters. TSan reported it precisely — file, line, both
+stacks — on the first run. Fixed by using a main-thread `QObject` as the context, which is also how
+`AppShell` really receives those signals, so the test now matches production. The tool paid for its
+459-second runtime in one finding.

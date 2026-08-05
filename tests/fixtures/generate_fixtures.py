@@ -422,7 +422,16 @@ def theme_xml():
         XML_DECL
         + f'<a:theme xmlns:a="{A}" name="T"><a:themeElements>'
         + f'<a:clrScheme name="C">{scheme}</a:clrScheme>'
-        + "<a:fontScheme name=\"F\"/><a:fmtScheme name=\"S\"/>"
+        + '<a:fontScheme name="F"/>'
+        # bgFillStyleLst backs <p:bgRef idx="1001|1002|...">. Entry 1 is a plain
+        # solidFill of phClr (the color carried by the bgRef itself) and so is
+        # exactly resolvable; entry 2 is a gradient and so is not.
+        + '<a:fmtScheme name="S"><a:fillStyleLst/><a:lnStyleLst/><a:effectStyleLst/>'
+        + "<a:bgFillStyleLst>"
+        + '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        + '<a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"/></a:gs>'
+        + '<a:gs pos="100000"><a:schemeClr val="lt1"/></a:gs></a:gsLst></a:gradFill>'
+        + "</a:bgFillStyleLst></a:fmtScheme>"
         + "</a:themeElements></a:theme>"
     )
 
@@ -733,6 +742,52 @@ def build_good_gif_image():
     write_zip("good_gif_image.pptx", parts)
 
 
+def tiny_emf():
+    """A minimal EMF header — a format NO Qt image plugin handles.
+
+    That is the point. A GIF is a format Qt HAS a plugin for, so identifying it
+    is cheap; EMF matches nothing, so QImageReader::format() enumerates and
+    dlopen()s every installed image plugin looking for a handler. That plugin
+    sweep, executed on the pre-render WORKER thread, is what crashed the app on
+    Karl's real deck (BUG-30) — his deck carries 5 EMF parts.
+    """
+    import struct
+
+    # ENHMETAHEADER: iType=1 (EMR_HEADER), nSize=88, bounds/frame rects,
+    # dSignature=' EMF' (0x464D4520) at offset 40.
+    return (
+        struct.pack("<II", 1, 88)
+        + struct.pack("<iiii", 0, 0, 100, 100)        # rclBounds
+        + struct.pack("<iiii", 0, 0, 2000, 2000)      # rclFrame
+        + struct.pack("<I", 0x464D4520)               # dSignature ' EMF'
+        + struct.pack("<I", 0x00010000)               # nVersion
+        + struct.pack("<I", 88)                       # nBytes
+        + struct.pack("<I", 1)                        # nRecords
+        + struct.pack("<HH", 0, 0)                    # nHandles, sReserved
+        + struct.pack("<II", 0, 0)                    # nDescription, offDescription
+        + struct.pack("<I", 0)                        # nPalEntries
+        + struct.pack("<ii", 1920, 1080)              # szlDevice
+        + struct.pack("<ii", 508, 285)                # szlMillimeters
+        + struct.pack("<II", 14, 88)                  # EMR_EOF-ish tail
+    ).ljust(88, b"\x00")
+
+
+def build_good_emf_image():
+    # BUG-30 regression fixture: a picture part whose bytes are EMF. The renderer
+    # must recognise the bytes are not on the PNG/JPEG allow-list and substitute a
+    # placeholder WITHOUT ever constructing a Qt decoder.
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([pic_sp("rId1", 3000000, 2000000, 4000000, 3000000)]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": tiny_emf(),  # EMF bytes behind a .png name
+    }
+    write_zip("good_emf_image.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -765,7 +820,134 @@ def build_good_manypara():
     write_zip("good_manypara.pptx", parts)
 
 
+# --------------------------------------------------------------------------
+# BUG-32: background inheritance (slide -> layout -> master).
+#
+# Real decks almost never put <p:bg> on the slide. Karl's deck has it on the
+# master (1/1) and 12 of 17 layouts, and on zero slides — so a loader that reads
+# only the slide level renders every slide white.
+# --------------------------------------------------------------------------
+def bg_el(inner):
+    return f"<p:bg><p:bgPr>{inner}<a:effectLst/></p:bgPr></p:bg>"
+
+
+def solid_bg(hex_or_scheme, scheme=False):
+    clr = (
+        f'<a:schemeClr val="{hex_or_scheme}"/>'
+        if scheme
+        else f'<a:srgbClr val="{hex_or_scheme}"/>'
+    )
+    return bg_el(f"<a:solidFill>{clr}</a:solidFill>")
+
+
+def layout_with_bg(bg_xml):
+    return (
+        XML_DECL
+        + f'<p:sldLayout xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld>{bg_xml}<p:spTree/></p:cSld></p:sldLayout>"
+    )
+
+
+def master_with_bg(bg_xml):
+    return (
+        XML_DECL
+        + f'<p:sldMaster xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld>{bg_xml}<p:spTree/></p:cSld>"
+        + '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" '
+        + 'accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" '
+        + 'accent6="accent6" hlink="hlink" folHlink="folHlink"/>'
+        + "</p:sldMaster>"
+    )
+
+
+def slide_layout_rel(n):
+    return (
+        XML_DECL
+        + f'<Relationships xmlns="{PR}"><Relationship Id="rId1" Type="{R}/slideLayout" '
+        + f'Target="../slideLayouts/slideLayout{n}.xml"/></Relationships>'
+    )
+
+
+def layout_master_rel():
+    return (
+        XML_DECL
+        + f'<Relationships xmlns="{PR}"><Relationship Id="rId1" Type="{R}/slideMaster" '
+        + 'Target="../slideMasters/slideMaster1.xml"/></Relationships>'
+    )
+
+
+def build_good_bg_inherit():
+    body = [text_sp("T", 600000, 400000, 6000000, 1000000)]
+    parts = {
+        "[Content_Types].xml": content_types(4),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(4),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(4),
+        "ppt/theme/theme1.xml": theme_xml(),
+        # 1: the slide declares its own -> slide wins over layout AND master.
+        "ppt/slides/slide1.xml": slide_xml(body, bg_hex="AABBCC"),
+        "ppt/slides/_rels/slide1.xml.rels": slide_layout_rel(1),
+        # 2: no slide bg, layout1 declares one -> layout wins over master.
+        "ppt/slides/slide2.xml": slide_xml(body),
+        "ppt/slides/_rels/slide2.xml.rels": slide_layout_rel(1),
+        # 3: no slide bg, layout2 declares none -> falls through to the master,
+        #    whose fill is a SCHEME color and so also exercises theme resolution.
+        "ppt/slides/slide3.xml": slide_xml(body),
+        "ppt/slides/_rels/slide3.xml.rels": slide_layout_rel(2),
+        # 4: no slide bg and no layout rel at all -> still reaches the master.
+        "ppt/slides/slide4.xml": slide_xml(body),
+        "ppt/slideLayouts/slideLayout1.xml": layout_with_bg(solid_bg("0076A3")),
+        "ppt/slideLayouts/_rels/slideLayout1.xml.rels": layout_master_rel(),
+        "ppt/slideLayouts/slideLayout2.xml": layout_with_bg(""),
+        "ppt/slideLayouts/_rels/slideLayout2.xml.rels": layout_master_rel(),
+        # dk1 -> 1E2430 in theme_xml()'s scheme.
+        "ppt/slideMasters/slideMaster1.xml": master_with_bg(solid_bg("dk1", scheme=True)),
+    }
+    write_zip("good_bg_inherit.pptx", parts)
+
+
+def build_good_bg_unsupported():
+    # A background we cannot faithfully paint must WARN, never silently render
+    # white and never guess a solid color (Manifesto F1: no silent wrong render).
+    grad = bg_el(
+        "<a:gradFill><a:gsLst>"
+        '<a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs>'
+        '<a:gs pos="100000"><a:srgbClr val="0000FF"/></a:gs>'
+        "</a:gsLst></a:gradFill>"
+    )
+    blip = bg_el('<a:blipFill><a:blip r:embed="rId9"/></a:blipFill>')
+    parts = {
+        "[Content_Types].xml": content_types(3),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(3),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(3),
+        "ppt/theme/theme1.xml": theme_xml(),
+        # 1: slide declares a gradient -> warn, and do NOT fall through to the
+        #    layout (the slide's declaration is what applies, supported or not).
+        "ppt/slides/slide1.xml": XML_DECL
+        + f'<p:sld xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld>{grad}<p:spTree/></p:cSld></p:sld>",
+        "ppt/slides/_rels/slide1.xml.rels": slide_layout_rel(1),
+        # 2: layout declares a picture fill -> warn against slide 2.
+        "ppt/slides/slide2.xml": slide_xml([]),
+        "ppt/slides/_rels/slide2.xml.rels": slide_layout_rel(2),
+        # 3: layout declares <p:bgRef> into the theme's bgFillStyleLst, whose
+        #    first entry is a plain solidFill of phClr -> resolvable, no warning.
+        "ppt/slides/slide3.xml": slide_xml([]),
+        "ppt/slides/_rels/slide3.xml.rels": slide_layout_rel(3),
+        "ppt/slideLayouts/slideLayout1.xml": layout_with_bg(solid_bg("00FF00")),
+        "ppt/slideLayouts/slideLayout2.xml": layout_with_bg(blip),
+        "ppt/slideLayouts/slideLayout3.xml": XML_DECL
+        + f'<p:sldLayout xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}"><p:cSld>'
+        + '<p:bg><p:bgRef idx="1001"><a:srgbClr val="123456"/></p:bgRef></p:bg>'
+        + "<p:spTree/></p:cSld></p:sldLayout>",
+    }
+    write_zip("good_bg_unsupported.pptx", parts)
+
+
 if __name__ == "__main__":
+    build_good_bg_inherit()
+    build_good_bg_unsupported()
     build_good_text()
     build_good_image()
     build_good_unsupported()
@@ -781,6 +963,7 @@ if __name__ == "__main__":
     build_good_missing_image()
     build_good_hugefont()
     build_good_gif_image()
+    build_good_emf_image()
     build_good_overflow()
     build_good_manypara()
     build_good_theme()

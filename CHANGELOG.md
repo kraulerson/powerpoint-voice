@@ -19,6 +19,83 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Fixed
+- **BUG-31 — the application could not be quit by any graceful means. Second attempt; the first fix
+  was insufficient.** Not the window button, not Cmd+Q, not Dock → Quit, not even Activity Monitor's
+  Quit — only Force Quit (SIGKILL). Qt documents the mechanism for `QCoreApplication::quit()`: the
+  request "may be ignored if the application prevents the quit, for example if one of its windows
+  can't be closed." An application quit is delivered by asking every top-level window to close, and
+  Qt cancels the shutdown if any window refuses. `closeEvent` refused every close request from every
+  source, so the app was structurally unquittable. The previous fix raised the quit prompt on a close
+  request but still `ignore()`d it, so it changed the symptom and not the defect.
+  The two requests are now told apart: an application-level `QEvent::Quit` — the interception point
+  Qt documents — closes the windows with an "application is quitting" flag raised, so the window
+  accepts from any mode with no prompt; an ordinary window close is still refused and still raises the
+  deliberate two-step prompt. The flag is scoped to that single call, so it never leaks into a later
+  window.
+  **Reproduced and verified with the real instrument**: `NSRunningApplication::terminate()`, which is
+  exactly what Activity Monitor's Quit button calls, against a real `PresentationWindow` — refused
+  before the fix, terminates gracefully after it.
+- **BUG-35 — the quit prompt named a chord that cannot be typed on macOS.** It said "Ctrl+Shift+Q",
+  but Qt maps the Command key to `Qt::ControlModifier` on macOS and the physical Control key to
+  `Qt::MetaModifier`, so a Mac user following the hint presses a chord that arrives as `Meta|Shift`
+  and matches nothing. The hint is now platform-correct ("Cmd+Shift+Q" on macOS), and a test asserts
+  the hint names the chord the translator actually accepts.
+
+### Added
+- `src/ui/quit_policy.{hpp,cpp}` — the single place that decides who may end a presentation.
+- **GROUP Q** tests: an application quit is obeyed from every mode including the privacy blackout; an
+  ordinary window close is still refused; the quit flag does not leak to a later window; the on-screen
+  hint names a chord this platform actually delivers. Three of the four fail with the fix disabled.
+
+### Changed
+- The existing test "a close request is REFUSED unless quitting was confirmed" was **asserting the
+  bug** — it pinned refusal for close requests from every source, which is what made the app
+  unquittable. Narrowed to user-initiated closes and cross-referenced to GROUP Q.
+
+
+### Fixed
+- **BUG-32 — every slide background rendered white.** The loader read `<p:bg>` only at slide level,
+  but real decks almost never put it there: Karl's carries a background on **zero of its 10 slides**,
+  on **12 of its 17 layouts** and on **its master**. Backgrounds now resolve up the OOXML chain —
+  slide → layout → master — the same inheritance already implemented for font size (BUG-8) and
+  placeholder geometry (BUG-2). `<p:bgRef>` into the theme's `bgFillStyleLst` resolves too when the
+  referenced entry is a plain solid fill. Verified on the real deck: all 10 slides now resolve
+  (`373F51 / 0076A3 / EAF0F6 / FFFFFF ×4 / 0076A3 / EAF0F6 / 0098D1`), matching its layout and master
+  structure exactly, with zero warnings. Four of those are dark, so this should also fix text that
+  was previously white-on-white. Layouts and masters are parsed once each and cached rather than
+  re-read per slide.
+- **A background we cannot paint now warns instead of rendering silently white.** A gradient, picture
+  or pattern fill previously fell through to `None` with no signal at all. The first part that
+  declares a background ends the inheritance walk even when unpaintable — falling through would paint
+  a colour the deck does not specify (Manifesto F1: never a silent wrong render). The warning names
+  the fill KIND from a fixed vocabulary and carries no deck content (TM-012/013).
+- **BUG-30 — the app segfaulted on launch on the real deck. Root cause corrected; the previous
+  diagnosis was wrong.** The macOS crash report
+  (`powerpoint_voice-2026-08-04-190008.ips`) names it: the faulting thread is the pre-render
+  `QThread` inside `QFontDatabasePrivate::findFont` → `initFontDef` → `QString::operator=`, while the
+  main thread is inside `QApplicationPrivate::handleThemeChanged()` — a data race on Qt's global
+  font/theme state, not the image path the earlier fix addressed. `AppShell` started the render
+  worker and *then* created and showed the fullscreen window, and showing a widget window is what
+  fires that handler. Three GUI-thread mitigations, all before any worker exists: the application
+  font is now set **explicitly** (Qt skips the theme-change font reset when the application claims
+  it); `QFontDatabase::families()` is populated up front instead of lazily from the worker; and the
+  render worker starts only **after** the window is shown, via a queued call. Residual risk from
+  spontaneous theme changes mid-pre-render is tracked as **BUG-34**.
+
+### Added
+- **Tests that run the REAL renderer on a REAL worker thread** (`GROUP RT`). Every previous
+  pre-render test injected a fake render function, so the production `SlideRenderer` had never been
+  executed off the GUI thread by any test — which is precisely where BUG-30 lived, behind 183 green
+  tests. Four cases now load a fixture deck and pre-render it through the production renderer on a
+  `QThread`, including EMF and GIF payloads and the inherited-background deck.
+- Fixtures `good_bg_inherit.pptx` (background on the layout and on the master), `good_bg_unsupported.pptx`
+  (gradient, picture and `bgRef` fills) and `good_emf_image.pptx`.
+
+### Infrastructure
+- The theme fixture now carries a `bgFillStyleLst`, so `<p:bgRef>` resolution is exercised.
+
+
 ### Security
 - **F7b hardened after an adversarial audit** (all findings reproduced in real builds; ThreadSanitizer
   clean). Five Critical, all fixed: a use-after-free that made the app **SEGV on the first arrow key

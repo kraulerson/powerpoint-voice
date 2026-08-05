@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-05 (session 2 end; F7a+F7b merged, UAT-3 done, PR #17 open)
+**Last updated:** 2026-08-05 (session 3; PR #17 merged, PR #18 open — BUG-32 + the CORRECTED BUG-30)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -81,42 +81,52 @@ framework's most rigorous path, logging every stumble.
 ## 5. NEXT (in order) — resume here
 
 0. **Sync:** `git checkout main && git pull`; delete merged branches; append a
-   `WALK-UNBLOCK-AUDIT.md` row for the PR #17 merge. Run `bash scripts/check-versions.sh`
-   (session-start obligation) and report.
-1. **Ask Karl for his UAT-3 human results** if he has run them — scenarios 1-20 in
-   `tests/uat/sessions/2026-08-05-session-3/test-session-3-v1.md`, against his REAL deck. The
-   fidelity check (do all 10 slides look right?) is the one thing no agent can do, and the
-   double-letterbox fix (BUG-25) really wants confirming on his actual projector.
+   `WALK-UNBLOCK-AUDIT.md` row for the PR #18 merge. Run `bash scripts/check-versions.sh`.
+1. **ASK KARL TO RE-TEST THE ORIGINAL .pptx** and confirm BUG-30 (crash) and BUG-31 (unquittable)
+   are closed, and that backgrounds now appear (BUG-32). **BUG-30 is NOT self-verifiable** — it does
+   not reproduce on this machine; his run is the only instrument. Also worth his eyes: slides
+   1/2/8/10 have DARK backgrounds now, so any previously-invisible white text should appear.
 2. **F7c — the deferred hardening** (`--start-feature "F7c-render-hardening"`). Closes:
+   - **BUG-34** (new, SEV-2, the residual of BUG-30): the pre-render worker still uses Qt's font
+     database off the GUI thread, so a SPONTANEOUS theme change (dark mode at sunset, a display
+     attaching, RustDesk reconnecting) landing mid-pre-render can still race it. Fix: resolve every
+     family the deck names to an INSTALLED family once on the GUI thread and hand the renderer
+     concrete families, so the worker never enters font fallback. **This also fixes BUG-33** (slow
+     first render: ~50 families, almost none on macOS, each a full fallback search on first use).
    - **BUG-21**: the TM-018 caps count shapes + text runs only. Add total CHARACTERS and total
-     DECLARED image pixels to `SlideComplexity`, completing the ratified four-cap set
-     (TM-018.3-A). Measured under-cap bombs: 2000 pictures of one 31 Mpx image ~309 s; 5000 runs
-     x 300k chars ~657 s.
+     DECLARED image pixels, completing the ratified four-cap set (TM-018.3-A).
    - **BUG-22**: the always-on **2 GB** raster window (ratified Bible section 3 A3-1(3) / B1-A).
-   - **BUG-23**: isPlaceholder discarded; `HoldLastGood` unused (jumping to an un-rendered slide
-     flashes the projector black); a `const` `std::move`; two parentless widgets.
+   - **BUG-23**: isPlaceholder discarded; `HoldLastGood` unused; a `const` `std::move`; two
+     parentless widgets.
    - **BUG-29**: the 19 SEV-3/4 UAT-3 findings — full detail in
-     `tests/uat/sessions/2026-08-05-session-3/submissions/uat-3-triage.md`. Highest-value ones:
-     notices never expire (a message band sits on the projector all talk); Ctrl+Shift+F/R are
-     consumed then dropped; typed slide numbers give no feedback; the blackout hint is shown to the
-     AUDIENCE and is factually wrong; **8 of the ctest entries execute ZERO test cases** (they cover
-     the blackout, the two-step quit, BUG-16 and BUG-11/17 — investigate, this may be a doctest
-     name-with-semicolon issue); libpng writes deck-derived bytes to stderr (TM-012/013).
+     `tests/uat/sessions/2026-08-05-session-3/submissions/uat-3-triage.md`. Highest-value: notices
+     never expire; Ctrl+Shift+F/R are consumed then dropped; typed slide numbers give no feedback;
+     the blackout hint is shown to the AUDIENCE and is factually wrong; **8 ctest entries execute
+     ZERO test cases**; libpng writes deck-derived bytes to stderr (TM-012/013).
 3. **F6 keyboard parity** — formalise the five commands + keybinding config on the shared
-   matchCommand -> PresentationController path (most of the mechanism already exists in
-   `key_translator`).
-4. **UAT session 4** (fires after 2 more features).
-5. **Voice engine** — see `docs/design-notes/voice-engine-design.md` for the full design AND the
-   three critics' NEEDS_CHANGES findings, which must be folded in first. Highest-value: 
-   `vosk_recognizer_set_grm` is NOT exported by the 0.3.44 macOS lib (builds green on Ubuntu CI,
-   fails on the showtime Mac); a model without the expected layout makes the grammar constraint
-   silently degrade to a full ~200k-word decoder; invalid grammar JSON SEGFAULTs; OOV grammar
-   tokens are silently dropped; `assert()` is a no-op in this forced-Release build.
+   matchCommand -> PresentationController path.
+4. **UAT session 4** (fires after 2 more features). **Per ISSUE-022, do NOT mark `gate_passed`
+   until KARL's human results are in** — the checklist does not enforce this and every SEV-1 that
+   has reached a merged PR in this walk came from his arm, not the agents'.
+5. **Voice engine** — `docs/design-notes/voice-engine-design.md` holds the design AND the three
+   critics' NEEDS_CHANGES findings, which must be folded in first. Highest-value:
+   `vosk_recognizer_set_grm` is NOT exported by the 0.3.44 macOS lib (green on Ubuntu CI, fails on
+   the showtime Mac); a model without the expected layout silently degrades to a full ~200k-word
+   decoder; invalid grammar JSON SEGFAULTs; OOV grammar tokens are silently dropped; `assert()` is a
+   no-op in this forced-Release build. **Karl tests over RustDesk with NO microphone — voice work
+   needs the physical machine.**
 6. **F5 transcript overlay** + listening glyph + pre-show check (final MVP item).
 7. **Phase 2 exit -> Phase 3** (no open SEV-1/2, all MVP features, CI green), then the five-scanner
    gate, six-reviewer eval, Karl's auditor sign-offs, dual 3->4 approval.
 8. **Phase 4** — author the C++ macOS build/sign steps in `release.yml` (ISSUE-003/010), rollback
    test, go-live smoke test, HANDOFF.md, tag **v1.0.0**. Walk DONE.
+
+### Standing rule earned this session (OBSERVATION-023)
+**Do not record a root cause you have not reproduced or read from an instrument.** Say "hypothesis"
+until then, and say so to Karl too. Look for the artefact FIRST — a macOS crash writes a full
+backtrace to `~/Library/Logs/DiagnosticReports/`, and reading it took two minutes after a full cycle
+of theorising. **A regression test that passes with the fix reverted is a finding, not an
+inconvenience** — it is the cheapest disproof of a diagnosis available, and it is what caught this.
 
 ## 6. Build / run recipe (macOS local — REQUIRED env)
 

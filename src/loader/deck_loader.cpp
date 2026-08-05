@@ -366,22 +366,127 @@ TextBox parseTextBox(const pugi::xml_node& sp, const LoaderLimits& lim, const Th
     return tb;
 }
 
-Background parseBackground(const pugi::xml_node& cSld, const ThemeColors& theme) {
-    Background bg;
-    pugi::xml_node bgNode = childLocal(cSld, "bg");
-    if (!bgNode) {
-        return bg; // BackgroundKind::None
+// One entry of the theme's <a:bgFillStyleLst>, which <p:bgRef idx="100N"> selects.
+// Only a plain solid entry is exactly resolvable; a gradient or pattern entry is
+// not, and guessing a single colour for it would be a silent wrong render.
+struct ThemeBgFill {
+    enum class Kind { Unsupported, SolidPhClr, SolidFixed };
+    Kind kind = Kind::Unsupported;
+    Color fixed{};
+};
+
+std::vector<ThemeBgFill> parseThemeBgFills(const QByteArray& xml, const ThemeColors& theme) {
+    std::vector<ThemeBgFill> out;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
+        return out;
     }
-    pugi::xml_node solid = descendantLocal(bgNode, "solidFill");
-    if (solid) {
-        // Resolve srgbClr OR a themed schemeClr (BUG-1) so the renderer knows a
-        // themed-dark background is dark and can pick readable text.
-        if (auto c = parseSolidFill(solid, theme)) {
-            bg.kind = BackgroundKind::Solid;
-            bg.solid = c;
+    pugi::xml_node lst = descendantLocal(doc.first_child(), "bgFillStyleLst");
+    for (pugi::xml_node f = lst.first_child(); f; f = f.next_sibling()) {
+        ThemeBgFill entry;
+        if (localName(f.name()) == QLatin1String("solidFill")) {
+            pugi::xml_node scheme = childLocal(f, "schemeClr");
+            if (scheme && attrLocal(scheme, "val") == QLatin1String("phClr")) {
+                // Paints with whatever colour the referencing bgRef supplies.
+                entry.kind = ThemeBgFill::Kind::SolidPhClr;
+            } else if (auto c = parseSolidFill(f, theme)) {
+                entry.kind = ThemeBgFill::Kind::SolidFixed;
+                entry.fixed = *c;
+            }
+        }
+        out.push_back(entry);
+    }
+    return out;
+}
+
+// The background a SINGLE part (slide, layout or master) declares.
+//
+// OOXML resolves a slide's background by inheritance: slide -> its layout -> that
+// layout's master. A part with no <p:bg> inherits the next one up; a part that DOES
+// declare one ends the search, whether or not we can paint it. Karl's real deck
+// carries <p:bg> on ZERO of its 10 slides, on 12 of its 17 layouts and on its
+// master — so a slide-only reader renders the whole deck white (BUG-32). Same bug
+// class as BUG-1 (theme colours) and BUG-2 (placeholder geometry).
+struct BackgroundSource {
+    bool declared = false;   // the part has a <p:bg> element
+    Background bg;           // declared && kind==None  =>  declared but not paintable
+    QString unsupportedKind; // fixed text for the warning; never deck content
+};
+
+// The local name of the first *Fill child, e.g. "gradFill". Used only to name the
+// fill KIND in a warning — a fixed vocabulary, never anything read from the deck.
+QString fillKindOf(const pugi::xml_node& parent) {
+    for (pugi::xml_node c = parent.first_child(); c; c = c.next_sibling()) {
+        const QString n = localName(c.name());
+        if (n.endsWith(QLatin1String("Fill"))) {
+            return n;
         }
     }
-    return bg;
+    return {};
+}
+
+BackgroundSource parseBackgroundSource(const pugi::xml_node& cSld, const ThemeColors& theme,
+                                       const std::vector<ThemeBgFill>& bgFills) {
+    BackgroundSource src;
+    pugi::xml_node bgNode = childLocal(cSld, "bg");
+    if (!bgNode) {
+        return src; // declares nothing -> inherit
+    }
+    src.declared = true;
+
+    // <p:bgPr> carries the fill inline.
+    if (pugi::xml_node bgPr = childLocal(bgNode, "bgPr")) {
+        const QString kind = fillKindOf(bgPr);
+        if (kind == QLatin1String("solidFill")) {
+            // Resolve srgbClr OR a themed schemeClr (BUG-1) so the renderer knows a
+            // themed-dark background is dark and can pick readable text.
+            if (auto c = parseSolidFill(childLocal(bgPr, "solidFill"), theme)) {
+                src.bg.kind = BackgroundKind::Solid;
+                src.bg.solid = c;
+                return src;
+            }
+            src.unsupportedKind = QStringLiteral("unresolvable solid fill");
+            return src;
+        }
+        src.unsupportedKind = kind.isEmpty() ? QStringLiteral("empty fill") : kind;
+        return src;
+    }
+
+    // <p:bgRef idx="100N"> selects the Nth entry of the theme's bgFillStyleLst and
+    // carries the placeholder colour (phClr) that entry paints with. idx 0 is "none".
+    if (pugi::xml_node ref = childLocal(bgNode, "bgRef")) {
+        const int slot = attrLocal(ref, "idx").toInt() - 1001;
+        if (slot >= 0 && slot < static_cast<int>(bgFills.size())) {
+            const ThemeBgFill& entry = bgFills[static_cast<std::size_t>(slot)];
+            if (entry.kind == ThemeBgFill::Kind::SolidFixed) {
+                src.bg.kind = BackgroundKind::Solid;
+                src.bg.solid = entry.fixed;
+                return src;
+            }
+            if (entry.kind == ThemeBgFill::Kind::SolidPhClr) {
+                if (auto c = parseSolidFill(ref, theme)) {
+                    src.bg.kind = BackgroundKind::Solid;
+                    src.bg.solid = c;
+                    return src;
+                }
+            }
+        }
+        src.unsupportedKind = QStringLiteral("themed background fill");
+        return src;
+    }
+
+    src.unsupportedKind = QStringLiteral("unrecognised background");
+    return src;
+}
+
+// Parse just the <p:bg> of a layout or master part.
+BackgroundSource partBackground(const QByteArray& xml, const ThemeColors& theme,
+                                const std::vector<ThemeBgFill>& bgFills) {
+    pugi::xml_document doc;
+    if (!doc.load_buffer(xml.constData(), static_cast<size_t>(xml.size()))) {
+        return {};
+    }
+    return parseBackgroundSource(childLocal(doc.first_child(), "cSld"), theme, bgFills);
 }
 
 // Placeholder key "type:idx" for matching a shape against layout geometry (BUG-2).
@@ -529,9 +634,24 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
     }
 }
 
+// A slideLayout part, parsed once and reused by every slide that references it.
+struct LayoutInfo {
+    QHash<QString, RectEmu> placeholders; // BUG-2
+    BackgroundSource bg;                  // BUG-32
+    QString masterPart;                   // resolved from the layout's own rels
+};
+
+// Everything a slide inherits from the parts above it in the OOXML hierarchy.
+struct InheritedFromParents {
+    QHash<QString, RectEmu> layoutPlaceholders; // BUG-2
+    BackgroundSource layoutBg;                  // BUG-32
+    BackgroundSource masterBg;                  // BUG-32
+    std::vector<ThemeBgFill> themeBgFills;
+};
+
 Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>& slideRels,
                  const QString& slideDir, const LoaderLimits& lim, const ThemeColors& theme,
-                 const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master,
+                 const InheritedFromParents& inherited, const MasterTextStyles& master,
                  bool& xmlOk) {
     Slide slide;
     pugi::xml_document doc;
@@ -543,9 +663,31 @@ Slide parseSlide(const QByteArray& xml, int index, const QHash<QString, QString>
 
     pugi::xml_node sld = doc.first_child(); // <p:sld>
     pugi::xml_node cSld = childLocal(sld, "cSld");
-    slide.background = parseBackground(cSld, theme);
+
+    // BUG-32 — walk the chain: the slide's own declaration wins, then the layout's,
+    // then the master's. The FIRST part that declares a background ends the walk even
+    // if we cannot paint what it declared; falling through to the next level would
+    // paint a colour the deck does not specify (Manifesto F1: never a silent wrong
+    // render). Whatever we cannot paint is reported instead.
+    BackgroundSource resolved = parseBackgroundSource(cSld, theme, inherited.themeBgFills);
+    if (!resolved.declared) {
+        resolved = inherited.layoutBg;
+    }
+    if (!resolved.declared) {
+        resolved = inherited.masterBg;
+    }
+    slide.background = resolved.bg;
+    if (resolved.declared && resolved.bg.kind == BackgroundKind::None) {
+        LoadWarning w;
+        w.slideIndex = index;
+        w.elementType = QStringLiteral("background");
+        w.detail = resolved.unsupportedKind;
+        slide.warnings.push_back(std::move(w));
+    }
+
     pugi::xml_node spTree = childLocal(cSld, "spTree");
-    processShapeTree(spTree, slide, index, slideRels, slideDir, lim, theme, layoutPh, master);
+    processShapeTree(spTree, slide, index, slideRels, slideDir, lim, theme,
+                     inherited.layoutPlaceholders, master);
     return slide;
 }
 
@@ -680,10 +822,12 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
     // Theme colors for resolving scheme-colored text/backgrounds (BUG-1). The
     // common single-theme case (ppt/theme/theme1.xml) covers most decks.
     ThemeColors theme;
+    std::vector<ThemeBgFill> themeBgFills;
     QByteArray themeXml;
     if (readPart(za, QStringLiteral("ppt/theme/theme1.xml"), themeXml,
                  limits.maxPartUncompressed)) {
         theme = parseTheme(themeXml);
+        themeBgFills = parseThemeBgFills(themeXml, theme);
     }
 
     // Master text styles for inherited font sizes (BUG-8). The common
@@ -715,6 +859,10 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
     QHash<QString, QByteArray> mediaCache;
     long long mediaBytes = 0;
 
+    // Layouts and masters are likewise parsed once each, however many slides use them.
+    QHash<QString, LayoutInfo> layoutCache;
+    QHash<QString, BackgroundSource> masterBgCache;
+
     int index = 0;
     for (const QString& rid : slideRids) {
         ++index;
@@ -743,22 +891,64 @@ LoadResult DeckLoader::load(const QString& path, const LoaderLimits& limits) {
             slideRels = parseRels(slideRelsXml);
         }
 
-        // The slide's layout provides placeholder geometry (BUG-2). Find the
-        // slideLayout rel target, load it, and map its placeholders.
-        QHash<QString, RectEmu> layoutPh;
+        // The slide's layout supplies placeholder geometry (BUG-2) AND, far more
+        // often than the slide does, the background (BUG-32). Decks reuse layouts
+        // heavily — Karl's 10 slides share 9 layouts, two of them twice — so each
+        // layout (and each master) is read and parsed at most once.
+        InheritedFromParents inherited;
+        inherited.themeBgFills = themeBgFills;
+        QString masterPart = QStringLiteral("ppt/slideMasters/slideMaster1.xml");
         for (auto it = slideRels.constBegin(); it != slideRels.constEnd(); ++it) {
-            if (it.value().contains(QLatin1String("slideLayout"))) {
-                const QString layoutPart = resolveTarget(slideDir, it.value());
+            if (!it.value().contains(QLatin1String("slideLayout"))) {
+                continue;
+            }
+            const QString layoutPart = resolveTarget(slideDir, it.value());
+            if (!layoutCache.contains(layoutPart)) {
+                LayoutInfo info;
                 QByteArray layoutXml;
                 if (readPart(za, layoutPart, layoutXml, limits.maxPartUncompressed)) {
-                    layoutPh = parseLayoutPlaceholders(layoutXml);
+                    info.placeholders = parseLayoutPlaceholders(layoutXml);
+                    info.bg = partBackground(layoutXml, theme, themeBgFills);
+                    // The layout names its own master; only fall back to
+                    // slideMaster1 when it does not (or the rels are absent).
+                    const int lslash = layoutPart.lastIndexOf(QLatin1Char('/'));
+                    const QString layoutRelsPart =
+                        layoutPart.left(lslash) + QStringLiteral("/_rels/") +
+                        layoutPart.mid(lslash + 1) + QStringLiteral(".rels");
+                    QByteArray layoutRelsXml;
+                    if (readPart(za, layoutRelsPart, layoutRelsXml, limits.maxPartUncompressed)) {
+                        const QHash<QString, QString> lrels = parseRels(layoutRelsXml);
+                        for (auto lt = lrels.constBegin(); lt != lrels.constEnd(); ++lt) {
+                            if (lt.value().contains(QLatin1String("slideMaster"))) {
+                                info.masterPart =
+                                    resolveTarget(layoutPart.left(lslash), lt.value());
+                                break;
+                            }
+                        }
+                    }
                 }
-                break;
+                layoutCache.insert(layoutPart, info);
             }
+            const LayoutInfo& info = layoutCache[layoutPart];
+            inherited.layoutPlaceholders = info.placeholders;
+            inherited.layoutBg = info.bg;
+            if (!info.masterPart.isEmpty()) {
+                masterPart = info.masterPart;
+            }
+            break;
         }
+        if (!masterBgCache.contains(masterPart)) {
+            BackgroundSource mbg;
+            QByteArray mXml;
+            if (readPart(za, masterPart, mXml, limits.maxPartUncompressed)) {
+                mbg = partBackground(mXml, theme, themeBgFills);
+            }
+            masterBgCache.insert(masterPart, mbg);
+        }
+        inherited.masterBg = masterBgCache[masterPart];
 
         bool xmlOk = true;
-        Slide slide = parseSlide(slideXml, index, slideRels, slideDir, limits, theme, layoutPh,
+        Slide slide = parseSlide(slideXml, index, slideRels, slideDir, limits, theme, inherited,
                                  master, xmlOk);
         if (!xmlOk) {
             zip_close(za);
