@@ -625,3 +625,26 @@ TEST_CASE("BUG-37 review: crop and opacity survive both OOXML percentage spellin
         CHECK(imageWarnings >= 2);
     }
 }
+
+// Adversarial review round 2, findings F4/F5 — both were UNDEFINED BEHAVIOUR in the
+// BUG-47/48 fixes themselves, found under UBSan by a reviewer attacking that fix.
+TEST_CASE("BUG-47 review2: a hostile percentage cannot invoke UB in the parser") {
+    // A float-to-int conversion whose value does not fit the destination is UB, not
+    // a wrap. "1e30%" is a two-character edit away from any legitimate deck.
+    LoadResult r = DeckLoader::load(fixture("good_srcrect_ub.pptx"));
+    REQUIRE(r.ok);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 2);
+
+    SUBCASE("an astronomically large percentage is refused, not cast") {
+        CHECK(els[0].image.srcRect.isIdentity());
+        CHECK(els[0].image.alphaPerMille == 100000); // opaque, never hidden
+    }
+
+    SUBCASE("INT_MAX insets do not overflow the over-crop guard") {
+        // The guard summed two ints straight out of the deck; two large values
+        // overflowed signed int inside the check whose job was to reject them.
+        CHECK(els[1].image.srcRect.leftPerMille == 2147483647);
+        CHECK(els[1].image.srcRect.rightPerMille == 2147483647);
+    }
+}

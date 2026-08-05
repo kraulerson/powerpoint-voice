@@ -1,6 +1,7 @@
 #include "loader/deck_loader.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <vector>
 
@@ -513,7 +514,16 @@ bool parsePercentAttr(const QString& raw, int& outPerMille) {
         if (!ok) {
             return false;
         }
-        outPerMille = static_cast<int>(pct * 1000.0);
+        // Range-check BEFORE the narrowing cast. A float-to-int conversion whose
+        // value does not fit the destination is UNDEFINED BEHAVIOUR, not a wrap —
+        // and "1e30%" is a two-character edit away from any legitimate deck
+        // (adversarial review F4, reproduced under UBSan). Percentages this far out
+        // are meaningless anyway, so refusing is also the honest answer.
+        const double scaled = pct * 1000.0;
+        if (!std::isfinite(scaled) || scaled < -1e9 || scaled > 1e9) {
+            return false;
+        }
+        outPerMille = static_cast<int>(scaled);
         return true;
     }
     const int n = v.toInt(&ok);

@@ -202,8 +202,14 @@ QRectF sourceRect(const QSize& imageSize, const SrcRect& sr) {
     // and returns a valid rectangle covering exactly the region the deck excluded,
     // drawn mirrored (adversarial review F2). The width guard downstream never fires
     // because the normalised width is positive. Reject here instead.
-    if (sr.leftPerMille + sr.rightPerMille >= 100000 ||
-        sr.topPerMille + sr.bottomPerMille >= 100000) {
+    // Sum in 64-bit. These are ints straight out of the deck, so two large values
+    // overflow signed int here — UNDEFINED BEHAVIOUR in the guard whose entire job
+    // is to reject bad input (adversarial review F5, reproduced under UBSan against
+    // the library). A guard that invokes UB on the inputs it exists to catch is
+    // worse than no guard.
+    const qint64 hSum = static_cast<qint64>(sr.leftPerMille) + sr.rightPerMille;
+    const qint64 vSum = static_cast<qint64>(sr.topPerMille) + sr.bottomPerMille;
+    if (hSum >= 100000 || vSum >= 100000) {
         return {};
     }
     const double x = imageSize.width() * (sr.leftPerMille / kFull);

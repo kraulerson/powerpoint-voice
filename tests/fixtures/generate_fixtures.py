@@ -926,6 +926,26 @@ def build_good_srcrect_edge():
     write_zip("good_srcrect_edge.pptx", parts)
 
 
+def build_good_srcrect_ub():
+    # Adversarial review round 2: inputs that made the BUG-47/48 fixes themselves
+    # invoke undefined behaviour. [0] an astronomically large percentage (float->int
+    # cast out of range); [1] INT_MAX insets (signed overflow inside the guard).
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 3000000, 3000000, l="1e30%", alpha="1e30%"),
+            pic_sp_cropped("rId1", 3000000, 0, 3000000, 3000000,
+                           l=2147483647, r=2147483647),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": wide_red_png(),
+    }
+    write_zip("good_srcrect_ub.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -1104,6 +1124,7 @@ if __name__ == "__main__":
     build_good_emf_image()
     build_good_srcrect()
     build_good_srcrect_edge()
+    build_good_srcrect_ub()
     build_good_pic_placeholder()
     build_good_overflow()
     build_good_manypara()
