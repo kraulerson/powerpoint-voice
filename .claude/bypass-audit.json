@@ -150,5 +150,47 @@
     },
     "user_response": "n/a",
     "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-05T20:48:06Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "process-checklist"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-05T21:37:03Z",
+    "session_id": null,
+    "type": "terminal_commit_blocked",
+    "actor": "user_terminal",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "gate": "process-checklist"
+    },
+    "user_response": "n/a",
+    "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-05T21:37:54Z",
+    "session_id": null,
+    "type": "escalation",
+    "actor": "framework",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "question": "UAT-4: gate_passed blocks all commits, but ISSUE-022 says do not close a UAT gate on the agent arm alone",
+      "options": [
+        "A1: mark gate_passed now, record the human arm as outstanding in the session doc",
+        "A2: keep the gate open; no commits until Karl runs the human arm"
+      ],
+      "recommendation": "A1",
+      "rationale": "Remediation is complete and verified (230 tests, sanitizers clean). A2 blocks F8c indefinitely, and Karl has asked not to be handed a build until voice works — so the human arm cannot run yet by his own decision."
+    },
+    "user_response": "PENDING",
+    "final_outcome": "escalated"
   }
 ]

@@ -808,3 +808,33 @@ prompted me for audits on features; nothing prompted me for fixes; so I did not 
 not intent.** ISSUE-025 says the framework has that shape. This says I do too, and that a control I
 am not prompted to run is a control I will not run — which is precisely why it has to be enforced
 rather than merely documented.
+
+---
+
+## ISSUE-027 — The UAT checklist cannot express "agent arm done, human arm pending", and `gate_passed` blocks ALL commits until it is marked (MAJOR, FRAMEWORK)
+
+Direct consequence of ISSUE-022, hit in practice during UAT-4.
+
+**The bind.** `gate_passed` is the 9th and final UAT step. Until it is marked, the pre-commit hook
+refuses **every** commit — including the remediation commits the session itself produced. But
+ISSUE-022 established that a UAT gate must NOT close on the agent arm alone: every SEV-1 that reached
+a merged PR in this walk came from the human arm.
+
+So the two controls contradict each other:
+- follow ISSUE-022 and hold the gate open -> the repository is frozen, no work of any kind can be
+  committed, indefinitely
+- mark `gate_passed` -> the session records a pass that one arm never ran
+
+There is no third state. The checklist has no vocabulary for a partially-complete session.
+
+**Why it bit here specifically.** Karl has decided (WALK-STATE §2c) not to be handed a build until
+voice works, so the human arm *cannot* run yet — by his own reasonable decision. The framework's
+model assumes both arms complete within one session; a real project schedules them separately.
+
+**Suggested fix.** Split the terminal step: `agent_gate_passed` and `human_gate_passed`, where the
+first unblocks commits and the second is what a phase gate checks. Or allow `gate_passed` to be
+marked with a recorded, audited "arms outstanding" note that Phase 2 exit then requires cleared.
+
+**Same shape as ISSUE-016/017/018/019/020/022/025 — the seventh instance.** The enforced control and
+the documented intent disagree, and enforcement is what gets followed. Here enforcement would force
+the dishonest answer, which is the sharpest form of the pattern the walk has produced.

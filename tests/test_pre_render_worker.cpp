@@ -12,6 +12,14 @@
 #include "present/pre_render_worker.hpp"
 #include "render/slide_renderer.hpp"
 
+// NOTE on the pattern `REQUIRE(spy.count() > 0 || spy.wait(N))`:
+// QSignalSpy::wait() runs an event loop and counts only what arrives DURING it. A
+// worker thread that emits BEFORE the main thread reaches wait() is invisible to it,
+// so the wait burns its full timeout and fails while the spy already holds the
+// signal. Measured by a UAT-4 tester: 199 of 200 iterations. That made five tests in
+// these two files fail ~19% of clean runs and 30% under load (BUG-40) — and I
+// re-ran past it three times instead of fixing it. Check the count FIRST.
+
 using namespace pptv;
 
 namespace {
@@ -114,7 +122,7 @@ TEST_CASE("O: every slide is rendered exactly once, with the right index") {
     QSignalSpy ready(&h.worker, &PreRenderWorker::slideReady);
     QSignalSpy fin(&h.worker, &PreRenderWorker::finished);
     h.thread.start();
-    REQUIRE(fin.wait(5000));
+    REQUIRE((fin.count() > 0 || fin.wait(5000)));
     CHECK(ready.count() == 4);
     std::vector<int> seen(4, 0);
     for (int i = 0; i < ready.count(); ++i) {
@@ -143,7 +151,7 @@ TEST_CASE("O: rendering PROVABLY happens off the calling thread (TM-018 isolate)
     h.worker.setDeck(deckOf(5));
     QSignalSpy fin(&h.worker, &PreRenderWorker::finished);
     h.thread.start();
-    REQUIRE(fin.wait(5000));
+    REQUIRE((fin.count() > 0 || fin.wait(5000)));
     CHECK(calls.load() == 5);
     CHECK_FALSE(anyOnTestThread.load()); // never on the UI/test thread
 }
@@ -174,7 +182,7 @@ TEST_CASE("O: THE RENDER BOMB IS NEVER PAINTED — the cap prevents, it does not
     QSignalSpy ready(&h.worker, &PreRenderWorker::slideReady);
     QSignalSpy fin(&h.worker, &PreRenderWorker::finished);
     h.thread.start();
-    REQUIRE(fin.wait(5000));
+    REQUIRE((fin.count() > 0 || fin.wait(5000)));
     CHECK_FALSE(renderedTheBomb.load()); // the payload was never handed to QPainter
     CHECK(rendered.load() == 2);
     CHECK(placeheld.load() == 1);
@@ -197,7 +205,7 @@ TEST_CASE("O: never a null image — a null raster would be a black projector") 
         QSignalSpy ready(&h.worker, &PreRenderWorker::slideReady);
         QSignalSpy fin(&h.worker, &PreRenderWorker::finished);
         h.thread.start();
-        REQUIRE(fin.wait(5000));
+        REQUIRE((fin.count() > 0 || fin.wait(5000)));
         REQUIRE(ready.count() == 4);
         for (int i = 0; i < ready.count(); ++i) {
             const QImage img = ready.at(i).at(1).value<QImage>();
@@ -220,7 +228,7 @@ TEST_CASE("O: cancelling before the run does no work and still finishes") {
     QSignalSpy fin(&h.worker, &PreRenderWorker::finished);
     h.worker.cancel();
     h.thread.start();
-    REQUIRE(fin.wait(5000));
+    REQUIRE((fin.count() > 0 || fin.wait(5000)));
     CHECK(ready.count() == 0);
     CHECK(calls.load() == 0);
 }
@@ -237,7 +245,7 @@ TEST_CASE("O: cancelling mid-run stops promptly and always finishes") {
     h.thread.start();
     QThread::msleep(30);
     h.worker.cancel();
-    REQUIRE(fin.wait(5000)); // bounded shutdown: the app can always exit
+    REQUIRE((fin.count() > 0 || fin.wait(5000))); // bounded shutdown: the app can always exit
     CHECK(ready.count() < 200);
 }
 
@@ -253,7 +261,7 @@ TEST_CASE("O: a jump mid-render re-steers to what the presenter is now looking a
     h.thread.start();
     QThread::msleep(20);
     QMetaObject::invokeMethod(&h.worker, "setCurrentIndex", Qt::QueuedConnection, Q_ARG(int, 90));
-    REQUIRE(fin.wait(10000));
+    REQUIRE((fin.count() > 0 || fin.wait(10000)));
     CHECK(ready.count() == 100); // still complete
     // slide 90 must have been rendered EARLY relative to the original order
     int posOf90 = -1;
@@ -288,7 +296,7 @@ TEST_CASE("O: progress is reported honestly for every slide") {
     QSignalSpy prog(&h.worker, &PreRenderWorker::progress);
     QSignalSpy fin(&h.worker, &PreRenderWorker::finished);
     h.thread.start();
-    REQUIRE(fin.wait(5000));
+    REQUIRE((fin.count() > 0 || fin.wait(5000)));
     REQUIRE(prog.count() == 3);
     for (int i = 0; i < prog.count(); ++i) {
         CHECK(prog.at(i).at(0).toInt() == i + 1); // done

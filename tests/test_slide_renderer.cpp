@@ -559,3 +559,104 @@ TEST_CASE("BUG-53: a stretched picture fills its frame; an unstretched one does 
         CHECK(isRed(at(9000000, 3000000))); // ...but the image is there, centred
     }
 }
+
+// BUG-61 — JPEG decode had no fixture at all. Removing JPEG from the allow-list
+// left the entire suite green, while the reference deck carries two JPEG media
+// parts that would have rendered as grey "missing image" boxes on the projector.
+TEST_CASE("BUG-61: a JPEG picture decodes and draws, not a placeholder") {
+    LoadResult r = DeckLoader::load(fixture("good_jpeg_image.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides[0].elements.size() == 1);
+    CHECK_FALSE(r.presentation.slides[0].elements[0].image.imageData.isEmpty());
+
+    const QImage img = SlideRenderer::render(r.presentation, 0, 1200, 600);
+    REQUIRE_FALSE(img.isNull());
+    // The property under test is "the JPEG DECODED", not what colour it is: the
+    // fixture is a hand-built minimal JPEG whose entropy data is imprecise, and the
+    // regression being guarded is that removing JPEG from the allow-list turns the
+    // picture into drawPlaceholderBox's flat 0xC8C8C8 panel. So assert that no
+    // placeholder was drawn and that something WAS.
+    int placeholderGrey = 0, drawn = 0;
+    for (int y = img.height() / 4; y < img.height() * 3 / 4; ++y) {
+        for (int x = img.width() / 6; x < img.width() / 2; ++x) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.red() == 0xC8 && c.green() == 0xC8 && c.blue() == 0xC8) {
+                ++placeholderGrey;
+            } else if (c.red() != 0xFF || c.green() != 0xFF || c.blue() != 0xFF) {
+                ++drawn; // neither placeholder nor bare slide background
+            }
+        }
+    }
+    CHECK(placeholderGrey == 0);
+    CHECK(drawn > 0);
+}
+
+// BUG-62 — the srcRect out-of-bounds clamps had zero coverage. Six of the reference
+// deck's twelve srcRect elements carry NEGATIVE insets, which ask for area outside
+// the image; without the clamps Qt is handed a source rect it cannot sample.
+TEST_CASE("BUG-62: negative insets and edge crops stay inside the image") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect_negative.pptx"));
+    REQUIRE(r.ok);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 3);
+
+    SUBCASE("negative insets are parsed as declared, verbatim from the real deck") {
+        CHECK(els[0].image.srcRect.rightPerMille == -6769);
+        CHECK(els[0].image.srcRect.bottomPerMille == 41679);
+        CHECK(els[1].image.srcRect.leftPerMille == -6726);
+        CHECK(els[1].image.srcRect.rightPerMille == -1);
+    }
+
+    SUBCASE("every picture still renders — an outset must not delete the image") {
+        const QImage img = SlideRenderer::render(r.presentation, 0, 1200, 600);
+        REQUIRE_FALSE(img.isNull());
+        const double slideW = static_cast<double>(r.presentation.slideWidth);
+        const double slideH = static_cast<double>(r.presentation.slideHeight);
+        const double scale = std::min(img.width() / slideW, img.height() / slideH);
+        const double offX = (img.width() - slideW * scale) / 2.0;
+        const double offY = (img.height() - slideH * scale) / 2.0;
+        for (double cx : {2000000.0, 6000000.0, 10000000.0}) {
+            bool red = false;
+            for (double cy = 400000.0; cy < 2600000.0 && !red; cy += 100000.0) {
+                const QColor c = img.pixelColor(static_cast<int>(offX + cx * scale),
+                                                static_cast<int>(offY + cy * scale));
+                if (c.red() > 150 && c.blue() < 100) {
+                    red = true;
+                }
+            }
+            CHECK(red);
+        }
+    }
+}
+
+// BUG-62 — the clamp itself, asserted directly. A colour-based assertion was too
+// coarse: a UAT-4 mutation removing `.intersected(whole)` survived it.
+TEST_CASE("BUG-62: the source rect never leaves the image, whatever the deck asks") {
+    const QSize img(16, 4);
+    SUBCASE("negative insets from the real deck stay inside") {
+        // r=-6769 asks for area 6.769% beyond the right edge.
+        const QRectF a = slideSourceRect(img, SrcRect{0, 0, -6769, 41679});
+        CHECK(a.left() >= 0.0);
+        CHECK(a.top() >= 0.0);
+        CHECK(a.right() <= 16.0);
+        CHECK(a.bottom() <= 4.0);
+
+        const QRectF b = slideSourceRect(img, SrcRect{-6726, 0, -1, 36909});
+        CHECK(b.left() >= 0.0);
+        CHECK(b.right() <= 16.0);
+        CHECK(b.bottom() <= 4.0);
+    }
+    SUBCASE("an extreme outset is clamped to the whole image, not inverted") {
+        const QRectF r = slideSourceRect(img, SrcRect{-500000, -500000, -500000, -500000});
+        CHECK(r.left() >= 0.0);
+        CHECK(r.top() >= 0.0);
+        CHECK(r.right() <= 16.0);
+        CHECK(r.bottom() <= 4.0);
+        CHECK(r.width() > 0.0);
+    }
+    SUBCASE("an ordinary crop is untouched by the clamp") {
+        const QRectF r = slideSourceRect(img, SrcRect{25000, 0, 25000, 0});
+        CHECK(r.left() == doctest::Approx(4.0));
+        CHECK(r.width() == doctest::Approx(8.0));
+    }
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QImage>
+#include <QRectF>
 
 #include "model/slide_model.hpp"
 
@@ -10,6 +11,13 @@
 // Bible §3 / TM-018). Rendering into a QImage is headless: it needs a
 // QGuiApplication for the font database but no display server.
 namespace pptv {
+
+// The sub-rectangle of a source image that <a:srcRect> selects, clamped to the
+// image. Exposed because the CLAMP is the interesting part: negative insets ask for
+// area outside the image (6 of the reference deck's 12 srcRect elements do), and a
+// rendered-pixel assertion is too coarse to notice when the clamp is removed —
+// measured, a UAT-4 mutation of it survived a colour-based test (BUG-62).
+QRectF slideSourceRect(const QSize& imageSize, const SrcRect& sr);
 
 class SlideRenderer {
   public:

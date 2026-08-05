@@ -191,7 +191,7 @@ void drawPlaceholderBox(QPainter& p, const QRectF& rect, const QString& label, d
 // 29.178%. Insets may be NEGATIVE, which asks for padding outside the image; there is
 // nothing to sample there, so those are clamped to the image bounds rather than
 // producing a Qt-undefined out-of-bounds source rect.
-QRectF sourceRect(const QSize& imageSize, const SrcRect& sr) {
+QRectF sourceRectImpl(const QSize& imageSize, const SrcRect& sr) {
     const QRectF whole(0, 0, imageSize.width(), imageSize.height());
     if (sr.isIdentity() || imageSize.isEmpty()) {
         return whole;
@@ -224,6 +224,10 @@ QRectF pxRect(const RectEmu& r, double scale, double offX, double offY) {
 }
 
 } // namespace
+
+QRectF slideSourceRect(const QSize& imageSize, const SrcRect& sr) {
+    return sourceRectImpl(imageSize, sr);
+}
 
 QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHeightEmu, int targetW,
                              int targetH) {
@@ -299,7 +303,7 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
                 // the real deck a picture cropped 29.178% off each side was drawn
                 // whole, so the white margins PowerPoint discards appeared as a box
                 // around the artwork on a dark slide.
-                QRectF src = sourceRect(decoded.size(), e.image.srcRect);
+                QRectF src = slideSourceRect(decoded.size(), e.image.srcRect);
                 // Only a TRULY empty source is nothing to draw. The guard used to be
                 // `< 1`, measured in SOURCE pixels — so an ordinary 600x2 accent bar
                 // cropped to 0.8 source pixels high vanished with no warning and no

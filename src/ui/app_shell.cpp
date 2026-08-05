@@ -114,6 +114,7 @@ void AppShell::teardownWorkers() {
 }
 
 void AppShell::openDeck(const QString& path) {
+    emit deckOpenAttempted(path);
     teardownWorkers();
 
     loadThread_ = new QThread(this);

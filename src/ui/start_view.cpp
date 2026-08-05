@@ -79,11 +79,18 @@ void StartView::dragEnterEvent(QDragEnterEvent* e) {
 }
 
 void StartView::dropEvent(QDropEvent* e) {
-    const QString path = localDeckPathFrom(e->mimeData());
-    if (path.isEmpty()) {
+    if (localDeckPathFrom(e->mimeData()).isEmpty()) {
         return;
     }
     e->acceptProposedAction();
+    acceptDroppedMime(e->mimeData());
+}
+
+void StartView::acceptDroppedMime(const QMimeData* mime) {
+    const QString path = localDeckPathFrom(mime);
+    if (path.isEmpty()) {
+        return;
+    }
     emit fileDropped(path);
 }
 
