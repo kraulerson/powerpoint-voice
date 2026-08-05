@@ -473,3 +473,52 @@ TEST_CASE("BUG-37 review: an over-crop is rejected, never drawn mirrored") {
     }
     CHECK(red == 0);
 }
+
+// Adversarial review round 2 — defences that mutation testing proved UNTESTED.
+// Both mutations below previously left the entire suite green.
+TEST_CASE("BUG-37 review2: a sub-pixel crop draws, and opacity does not leak") {
+    LoadResult r = DeckLoader::load(fixture("good_pic_edges.pptx"));
+    REQUIRE(r.ok);
+    const QImage img = SlideRenderer::render(r.presentation, 0, 1200, 600);
+    REQUIRE_FALSE(img.isNull());
+
+    const double slideW = static_cast<double>(r.presentation.slideWidth);
+    const double slideH = static_cast<double>(r.presentation.slideHeight);
+    const double scale = std::min(img.width() / slideW, img.height() / slideH);
+    const double offX = (img.width() - slideW * scale) / 2.0;
+    const double offY = (img.height() - slideH * scale) / 2.0;
+    auto sample = [&](double emuX, double emuY) {
+        return img.pixelColor(static_cast<int>(offX + emuX * scale),
+                              static_cast<int>(offY + emuY * scale));
+    };
+
+    SUBCASE("opacity is restored, so a translucent picture cannot wash out the next") {
+        // The translucent picture is FIRST here and the opaque one SECOND. The
+        // original fixture put the translucent one LAST, where a leaked opacity had
+        // nothing left to damage — which is why deleting setOpacity(1.0) left the
+        // whole suite green while visibly washing out real decks.
+        const QColor opaque = sample(4500000, 1500000);
+        CHECK(opaque.red() > 200);
+        CHECK(opaque.green() < 60);
+        CHECK(opaque.blue() < 60);
+    }
+
+    SUBCASE("a crop leaving under one SOURCE pixel still draws, never vanishes") {
+        // A 60x2 bar cropped b=60000 leaves 0.8 source pixels of height. The guard
+        // was `< 1` measured in SOURCE pixels, so it was dropped silently — no
+        // warning, no placeholder. That is BUG-41's defect class, reintroduced one
+        // commit later, and the real deck uses b=36909.
+        // The cropped bar is 60:1, so aspect-preserving fit makes it a HAIRLINE at
+        // the vertical centre of its frame (y = 1500000 EMU), not a band. Scan a
+        // short vertical span there rather than guessing one pixel — the first
+        // version of this assertion sampled empty background and failed.
+        bool sawBar = false;
+        for (double dy = -60000; dy <= 60000 && !sawBar; dy += 4000) {
+            const QColor c = sample(8500000, 1500000 + dy);
+            if (c.red() > 150 && c.blue() < 100) {
+                sawBar = true;
+            }
+        }
+        CHECK(sawBar);
+    }
+}

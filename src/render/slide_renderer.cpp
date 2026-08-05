@@ -299,9 +299,24 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
                 // the real deck a picture cropped 29.178% off each side was drawn
                 // whole, so the white margins PowerPoint discards appeared as a box
                 // around the artwork on a dark slide.
-                const QRectF src = sourceRect(decoded.size(), e.image.srcRect);
-                if (src.width() < 1 || src.height() < 1) {
-                    break; // cropped to nothing
+                QRectF src = sourceRect(decoded.size(), e.image.srcRect);
+                // Only a TRULY empty source is nothing to draw. The guard used to be
+                // `< 1`, measured in SOURCE pixels — so an ordinary 600x2 accent bar
+                // cropped to 0.8 source pixels high vanished with no warning and no
+                // placeholder (adversarial review F3). That is the same silent
+                // picture loss BUG-41 exists to fix, reintroduced one commit later.
+                // A sub-pixel source is still real content: round it outward to one
+                // pixel, clamped to the image, and draw it.
+                if (src.width() <= 0.0 || src.height() <= 0.0) {
+                    break;
+                }
+                if (src.width() < 1.0) {
+                    src.setX(qMin(src.x(), static_cast<double>(decoded.width()) - 1.0));
+                    src.setWidth(1.0);
+                }
+                if (src.height() < 1.0) {
+                    src.setY(qMin(src.y(), static_cast<double>(decoded.height()) - 1.0));
+                    src.setHeight(1.0);
                 }
                 // Preserve aspect ratio (BUG-10): fit within the frame and center,
                 // so a frame whose aspect differs from the image does not squish it.
