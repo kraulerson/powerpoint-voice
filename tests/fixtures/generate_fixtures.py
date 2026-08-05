@@ -926,6 +926,68 @@ def build_good_srcrect_edge():
     write_zip("good_srcrect_edge.pptx", parts)
 
 
+def build_good_srcrect_ub():
+    # Adversarial review round 2: inputs that made the BUG-47/48 fixes themselves
+    # invoke undefined behaviour. [0] an astronomically large percentage (float->int
+    # cast out of range); [1] INT_MAX insets (signed overflow inside the guard).
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 3000000, 3000000, l="1e30%", alpha="1e30%"),
+            pic_sp_cropped("rId1", 3000000, 0, 3000000, 3000000,
+                           l=2147483647, r=2147483647),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": wide_red_png(),
+    }
+    write_zip("good_srcrect_ub.pptx", parts)
+
+
+def thin_red_png():
+    """A 60x2 all-red bar - an ordinary deck asset, and the shape that exposes a
+    crop guard measured in SOURCE pixels rather than destination ones."""
+    import struct, zlib
+    def chunk(tag, data):
+        return (struct.pack(">I", len(data)) + tag + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+    raw = (b"\x00" + b"\xff\x00\x00" * 60) * 2
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", 60, 2, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def build_good_pic_edges():
+    # Adversarial review round 2. Each element pins a defence that mutation testing
+    # proved UNTESTED - every one of these mutations left the whole suite green.
+    #  [0] translucent FIRST, [1] opaque SECOND: if setOpacity(1.0) is not restored
+    #      the opaque one is washed out. The original fixture put the translucent
+    #      picture LAST, where a leaked opacity had nothing left to damage.
+    #  [2] a 600x2 bar cropped b=60000 -> 0.8 SOURCE pixels high; the old `< 1`
+    #      guard measured source pixels and dropped it silently (review F3).
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 3000000, 3000000, alpha=30000),
+            pic_sp_cropped("rId1", 3000000, 0, 3000000, 3000000),
+            pic_sp_cropped("rId2", 6000000, 0, 5000000, 3000000, b=60000),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": XML_DECL
+        + '<Relationships xmlns="%s">' % PR
+        + '<Relationship Id="rId1" Type="%s/image" Target="../media/image1.png"/>' % R
+        + '<Relationship Id="rId2" Type="%s/image" Target="../media/image2.png"/>' % R
+        + "</Relationships>",
+        "ppt/media/image1.png": wide_red_png(),
+        "ppt/media/image2.png": thin_red_png(),
+    }
+    write_zip("good_pic_edges.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -1104,6 +1166,8 @@ if __name__ == "__main__":
     build_good_emf_image()
     build_good_srcrect()
     build_good_srcrect_edge()
+    build_good_srcrect_ub()
+    build_good_pic_edges()
     build_good_pic_placeholder()
     build_good_overflow()
     build_good_manypara()

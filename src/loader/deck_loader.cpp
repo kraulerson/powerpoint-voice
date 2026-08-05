@@ -1,6 +1,7 @@
 #include "loader/deck_loader.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <vector>
 
@@ -513,7 +514,16 @@ bool parsePercentAttr(const QString& raw, int& outPerMille) {
         if (!ok) {
             return false;
         }
-        outPerMille = static_cast<int>(pct * 1000.0);
+        // Range-check BEFORE the narrowing cast. A float-to-int conversion whose
+        // value does not fit the destination is UNDEFINED BEHAVIOUR, not a wrap —
+        // and "1e30%" is a two-character edit away from any legitimate deck
+        // (adversarial review F4, reproduced under UBSan). Percentages this far out
+        // are meaningless anyway, so refusing is also the honest answer.
+        const double scaled = pct * 1000.0;
+        if (!std::isfinite(scaled) || scaled < -1e9 || scaled > 1e9) {
+            return false;
+        }
+        outPerMille = static_cast<int>(scaled);
         return true;
     }
     const int n = v.toInt(&ok);
@@ -532,20 +542,27 @@ QString placeholderKey(const pugi::xml_node& sp) {
     // PowerPoint writes a picture dropped into a layout's picture placeholder —
     // inherited no geometry, ended up 0x0, and was silently never drawn (BUG-41).
     pugi::xml_node ph;
+    QString holderKind;
     for (const char* holder : {"nvSpPr", "nvPicPr", "nvGraphicFramePr", "nvCxnSpPr"}) {
         ph = descendantLocal(childLocal(sp, holder), "ph");
         if (ph) {
+            holderKind = QString::fromLatin1(holder);
             break;
         }
     }
     if (!ph) {
         return {};
     }
+    // The key is namespaced by HOLDER as well as type+idx. Without that, a layout's
+    // <p:pic ph idx="1"> and its <p:sp ph idx="1"> collide in one map and the LAST
+    // in document order wins — so a text shape can silently adopt a picture's
+    // rectangle (adversarial review F4). Document order in a layout is z-order, not
+    // priority, so that choice is arbitrary as well as wrong.
     QString type = attrLocal(ph, "type");
     if (type.isEmpty()) {
         type = QStringLiteral("body");
     }
-    return type + QLatin1Char(':') + attrLocal(ph, "idx");
+    return holderKind + QLatin1Char('|') + type + QLatin1Char(':') + attrLocal(ph, "idx");
 }
 
 // Map placeholder key -> geometry, parsed from a slideLayout part (BUG-2). Real

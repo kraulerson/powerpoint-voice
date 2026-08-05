@@ -202,8 +202,14 @@ QRectF sourceRect(const QSize& imageSize, const SrcRect& sr) {
     // and returns a valid rectangle covering exactly the region the deck excluded,
     // drawn mirrored (adversarial review F2). The width guard downstream never fires
     // because the normalised width is positive. Reject here instead.
-    if (sr.leftPerMille + sr.rightPerMille >= 100000 ||
-        sr.topPerMille + sr.bottomPerMille >= 100000) {
+    // Sum in 64-bit. These are ints straight out of the deck, so two large values
+    // overflow signed int here — UNDEFINED BEHAVIOUR in the guard whose entire job
+    // is to reject bad input (adversarial review F5, reproduced under UBSan against
+    // the library). A guard that invokes UB on the inputs it exists to catch is
+    // worse than no guard.
+    const qint64 hSum = static_cast<qint64>(sr.leftPerMille) + sr.rightPerMille;
+    const qint64 vSum = static_cast<qint64>(sr.topPerMille) + sr.bottomPerMille;
+    if (hSum >= 100000 || vSum >= 100000) {
         return {};
     }
     const double x = imageSize.width() * (sr.leftPerMille / kFull);
@@ -293,9 +299,24 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
                 // the real deck a picture cropped 29.178% off each side was drawn
                 // whole, so the white margins PowerPoint discards appeared as a box
                 // around the artwork on a dark slide.
-                const QRectF src = sourceRect(decoded.size(), e.image.srcRect);
-                if (src.width() < 1 || src.height() < 1) {
-                    break; // cropped to nothing
+                QRectF src = sourceRect(decoded.size(), e.image.srcRect);
+                // Only a TRULY empty source is nothing to draw. The guard used to be
+                // `< 1`, measured in SOURCE pixels — so an ordinary 600x2 accent bar
+                // cropped to 0.8 source pixels high vanished with no warning and no
+                // placeholder (adversarial review F3). That is the same silent
+                // picture loss BUG-41 exists to fix, reintroduced one commit later.
+                // A sub-pixel source is still real content: round it outward to one
+                // pixel, clamped to the image, and draw it.
+                if (src.width() <= 0.0 || src.height() <= 0.0) {
+                    break;
+                }
+                if (src.width() < 1.0) {
+                    src.setX(qMin(src.x(), static_cast<double>(decoded.width()) - 1.0));
+                    src.setWidth(1.0);
+                }
+                if (src.height() < 1.0) {
+                    src.setY(qMin(src.y(), static_cast<double>(decoded.height()) - 1.0));
+                    src.setHeight(1.0);
                 }
                 // Preserve aspect ratio (BUG-10): fit within the frame and center,
                 // so a frame whose aspect differs from the image does not squish it.
