@@ -571,3 +571,57 @@ TEST_CASE("BUG-41: a picture placeholder takes its geometry from the layout") {
         CHECK_FALSE(els[0].image.imageData.isEmpty());
     }
 }
+
+// ---------------------------------------------------------------------------
+// Adversarial-review findings on BUG-37/38. Every case here corresponds to a
+// mutation of the production code that survived the ORIGINAL tests — i.e. the
+// first version of this feature could not tell right from wrong along these axes.
+// ---------------------------------------------------------------------------
+TEST_CASE("BUG-37 review: crop and opacity survive both OOXML percentage spellings") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect_edge.pptx"));
+    REQUIRE(r.ok);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 5);
+
+    SUBCASE("Strict-spelling percentages parse, instead of silently meaning zero") {
+        // amt="50%" and l="25%" are what PowerPoint writes when a deck is saved as
+        // Strict Open XML. QString::toInt() returns 0 for them WITHOUT reporting
+        // failure — and 0 means fully transparent for alpha and no-crop for srcRect,
+        // so every affected picture vanished. A new way to silently lose a picture,
+        // in the same change set that exists because a picture was silently lost.
+        CHECK(els[0].image.srcRect.leftPerMille == 25000);
+        CHECK(els[0].image.srcRect.rightPerMille == 25000);
+        CHECK(els[0].image.alphaPerMille == 50000);
+    }
+
+    SUBCASE("TOP and BOTTOM insets are read — the real deck uses b=36909") {
+        // Deleting either the t or the b parse line survived the entire suite.
+        CHECK(els[1].image.srcRect.topPerMille == 25000);
+        CHECK(els[1].image.srcRect.bottomPerMille == 25000);
+        CHECK(els[1].image.srcRect.leftPerMille == 0);
+    }
+
+    SUBCASE("l and r are not interchangeable") {
+        // Swapping l and r in the parser survived the entire suite, because the only
+        // fixture that existed was symmetric.
+        CHECK(els[2].image.srcRect.leftPerMille == 10000);
+        CHECK(els[2].image.srcRect.rightPerMille == 40000);
+    }
+
+    SUBCASE("an over-crop is kept as declared, for the renderer to reject") {
+        CHECK(els[3].image.srcRect.leftPerMille == 60000);
+        CHECK(els[3].image.srcRect.rightPerMille == 60000);
+    }
+
+    SUBCASE("unreadable values WARN and fall back, and never hide the picture") {
+        CHECK(els[4].image.srcRect.isIdentity());    // whole picture, not a guess
+        CHECK(els[4].image.alphaPerMille == 100000); // opaque, never transparent
+        int imageWarnings = 0;
+        for (const LoadWarning& w : r.presentation.warnings) {
+            if (w.elementType == QStringLiteral("image")) {
+                ++imageWarnings;
+            }
+        }
+        CHECK(imageWarnings >= 2);
+    }
+}

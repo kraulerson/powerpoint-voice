@@ -19,6 +19,30 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Fixed
+- **BUG-47 — a picture saved in ISO 29500 Strict format became completely invisible.** `amt="50%"`
+  and `l="25%"` are the Strict spellings, written by PowerPoint's own "Strict Open XML Presentation"
+  save option. `QString::toInt()` returns **0** for them without reporting failure, and 0 means fully
+  transparent for opacity and no-crop for the source rectangle. This was introduced by the BUG-37/38
+  fix itself — a new way to silently lose a picture, in the same change set whose sibling commit
+  exists because a picture was being silently lost. Both spellings now parse, failures are reported
+  rather than swallowed, and the fallbacks are chosen so a parse failure can never hide anything: an
+  unreadable opacity draws **opaque**, an unreadable crop shows the **whole** picture, each with a
+  warning.
+- **BUG-48 — an over-crop drew a mirrored region the deck explicitly excluded.** With `l+r > 100000`
+  the computed width is negative, and `QRectF::intersected` *normalises* it — swapping the edges and
+  returning a valid rectangle over exactly the excluded region. The downstream "cropped to nothing"
+  guard never fired, because the normalised width is positive. Insets that meet or cross are now
+  rejected before any rectangle is built.
+
+### Changed
+- Test fixtures for source cropping now cover top/bottom insets, asymmetric left/right, both
+  percentage spellings, over-crop, and unparseable garbage. **Mutation-tested**: six mutations that
+  previously survived the whole suite — dropping the `t` parse, dropping the `b` parse, swapping `l`
+  and `r`, reverting to `toInt()`, removing the over-crop guard, and making an unreadable opacity
+  transparent — now each turn the suite red.
+
+
 ### Security
 - **The app would have been killed by macOS the first time voice was armed (BUG-45).** `MACOSX_BUNDLE ON`
   makes CMake generate a default `Info.plist` with no `NSMicrophoneUsageDescription`, and macOS

@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <algorithm>
+
 #include <QColor>
 #include <QImage>
 
@@ -433,4 +435,41 @@ TEST_CASE("BUG-37: a cropped picture draws only the cropped region") {
             });
         CHECK(pink > 0.0);
     }
+}
+
+// Adversarial-review finding F2 — an over-crop must draw NOTHING, not a mirror.
+TEST_CASE("BUG-37 review: an over-crop is rejected, never drawn mirrored") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect_edge.pptx"));
+    REQUIRE(r.ok);
+    // l+r = 120000 > 100000, so the requested span is empty. Computing it anyway
+    // gives a negative width, and QRectF::intersected NORMALISES that — swapping the
+    // edges and returning a valid rectangle covering exactly the region the deck
+    // excluded, drawn mirrored. The downstream width guard never fires because the
+    // normalised width is positive.
+    const QImage img = SlideRenderer::render(r.presentation, 0, 1000, 500);
+    REQUIRE_FALSE(img.isNull());
+    // Map EMU -> pixels through the SAME letterbox the renderer applies, then sample
+    // only the middle of that picture's frame. A naive width-proportional window
+    // spills into the neighbouring picture, which legitimately draws red — the first
+    // version of this test failed for exactly that reason.
+    const double slideW = static_cast<double>(r.presentation.slideWidth);
+    const double slideH = static_cast<double>(r.presentation.slideHeight);
+    const double scale = std::min(img.width() / slideW, img.height() / slideH);
+    const double offX = (img.width() - slideW * scale) / 2.0;
+    const double frameL = offX + 6000000.0 * scale;
+    const double frameR = offX + 8000000.0 * scale;
+    const double inset = (frameR - frameL) * 0.2;
+    const int x0 = static_cast<int>(frameL + inset);
+    const int x1 = static_cast<int>(frameR - inset);
+    REQUIRE(x1 > x0);
+    int red = 0;
+    for (int y = 0; y < img.height(); ++y) {
+        for (int x = x0; x < x1; ++x) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.red() > 200 && c.green() < 60 && c.blue() < 60) {
+                ++red;
+            }
+        }
+    }
+    CHECK(red == 0);
 }

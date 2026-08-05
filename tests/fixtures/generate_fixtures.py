@@ -789,7 +789,11 @@ def build_good_emf_image():
 
 
 def pic_sp_cropped(rid, x, y, cx, cy, l=0, t=0, r=0, b=0, alpha=None):
-    """A <p:pic> carrying <a:srcRect> crop insets and optional <a:alphaModFix>."""
+    """A <p:pic> carrying <a:srcRect> crop insets and optional <a:alphaModFix>.
+
+    Inset values may be ints (Transitional, per-100000) or strings such as "25%"
+    (ISO 29500 Strict) or outright garbage, so the parser's tolerance is testable.
+    """
     amf = f'<a:alphaModFix amt="{alpha}"/>' if alpha is not None else ""
     src = f'<a:srcRect l="{l}" t="{t}" r="{r}" b="{b}"/>' if (l or t or r or b) else ""
     return (
@@ -876,6 +880,50 @@ def build_good_pic_placeholder():
         "ppt/media/image1.png": tiny_png(),
     }
     write_zip("good_pic_placeholder.pptx", parts)
+
+
+def wide_red_png():
+    """A 16x1 all-red PNG. Width matters: with a 4px source an over-crop's mirrored
+    region rounds to under one pixel and the renderer's separate width guard catches
+    it by accident, so the over-crop guard itself goes untested. 16px makes the
+    mirrored region ~3px — big enough to actually be drawn if the guard is removed."""
+    import struct, zlib
+    def chunk(tag, data):
+        return (struct.pack(">I", len(data)) + tag + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+    raw = b"\x00" + b"\xff\x00\x00" * 16
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", 16, 1, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def build_good_srcrect_edge():
+    # Adversarial-review fixtures. Each of these survived a mutation of the
+    # production code, i.e. the original tests could not tell them apart:
+    #   [0] Strict-spelling percentages ("25%") — parsed as 0 by QString::toInt(),
+    #       which silently meant "no crop" for srcRect and "invisible" for alpha
+    #   [1] TOP/BOTTOM insets only — the real deck uses b=36909 and nothing pinned it
+    #       (deleting the t or b parse line survived the whole suite)
+    #   [2] ASYMMETRIC l/r — swapping l and r in the parser survived the whole suite
+    #   [3] OVER-CROP l+r > 100000 — negative width, which QRectF::intersected
+    #       normalises into a MIRRORED draw of the region the deck excluded
+    #   [4] unreadable garbage — must warn and show the whole picture, never vanish
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 2000000, 2000000, l="25%", r="25%", alpha="50%"),
+            pic_sp_cropped("rId1", 2000000, 0, 2000000, 2000000, t=25000, b=25000),
+            pic_sp_cropped("rId1", 4000000, 0, 2000000, 2000000, l=10000, r=40000),
+            pic_sp_cropped("rId1", 6000000, 0, 2000000, 2000000, l=60000, r=60000),
+            pic_sp_cropped("rId1", 8000000, 0, 2000000, 2000000, l="banana", alpha="banana"),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": wide_red_png(),
+    }
+    write_zip("good_srcrect_edge.pptx", parts)
 
 
 def build_good_overflow():
@@ -1055,6 +1103,7 @@ if __name__ == "__main__":
     build_good_gif_image()
     build_good_emf_image()
     build_good_srcrect()
+    build_good_srcrect_edge()
     build_good_pic_placeholder()
     build_good_overflow()
     build_good_manypara()

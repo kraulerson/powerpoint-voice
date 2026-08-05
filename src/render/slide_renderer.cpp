@@ -197,6 +197,15 @@ QRectF sourceRect(const QSize& imageSize, const SrcRect& sr) {
         return whole;
     }
     constexpr double kFull = 100000.0;
+    // Insets that meet or cross leave nothing to show. Computing it anyway yields a
+    // NEGATIVE width, and QRectF::intersected NORMALISES that — it swaps the edges
+    // and returns a valid rectangle covering exactly the region the deck excluded,
+    // drawn mirrored (adversarial review F2). The width guard downstream never fires
+    // because the normalised width is positive. Reject here instead.
+    if (sr.leftPerMille + sr.rightPerMille >= 100000 ||
+        sr.topPerMille + sr.bottomPerMille >= 100000) {
+        return {};
+    }
     const double x = imageSize.width() * (sr.leftPerMille / kFull);
     const double y = imageSize.height() * (sr.topPerMille / kFull);
     const double w = imageSize.width() * (1.0 - (sr.leftPerMille + sr.rightPerMille) / kFull);
