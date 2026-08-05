@@ -610,3 +610,71 @@ governance — plus 3 self-inflicted project stumbles (S-24/25/26) and ~23 smoot
   here leaves the operator to discover the constraint only after the work is written.
 - **Not bypassed.** No `--no-verify`, no synthetic step completion. Escalated to Karl for the
   structural decision (split into sub-features vs. one accumulated commit).
+
+---
+
+## ISSUE-020 — The enforced UAT checklist omits the archive step the same document mandates (MODERATE)
+
+- **When/where:** 2026-08-04, found because **Karl asked** "are all UAT test results being logged
+  like they are supposed to? I don't see many in the repo." He was right; auditing to answer
+  honestly produced this finding.
+- **What.** Project `CLAUDE.md` (UAT Test Sessions) states: *"After completion and review, archive
+  to `docs/test-results/[date]_uat-session-N-vX.html`."* The **enforced** `uat_session` checklist is
+  nine steps — `agents_dispatched, template_generated, orchestrator_notified, results_received,
+  completeness_verified, bugs_consolidated, triage_complete, remediation_complete, gate_passed` —
+  and **none of them is the archive**. Verified: `docs/test-results` appears in `scripts/` only in
+  `check-maintenance.sh` and `check-phase-gate.sh`, and only for dependency/security SCAN artefacts,
+  never for UAT sessions.
+- **Consequence, measured on this walk.** Two UAT sessions were run to completion, both passed
+  `gate_passed`, both merged with green CI — and **neither was archived**. `docs/test-results/` held
+  a single unrelated file. An operator who follows the gated process exactly, and whose work is
+  therefore certified complete by the framework, silently omits an artefact the same governing
+  document requires. Nothing anywhere reports the omission.
+- **Two further structural drifts found in the same audit** (mine, not the framework's): UAT-1 had no
+  `agent-results/` directory — its three testers' results were flattened into one file under
+  `submissions/` — and neither session created the `templates/` subdirectory the spec names. The
+  session layout is documented in prose and never validated, so drift accumulates silently.
+- **Assessment.** This is the same failure shape as ISSUE-016 (a CI control guarded on a file that
+  never existed, reporting green while doing nothing) and ISSUE-017 (rigorous per-feature gates that
+  never ask whether the product works): **the enforced control and the documented procedure
+  disagree, and the enforcement is what people follow.** A checklist that certifies completion while
+  a mandated artefact is missing is worse than no checklist, because it produces false confidence.
+- **Suggested framework fix:** add `results_archived` as a tenth `uat_session` step with an artifact
+  check (the same BL-120-style check already used for the security-audit doc), and have
+  `--start-uat N` scaffold `templates/`, `agent-results/` and `submissions/` so the layout cannot
+  drift. Both are small and would have caught this automatically.
+- **Remediated here:** both sessions archived to `docs/test-results/` with a README explaining the
+  naming, the Markdown-vs-HTML fallback, and why the archive was late; UAT-1's structure normalised.
+- **My share of it, stated plainly:** the instruction is in the project CLAUDE.md, I had read that
+  file, and I did not do it — I followed the enforced gates and treated their completion as
+  completeness. That is exactly the trap the finding describes, and I walked into it.
+
+---
+
+## OBSERVATION-021 — A pattern in my own work: "fixed" repeatedly meant "edited", not "verified" (PROJECT finding)
+
+- **When/where:** three times across F7a and F7b/UAT-3, 2026-08-04/05.
+- **The pattern.** Three separate times I applied a fix, saw the suite go green, and reported the
+  finding as resolved — and each time a later independent check proved the fix was incomplete:
+  1. **The `onTick` signed-overflow (F7a MED-4).** I clamped the *direction* of the clock
+     comparison. UBSan still fired: `INT64_MAX - INT64_MIN` overflows regardless of direction. Only
+     the sanitizer run caught it; the tests were green either way.
+  2. **The privacy blackout (F7b H3).** I gated `refresh()` on the mode and called it fixed. UAT-3
+     proved the *raster* path (`onSlideReady → showSlide`) was never gated, so the pre-render worker
+     painted the Confidential deck back onto the blanked projector 1-3 s later — measured at 56.2%
+     of the projector lit while the controller still said `Holding`. The control I "fixed" did not
+     work in its single most likely real use.
+  3. **Bounded shutdown (F7b H2).** I added `terminate()` after a timeout. UAT-3 showed the path
+     still reached a `qFatal` abort (and that `terminate()` can strand allocator locks).
+- **What is common to all three:** I verified the change against the *tests I already had*, which by
+  construction did not cover the thing that was broken — and in cases 2 and 3 the untested area was
+  the same one the audit had just told me was untested (`AppShell`). Green tests after a fix say
+  "nothing I already checked regressed", not "the defect is gone".
+- **The rule this earns, applied from now on:** a fix is not done until it is verified by the
+  *same instrument that found it* — re-run the original reproduction, not the suite. Where the
+  finder was a sanitizer, re-run the sanitizer; where it was a pixel probe, re-check the pixels;
+  where it was an adversarial agent, hand the fix back for re-test. This is now recorded in the F7b
+  audit doc too.
+- **Not a framework finding.** The framework's per-feature audit + UAT cadence is exactly what
+  caught all three. The gap was mine, and the framework's own instrument found it each time —
+  which is a point in the framework's favour and belongs in the report that way.

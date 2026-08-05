@@ -29,6 +29,16 @@ QRectF fitRect(const QSize& imageDevicePx, const QSize& widgetLogical, qreal wid
 // (a 6K screen at dpr 2 would otherwise ask for a 12032x6768 raster per slide).
 QSize renderTargetPolicy(const std::vector<ScreenInfo>& screens);
 
+// The raster size to render at, given the screens AND the deck's own aspect ratio.
+//
+// Prefer this over renderTargetPolicy(). SlideRenderer letterboxes the slide INSIDE
+// whatever target it is given, baking black bars into the raster; the surface then
+// letterboxes that raster again against the window. If the target aspect does not
+// match the deck's, the slide is boxed TWICE and shrinks. Choosing the presentation
+// screen (the external display when present) and fitting the DECK's aspect into it
+// makes the first letterbox a no-op, so exactly one letterbox happens, at paint time.
+QSize renderTargetForDeck(const std::vector<ScreenInfo>& screens, const QSize& deckAspect);
+
 inline constexpr int kFallbackTargetW = 1280;
 inline constexpr int kFallbackTargetH = 720;
 inline constexpr int kMaxTargetW = 3840;

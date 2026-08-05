@@ -78,8 +78,15 @@ void AppShell::teardownWorkers() {
         // waiting forever would hang the app on exit. If the worker will not stop,
         // terminate rather than destroy a running QThread (which is a qFatal abort).
         if (!t->wait(5000)) {
-            t->terminate();
-            t->wait(1000);
+            // A single legal slide can render for minutes (BUG-21), so the wait can
+            // genuinely expire. terminate() is unsafe (it can strand allocator locks)
+            // and destroying a running QThread is a qFatal ABORT — which is what the
+            // previous H2 fix still risked (UAT-3 SEV-2 #3). Deliberately DETACH and
+            // leak it instead: the worker owns nothing the app needs back, and a
+            // leaked thread at shutdown is strictly better than aborting in front of
+            // a room. Its parent is cleared so ~QObject cannot destroy it either.
+            t->setParent(nullptr);
+            continue;
         }
         t->deleteLater();
     }
@@ -111,9 +118,10 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
         // dialog can land on the projector — Bible section 8 / TM-013 (audit C3/C4).
         QMessageBox::warning(nullptr, QStringLiteral("Could not open the deck"),
                              describeLoadError(outcome.error.kind));
-        if (start_) {
-            start_->show(); // never leave the presenter with no window (audit C3)
-        }
+        // showStart() CREATES the view if it does not exist. The old `if (start_)`
+        // was dead on the CLI launch path (start_ is null there), so a failed open
+        // left no window at all and the app silently exited (UAT-3 SEV-2 #5).
+        showStart();
         return;
     }
     deck_ = outcome.presentation;
@@ -124,9 +132,7 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
         // closed at all — an unquittable black rectangle on the projector (audit C2).
         QMessageBox::warning(nullptr, QStringLiteral("Could not open the deck"),
                              QStringLiteral("That file contains no slides."));
-        if (start_) {
-            start_->show();
-        }
+        showStart();
         return;
     }
     controller_.setDeck(count);
@@ -168,7 +174,18 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
     renderThread_ = new QThread(this);
     renderWorker_ = new PreRenderWorker();
     renderWorker_->setDeck(deck_);
-    renderWorker_->setTarget(renderTargetPolicy(currentScreens()));
+    // Render at the DECK's aspect ratio, sized for the screen we will present on.
+    // Previously the target was the largest screen by DEVICE pixels — on a Retina
+    // laptop plus a 1080p projector that is the LAPTOP (3024x1964, aspect 1.54), and
+    // SlideRenderer bakes letterbox bars INTO the raster at the target aspect. The
+    // surface then letterboxed that raster AGAIN against the 16:9 window, so the deck
+    // covered only 75% of the projector with 13% smaller text, for the whole talk —
+    // and it is invisible unless a second screen of a different aspect is attached
+    // (UAT-3 SEV-2 #2). Matching the raster aspect to the deck removes the first
+    // letterbox entirely.
+    renderWorker_->setTarget(
+        renderTargetForDeck(currentScreens(), QSize(static_cast<int>(deck_->slideWidth),
+                                                    static_cast<int>(deck_->slideHeight))));
     // The renderer needs the deck's slide dimensions (EMU) to scale correctly; they
     // are captured BY VALUE so the lambda stays valid on the worker thread.
     const Emu slideW = deck_->slideWidth;
@@ -215,7 +232,11 @@ void AppShell::onSlideReady(int index, QImage image, bool /*isPlaceholder*/) {
         rasters_[static_cast<std::size_t>(index)] = image;
     }
     if (index == controller_.currentIndex0Based()) {
-        showSlide(controller_.currentSlide1Based());
+        // refresh(), NOT showSlide(): refresh is the only mode-aware path. Calling
+        // showSlide here painted the deck straight back onto a BLANKED projector
+        // 1-3 s after Esc, and wiped the quit prompt (UAT-3 SEV-1). The previous H3
+        // fix gated refresh() but left this raster path ungated — an incomplete fix.
+        refresh();
     }
 }
 
@@ -269,6 +290,11 @@ void AppShell::moveWindowToNextScreen() {
 
 void AppShell::showSlide(int index1Based) {
     if (!window_ || index1Based < 1) {
+        return;
+    }
+    // Belt and braces: this is the single writer of the surface image, so it must
+    // never paint while the deck is deliberately hidden (UAT-3 SEV-1).
+    if (controller_.mode() != Mode::Presenting) {
         return;
     }
     const std::size_t i = static_cast<std::size_t>(index1Based - 1);

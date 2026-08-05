@@ -423,15 +423,23 @@ QHash<QString, RectEmu> parseLayoutPlaceholders(const QByteArray& xml) {
 }
 
 // Forward declaration for group recursion (BUG-3).
-void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
-                      const QHash<QString, QString>& slideRels, const QString& slideDir,
-                      const LoaderLimits& lim, const ThemeColors& theme,
-                      const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master);
+// Nested <p:grpSp> recurses. A hostile deck can nest groups thousands deep, and a
+// 5.7 KB file was measured killing the load worker with a stack overflow — no dialog,
+// no stderr, instant process death (UAT-3 SEV-2). Depth is therefore capped; content
+// below the cap is dropped with a warning rather than followed.
+constexpr int kMaxGroupDepth = 32;
 
 void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
                       const QHash<QString, QString>& slideRels, const QString& slideDir,
                       const LoaderLimits& lim, const ThemeColors& theme,
-                      const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master) {
+                      const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master,
+                      int depth = 0);
+
+void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
+                      const QHash<QString, QString>& slideRels, const QString& slideDir,
+                      const LoaderLimits& lim, const ThemeColors& theme,
+                      const QHash<QString, RectEmu>& layoutPh, const MasterTextStyles& master,
+                      int depth) {
     for (pugi::xml_node node = tree.first_child(); node; node = node.next_sibling()) {
         if (static_cast<int>(slide.elements.size()) >= lim.maxShapesPerSlide) {
             LoadWarning w;
@@ -472,7 +480,17 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             // Recurse into the group so its text/images render instead of a
             // placeholder (BUG-3). Group child-coordinate transforms are not
             // applied (MVP approximation) — positions are read from child xfrms.
-            processShapeTree(node, slide, index, slideRels, slideDir, lim, theme, layoutPh, master);
+            if (depth >= kMaxGroupDepth) {
+                LoadWarning w;
+                w.slideIndex = index;
+                w.elementType = QStringLiteral("grpSp");
+                w.detail = QStringLiteral("group nesting exceeds the depth cap; content below "
+                                          "this level was not loaded");
+                slide.warnings.push_back(w);
+                continue;
+            }
+            processShapeTree(node, slide, index, slideRels, slideDir, lim, theme, layoutPh, master,
+                             depth + 1);
         } else if (name == QLatin1String("graphicFrame") || name == QLatin1String("cxnSp")) {
             // Genuinely unsupported (table/chart/SmartArt) -> warning + visible
             // placeholder box.

@@ -86,3 +86,51 @@ TEST_CASE("L: a brief re-render holds the last good slide instead of flashing bl
     CHECK(surfaceStateFor(false, true, 400, 400) == SurfaceState::RenderingSurface);
     CHECK(surfaceStateFor(false, false, 0, 400) == SurfaceState::RenderingSurface);
 }
+
+// ===========================================================================
+// UAT-3 REMEDIATION — renderTargetForDeck. The old policy picked the largest
+// screen by DEVICE pixels, which on a Retina laptop + 1080p projector is the
+// LAPTOP (3024x1964, aspect 1.54). SlideRenderer bakes letterbox bars into the
+// raster at the target aspect, and the surface then boxes that raster AGAIN
+// against the 16:9 window — so the deck covered 75% of the projector with 13%
+// smaller text, for the whole talk, invisibly in rehearsal.
+// ===========================================================================
+
+TEST_CASE("UAT3: the render target matches the DECK's aspect, not the screen's") {
+    const QSize deck16x9(9144000, 5143500); // EMU, 16:9
+    const std::vector<ScreenInfo> macbookPlusProjector{
+        ScreenInfo{QSize(1512, 982), 2.0, true, QStringLiteral("laptop")},
+        ScreenInfo{QSize(1920, 1080), 1.0, false, QStringLiteral("projector")}};
+    const QSize t = renderTargetForDeck(macbookPlusProjector, deck16x9);
+    const qreal deckAspect = 16.0 / 9.0;
+    const qreal got = static_cast<qreal>(t.width()) / t.height();
+    CHECK(qAbs(got - deckAspect) < 0.01); // no bars are baked in
+
+    // and it is sized for the PROJECTOR (the non-primary screen), not the laptop
+    CHECK(t.width() <= 1920);
+    CHECK(t.width() >= 1900);
+}
+
+TEST_CASE("UAT3: a deck-aspect raster produces ONE letterbox, covering the screen") {
+    const QSize deck16x9(9144000, 5143500);
+    const std::vector<ScreenInfo> screens{
+        ScreenInfo{QSize(1512, 982), 2.0, true, QStringLiteral("laptop")},
+        ScreenInfo{QSize(1920, 1080), 1.0, false, QStringLiteral("projector")}};
+    const QSize target = renderTargetForDeck(screens, deck16x9);
+    // painting that raster into the 1920x1080 projector window must FILL it
+    const QRectF r = fitRect(target, QSize(1920, 1080), 1.0);
+    CHECK(qAbs(r.width() - 1920.0) < 2.0);
+    CHECK(qAbs(r.height() - 1080.0) < 2.0);
+    CHECK(r.x() < 1.0); // no side bars
+    CHECK(r.y() < 1.0); // no top/bottom bars
+}
+
+TEST_CASE("UAT3: renderTargetForDeck degrades safely") {
+    CHECK(renderTargetForDeck({}, QSize(16, 9)) == QSize(kFallbackTargetW, kFallbackTargetH));
+    const std::vector<ScreenInfo> one{ScreenInfo{QSize(1920, 1080), 1.0, true, {}}};
+    CHECK(renderTargetForDeck(one, QSize(0, 0)) == renderTargetPolicy(one));
+    const QSize huge =
+        renderTargetForDeck({ScreenInfo{QSize(6016, 3384), 2.0, false, {}}}, QSize(16, 9));
+    CHECK(huge.width() <= kMaxTargetW);
+    CHECK(huge.height() <= kMaxTargetH);
+}

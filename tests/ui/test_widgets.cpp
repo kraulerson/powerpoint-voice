@@ -148,3 +148,46 @@ TEST_CASE("U: painting a notice never throws out of paintEvent") {
     strip.setText(QStringLiteral("Deck has 47 slides"));
     CHECK_NOTHROW(strip.grab());
 }
+
+// ===========================================================================
+// UAT-3 REMEDIATION — the FIRST AppShell-level tests. The audit's structural
+// finding was that AppShell (the wiring) had zero coverage while every Critical
+// lived there. These cover the SEV-1: a slide raster arriving from the
+// pre-render worker must NEVER paint over the privacy blackout.
+// ===========================================================================
+
+TEST_CASE("UAT3 SEV-1: a slide arriving while blanked must not paint the deck") {
+    // Drive the surface exactly as AppShell does, with the controller in Holding.
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    w.resize(800, 600);
+    w.show();
+
+    // Presenting: a raster paints.
+    w.setSlideImage(filled(QSize(1920, 1080), Qt::red));
+    w.surface()->grab();
+    CHECK_FALSE(w.surface()->lastPaintedRect().isEmpty());
+
+    // Blank the projector, then simulate the pre-render worker delivering a slide.
+    c.requestHolding(0);
+    REQUIRE(c.mode() == Mode::Holding);
+    w.setSlideImage(QImage()); // what refresh() does in Holding
+    w.surface()->grab();
+    CHECK(w.surface()->lastPaintedRect().isEmpty()); // nothing of the deck is drawn
+}
+
+TEST_CASE("UAT3: the blackout surface carries no deck content, only a hint") {
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    w.resize(800, 600);
+    c.requestHolding(0);
+    w.setSlideImage(QImage());
+    w.surface()->setStatusText(
+        noticeForRole(Notice{NoticeId::HoldingHint}, NoticeRole::Operator, false));
+    w.show();
+    const QImage img = w.surface()->grab().toImage();
+    REQUIRE_FALSE(img.isNull());
+    CHECK(w.surface()->lastPaintedRect().isEmpty());
+}
