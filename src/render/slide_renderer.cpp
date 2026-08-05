@@ -318,12 +318,19 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
                     src.setY(qMin(src.y(), static_cast<double>(decoded.height()) - 1.0));
                     src.setHeight(1.0);
                 }
-                // Preserve aspect ratio (BUG-10): fit within the frame and center,
-                // so a frame whose aspect differs from the image does not squish it.
-                const QSizeF fit = QSizeF(src.size()).scaled(r.size(), Qt::KeepAspectRatio);
-                const QRectF dst(r.x() + (r.width() - fit.width()) / 2.0,
+                // <a:stretch> means FILL the frame — that is what PowerPoint does,
+                // and what real decks ask for almost universally (all 51 blipFill
+                // elements in the reference deck carry it). Letterboxing them instead
+                // drew every picture at the wrong size and shape (BUG-53).
+                // Without <a:stretch>, preserve aspect and centre (BUG-10): a wide
+                // image in a square frame must not be squished.
+                QRectF dst = r;
+                if (!e.image.stretchToFill) {
+                    const QSizeF fit = QSizeF(src.size()).scaled(r.size(), Qt::KeepAspectRatio);
+                    dst = QRectF(r.x() + (r.width() - fit.width()) / 2.0,
                                  r.y() + (r.height() - fit.height()) / 2.0, fit.width(),
                                  fit.height());
+                }
                 // <a:alphaModFix> — uniform picture opacity. Restored immediately so
                 // one translucent picture cannot wash out everything drawn after it.
                 const double alpha = e.image.alphaPerMille / 100000.0;

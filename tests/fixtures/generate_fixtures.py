@@ -988,6 +988,33 @@ def build_good_pic_edges():
     write_zip("good_pic_edges.pptx", parts)
 
 
+def build_good_stretch():
+    # BUG-53: the SAME 4:1 image in the SAME square frame, twice — once with
+    # <a:stretch> and once without. They must render DIFFERENTLY. Every blipFill in
+    # the reference deck carries <a:stretch>, and we were letterboxing all of them.
+    stretched = (
+        '<p:pic><p:blipFill><a:blip r:embed="rId1"/>'
+        '<a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+        '<p:spPr><a:xfrm><a:off x="1000000" y="1000000"/>'
+        '<a:ext cx="4000000" cy="4000000"/></a:xfrm></p:spPr></p:pic>'
+    )
+    plain = (
+        '<p:pic><p:blipFill><a:blip r:embed="rId1"/></p:blipFill>'
+        '<p:spPr><a:xfrm><a:off x="7000000" y="1000000"/>'
+        '<a:ext cx="4000000" cy="4000000"/></a:xfrm></p:spPr></p:pic>'
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([stretched, plain]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": wide_png(),
+    }
+    write_zip("good_stretch.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -1168,6 +1195,7 @@ if __name__ == "__main__":
     build_good_srcrect_edge()
     build_good_srcrect_ub()
     build_good_pic_edges()
+    build_good_stretch()
     build_good_pic_placeholder()
     build_good_overflow()
     build_good_manypara()

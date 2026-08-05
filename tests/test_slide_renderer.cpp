@@ -522,3 +522,40 @@ TEST_CASE("BUG-37 review2: a sub-pixel crop draws, and opacity does not leak") {
         CHECK(sawBar);
     }
 }
+
+// BUG-53 — <a:stretch> means FILL the frame; without it, preserve aspect.
+//
+// Every one of the 51 blipFill elements in the reference deck carries <a:stretch>,
+// and we were letterboxing all of them — so the crop could be exactly right and the
+// picture still the wrong size and shape.
+TEST_CASE("BUG-53: a stretched picture fills its frame; an unstretched one does not") {
+    LoadResult r = DeckLoader::load(fixture("good_stretch.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides[0].elements.size() == 2);
+    CHECK(r.presentation.slides[0].elements[0].image.stretchToFill);
+    CHECK_FALSE(r.presentation.slides[0].elements[1].image.stretchToFill);
+
+    const QImage img = SlideRenderer::render(r.presentation, 0, 1200, 600);
+    REQUIRE_FALSE(img.isNull());
+    const double slideW = static_cast<double>(r.presentation.slideWidth);
+    const double slideH = static_cast<double>(r.presentation.slideHeight);
+    const double scale = std::min(img.width() / slideW, img.height() / slideH);
+    const double offX = (img.width() - slideW * scale) / 2.0;
+    const double offY = (img.height() - slideH * scale) / 2.0;
+    auto at = [&](double ex, double ey) {
+        return img.pixelColor(static_cast<int>(offX + ex * scale),
+                              static_cast<int>(offY + ey * scale));
+    };
+    auto isRed = [](const QColor& c) { return c.red() > 150 && c.green() < 90 && c.blue() < 90; };
+
+    // Both frames are square (4e6 EMU) and hold the same 4:1 image. Sample near the
+    // TOP of each — where an aspect-preserved draw leaves background and a stretched
+    // draw does not.
+    SUBCASE("with <a:stretch> the frame is filled to its top edge") {
+        CHECK(isRed(at(3000000, 1300000)));
+    }
+    SUBCASE("without <a:stretch> the aspect is preserved and the top is background") {
+        CHECK_FALSE(isRed(at(9000000, 1300000)));
+        CHECK(isRed(at(9000000, 3000000))); // ...but the image is there, centred
+    }
+}
