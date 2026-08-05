@@ -7,6 +7,8 @@ add_executable(pptv_tests
   test_audio_format.cpp
   test_audio_capture.cpp
   test_vosk_recognizer.cpp
+  test_vosk_engine.cpp
+  test_voice_pipeline.cpp
   test_deck_loader.cpp
   test_slide_renderer.cpp
   test_number_parser.cpp

@@ -7,6 +7,8 @@
 #include <QThread>
 #include <QTimer>
 
+#include "audio/miniaudio_capture.hpp"
+#include "command/vosk_recognizer.hpp"
 #include "loader/deck_loader.hpp"
 #include "present/display_geometry.hpp"
 #include "render/slide_renderer.hpp"
@@ -65,6 +67,50 @@ void AppShell::showStart() {
     start_->show();
     start_->raise();
     start_->activateWindow();
+}
+
+QString AppShell::armVoice() {
+    // Order matters: validate the model and grammar BEFORE opening the microphone,
+    // so a model that cannot constrain never causes a permission prompt for a
+    // capability we are about to refuse to use.
+    const RecognizerSetup setup = prepareRecognizer(QStringLiteral(PPTV_VOSK_MODEL_DIR));
+    if (setup.error != RecognizerInitError::None) {
+        return QString::fromUtf8(describeRecognizerInitError(setup.error));
+    }
+    engine_ = std::make_unique<VoskEngine>();
+    const RecognizerInitError err = engine_->start(setup);
+    if (err != RecognizerInitError::None) {
+        engine_.reset();
+        return QString::fromUtf8(describeRecognizerInitError(err));
+    }
+
+    // The gate the whole command layer was built around: it decides whether a heard
+    // phrase becomes a command, and it is the single owner of Paused.
+    voiceGate_ = std::make_unique<RecognizerController>(
+        [this](Command c) { applyResult(controller_.dispatch(c, CommandSource::Voice, false)); });
+
+    voice_ = std::make_unique<VoicePipeline>(this);
+    voice_->setCapture(makeMiniaudioCapture());
+    voice_->setDecoder([this](const std::int16_t* s, std::size_t n) {
+        return engine_ ? engine_->feed(s, n) : QString();
+    });
+    // Heard text crosses to the GUI thread here and goes STRAIGHT into the gate.
+    // It is never stored, never logged, and never rendered (Bible section 8,
+    // TM-012/013) — the F5 transcript overlay is a separate, deliberate decision.
+    connect(voice_.get(), &VoicePipeline::phraseHeard, this, [this](const QString& phrase) {
+        if (voiceGate_) {
+            voiceGate_->onPhrase(phrase);
+        }
+    });
+
+    const CaptureError cerr = voice_->start();
+    if (cerr != CaptureError::None) {
+        voice_.reset();
+        engine_.reset();
+        voiceGate_.reset();
+        return QString::fromUtf8(describeCaptureError(cerr));
+    }
+    return QString();
 }
 
 void AppShell::browseForDeck() {
@@ -263,6 +309,14 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
         [this]() {
             if (renderThread_ && !renderThread_->isRunning()) {
                 renderThread_->start();
+            }
+            // Arm voice AFTER the window exists and rendering is under way, so the
+            // microphone permission prompt cannot land on a bare screen and so a
+            // voice failure can never delay the deck appearing. A failure is
+            // reported and ignored: the keyboard drives everything regardless.
+            const QString why = armVoice();
+            if (!why.isEmpty()) {
+                voiceUnavailableReason_ = why;
             }
         },
         Qt::QueuedConnection);

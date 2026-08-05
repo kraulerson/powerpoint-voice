@@ -19,6 +19,22 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Added
+- **F8d — voice decode. The application now listens and acts.** Microphone → 16 kHz mono →
+  grammar-constrained Vosk → the recognizer gate → the presentation controller. The decoder is
+  created with `vosk_recognizer_new_grm` against a dynamic-graph model, so it is *incapable* of
+  emitting anything but the five commands.
+
+### Security
+- **BUG-65 closed.** Vosk silently drops grammar words the model does not know, quietly widening
+  what can be recognised. Every grammar word is now verified present in the model's vocabulary
+  before the recogniser is created; any unknown word leaves voice off.
+- **Vosk's stderr logging is silenced before any model is loaded** — it prints decoder internals
+  including heard words, which on this project is a disclosure channel (TM-012/013).
+- Recognised text is never stored, logged or rendered. It passes from the decoder into the gate and
+  nowhere else; only closed-vocabulary notice ids reach an operator or audience surface.
+
+
 ### Security
 - **F8c — voice will not run unless the grammar can actually be enforced.** The safety property is
   that the decoder is *incapable* of producing anything but the five commands, not that it prefers

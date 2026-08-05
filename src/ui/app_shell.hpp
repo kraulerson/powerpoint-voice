@@ -5,6 +5,9 @@
 #include <QPointer>
 #include <QString>
 #include <memory>
+
+#include "audio/voice_pipeline.hpp"
+#include "command/recognizer_controller.hpp"
 #include <vector>
 
 #include <QImage>
@@ -48,6 +51,10 @@ class AppShell : public QObject {
     // Asks the user for a deck, then opens it. Separate from openDeck so the load
     // path stays testable without a modal dialog.
     void browseForDeck();
+    // Arms voice if it can be armed safely. Returns the reason it could not, and
+    // NEVER prevents the presentation from running — the keyboard is the guaranteed
+    // control path (F8b audit F8b-6, F8c audit F8c-4).
+    QString armVoice();
 
   private slots:
     void onDeckLoaded(DeckLoadOutcome outcome);
@@ -77,7 +84,18 @@ class AppShell : public QObject {
     QPointer<DeckLoadWorker> loadWorker_;
     QPointer<QThread> renderThread_;
     QPointer<PreRenderWorker> renderWorker_;
+    // Voice. Owned here because it must die with the shell, and null until armed.
+    std::unique_ptr<VoicePipeline> voice_;
+    std::unique_ptr<VoskEngine> engine_;
+    std::unique_ptr<RecognizerController> voiceGate_;
+    // Why voice is off, if it is. Shown to the OPERATOR; never to the audience.
+    QString voiceUnavailableReason_;
 
+  public:
+    QString voiceUnavailableReason() const { return voiceUnavailableReason_; }
+    bool voiceIsRunning() const { return voice_ && voice_->isRunning(); }
+
+  private:
     PresentationPtr deck_;
     std::vector<QImage> rasters_;
     QTimer* tick_ = nullptr; // drives the quit-prompt auto-dismiss (audit H4)
