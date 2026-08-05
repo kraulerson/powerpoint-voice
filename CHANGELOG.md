@@ -42,6 +42,12 @@ for handoff clarity. Categories are ordered by impact severity.
   and matches nothing. The hint is now platform-correct ("Cmd+Shift+Q" on macOS), and a test asserts
   the hint names the chord the translator actually accepts.
 
+### Changed
+- **Cmd+Q now quits the presentation immediately, with no confirmation** (Karl's ruling, 2026-08-05:
+  "Cmd+q is a deliberate key press. Leave it to quit immediately."). macOS routes Cmd+Q through the
+  menu to the application-quit path, so it is now obeyed like any other application quit. The
+  Esc → Esc → chord two-step remains the in-app path.
+
 ### Added
 - `src/ui/quit_policy.{hpp,cpp}` — the single place that decides who may end a presentation.
 - **GROUP Q** tests: an application quit is obeyed from every mode including the privacy blackout; an
