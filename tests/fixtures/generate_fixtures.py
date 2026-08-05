@@ -838,6 +838,46 @@ def build_good_srcrect():
     write_zip("good_srcrect.pptx", parts)
 
 
+def build_good_pic_placeholder():
+    # BUG-41: a <p:pic> dropped into a layout's PICTURE placeholder carries a
+    # <p:ph type="pic"> and NO <p:spPr> of its own — PowerPoint writes it exactly
+    # this way. Its geometry lives in the layout. Without inheritance it is 0x0 and
+    # the renderer skips it, silently losing the picture.
+    pic = (
+        '<p:pic><p:nvPicPr><p:cNvPr id="7" name="Picture Placeholder 6"/><p:cNvPicPr/>'
+        '<p:nvPr><p:ph type="pic" sz="quarter" idx="11"/></p:nvPr></p:nvPicPr>'
+        '<p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+        "</p:pic>"  # NOTE: no <p:spPr> at all
+    )
+    layout_pic = (
+        '<p:pic><p:nvPicPr><p:cNvPr id="3" name="Picture Placeholder 2"/><p:cNvPicPr/>'
+        '<p:nvPr><p:ph type="pic" sz="quarter" idx="11"/></p:nvPr></p:nvPicPr>'
+        "<p:blipFill/>"
+        '<p:spPr><a:xfrm><a:off x="8017727" y="0"/>'
+        '<a:ext cx="4174273" cy="6858000"/></a:xfrm></p:spPr></p:pic>'
+    )
+    layout = (
+        XML_DECL
+        + f'<p:sldLayout xmlns:a="{A}" xmlns:r="{R}" xmlns:p="{P}">'
+        + f"<p:cSld><p:spTree>{layout_pic}</p:spTree></p:cSld></p:sldLayout>"
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([pic]),
+        "ppt/slides/_rels/slide1.xml.rels": XML_DECL
+        + f'<Relationships xmlns="{PR}">'
+        + f'<Relationship Id="rId1" Type="{R}/image" Target="../media/image1.png"/>'
+        + f'<Relationship Id="rId2" Type="{R}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
+        + "</Relationships>",
+        "ppt/slideLayouts/slideLayout1.xml": layout,
+        "ppt/media/image1.png": tiny_png(),
+    }
+    write_zip("good_pic_placeholder.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -1015,6 +1055,7 @@ if __name__ == "__main__":
     build_good_gif_image()
     build_good_emf_image()
     build_good_srcrect()
+    build_good_pic_placeholder()
     build_good_overflow()
     build_good_manypara()
     build_good_theme()

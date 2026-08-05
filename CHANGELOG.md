@@ -20,6 +20,14 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Fixed
+- **BUG-41 — a picture placeholder was silently dropped; slide 1's main photograph never rendered.**
+  PowerPoint writes a picture placed into a layout's picture placeholder as a `<p:pic>` carrying
+  `<p:ph type="pic" idx="11"/>` and **no `<p:spPr>`** — the layout positions it. `placeholderKey()`
+  looked for `<p:ph>` only under `<p:nvSpPr>`, which a `<p:pic>` does not have, so it matched no
+  layout entry, kept a 0x0 rect, and the renderer skipped it. No warning was produced: the picture
+  was simply absent. `<p:ph>` is now looked for under `nvSpPr`, `nvPicPr`, `nvGraphicFramePr` and
+  `nvCxnSpPr`, layouts index their `<p:pic>` placeholders too, and a picture with no geometry of its
+  own adopts the layout's — the same inheritance already used for text (BUG-2) and backgrounds (BUG-32).
 - **BUG-37 — `<a:srcRect>` source cropping was ignored, so pictures were drawn whole.** Karl reported
   a slide-1 graphic sitting in a white box on the dark navy background. That picture is a JPEG, and
   JPEG cannot store transparency — the white is in the pixels. The deck's answer is to **crop it

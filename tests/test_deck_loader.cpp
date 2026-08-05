@@ -544,3 +544,30 @@ TEST_CASE("BUG-37: a picture's source crop and opacity are read from its blipFil
         CHECK(els[2].image.alphaPerMille == 50000);
     }
 }
+
+// BUG-41 — a picture placeholder inherits its geometry from the layout.
+//
+// Found on the real deck: slide 1's main photograph is a <p:pic> carrying
+// <p:ph type="pic" idx="11"/> and NO <p:spPr> — the layout positions it. We looked
+// for <p:ph> only under <p:nvSpPr>, which a picture does not have, so it matched no
+// layout placeholder, stayed 0x0, and the renderer skipped it. The picture was
+// silently absent from the slide, with no warning.
+TEST_CASE("BUG-41: a picture placeholder takes its geometry from the layout") {
+    LoadResult r = DeckLoader::load(fixture("good_pic_placeholder.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 1);
+    REQUIRE(els[0].kind == ElementKind::Image);
+
+    SUBCASE("the layout's rect is adopted, so the picture is not 0x0 and dropped") {
+        CHECK(els[0].image.rect.x == 8017727);
+        CHECK(els[0].image.rect.y == 0);
+        CHECK(els[0].image.rect.cx == 4174273);
+        CHECK(els[0].image.rect.cy == 6858000);
+    }
+
+    SUBCASE("the picture bytes still resolve") {
+        CHECK_FALSE(els[0].image.imageData.isEmpty());
+    }
+}

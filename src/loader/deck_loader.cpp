@@ -491,7 +491,19 @@ BackgroundSource partBackground(const QByteArray& xml, const ThemeColors& theme,
 
 // Placeholder key "type:idx" for matching a shape against layout geometry (BUG-2).
 QString placeholderKey(const pugi::xml_node& sp) {
-    pugi::xml_node ph = descendantLocal(childLocal(sp, "nvSpPr"), "ph");
+    // The <p:ph> lives under a DIFFERENT non-visual-properties element per shape
+    // type: <p:nvSpPr> for a shape, <p:nvPicPr> for a picture, <p:nvGraphicFramePr>
+    // for a frame. Looking only under nvSpPr meant PICTURE placeholders matched
+    // nothing, so a <p:pic> with no <p:spPr> of its own — which is exactly how
+    // PowerPoint writes a picture dropped into a layout's picture placeholder —
+    // inherited no geometry, ended up 0x0, and was silently never drawn (BUG-41).
+    pugi::xml_node ph;
+    for (const char* holder : {"nvSpPr", "nvPicPr", "nvGraphicFramePr", "nvCxnSpPr"}) {
+        ph = descendantLocal(childLocal(sp, holder), "ph");
+        if (ph) {
+            break;
+        }
+    }
     if (!ph) {
         return {};
     }
@@ -512,7 +524,8 @@ QHash<QString, RectEmu> parseLayoutPlaceholders(const QByteArray& xml) {
     }
     pugi::xml_node spTree = descendantLocal(doc.first_child(), "spTree");
     for (pugi::xml_node sp = spTree.first_child(); sp; sp = sp.next_sibling()) {
-        if (localName(sp.name()) != QLatin1String("sp")) {
+        const QString tag = localName(sp.name());
+        if (tag != QLatin1String("sp") && tag != QLatin1String("pic")) {
             continue;
         }
         const QString key = placeholderKey(sp);
@@ -575,6 +588,16 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             ShapeElement e;
             e.kind = ElementKind::Image;
             e.image.rect = parseXfrm(childLocal(node, "spPr"));
+            // A picture placeholder carries no geometry of its own; the layout
+            // positions it (BUG-41, same inheritance as text shapes in BUG-2).
+            // Without this the picture is 0x0 and the renderer skips it entirely —
+            // on the real deck that silently dropped slide 1's main photograph.
+            if (e.image.rect.cx <= 0 || e.image.rect.cy <= 0) {
+                const QString key = placeholderKey(node);
+                if (!key.isEmpty() && layoutPh.contains(key)) {
+                    e.image.rect = layoutPh.value(key);
+                }
+            }
             pugi::xml_node blip = descendantLocal(node, "blip");
             const QString rid = attrLocal(blip, "embed");
             if (!rid.isEmpty() && slideRels.contains(rid)) {
