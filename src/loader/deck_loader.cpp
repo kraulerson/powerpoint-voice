@@ -580,6 +580,24 @@ void processShapeTree(const pugi::xml_node& tree, Slide& slide, int index,
             if (!rid.isEmpty() && slideRels.contains(rid)) {
                 e.image.mediaPart = resolveTarget(slideDir, slideRels.value(rid));
             }
+            // <a:srcRect> — the part of the source the deck actually shows (BUG-37).
+            // Read from the <a:blipFill>, NOT by descendant search: a group or a
+            // nested fill elsewhere in the <p:pic> must not supply this picture's crop.
+            if (pugi::xml_node fill = childLocal(node, "blipFill")) {
+                if (pugi::xml_node sr = childLocal(fill, "srcRect")) {
+                    e.image.srcRect.leftPerMille = attrLocal(sr, "l").toInt();
+                    e.image.srcRect.topPerMille = attrLocal(sr, "t").toInt();
+                    e.image.srcRect.rightPerMille = attrLocal(sr, "r").toInt();
+                    e.image.srcRect.bottomPerMille = attrLocal(sr, "b").toInt();
+                }
+            }
+            // <a:alphaModFix amt="..."> — uniform picture opacity.
+            if (pugi::xml_node amf = descendantLocal(blip, "alphaModFix")) {
+                const QString amt = attrLocal(amf, "amt");
+                if (!amt.isEmpty()) {
+                    e.image.alphaPerMille = qBound(0, amt.toInt(), 100000);
+                }
+            }
             slide.elements.push_back(std::move(e));
         } else if (name == QLatin1String("grpSp")) {
             // Recurse into the group so its text/images render instead of a

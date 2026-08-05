@@ -186,6 +186,24 @@ void drawPlaceholderBox(QPainter& p, const QRectF& rect, const QString& label, d
     p.drawText(rect, Qt::AlignCenter, label);
 }
 
+// The sub-rectangle of a source image that <a:srcRect> selects. DrawingML gives the
+// inset from each edge in thousandths of a percent, so l="29178" discards the leftmost
+// 29.178%. Insets may be NEGATIVE, which asks for padding outside the image; there is
+// nothing to sample there, so those are clamped to the image bounds rather than
+// producing a Qt-undefined out-of-bounds source rect.
+QRectF sourceRect(const QSize& imageSize, const SrcRect& sr) {
+    const QRectF whole(0, 0, imageSize.width(), imageSize.height());
+    if (sr.isIdentity() || imageSize.isEmpty()) {
+        return whole;
+    }
+    constexpr double kFull = 100000.0;
+    const double x = imageSize.width() * (sr.leftPerMille / kFull);
+    const double y = imageSize.height() * (sr.topPerMille / kFull);
+    const double w = imageSize.width() * (1.0 - (sr.leftPerMille + sr.rightPerMille) / kFull);
+    const double h = imageSize.height() * (1.0 - (sr.topPerMille + sr.bottomPerMille) / kFull);
+    return QRectF(x, y, w, h).intersected(whole);
+}
+
 QRectF pxRect(const RectEmu& r, double scale, double offX, double offY) {
     return QRectF(offX + r.x * scale, offY + r.y * scale, r.cx * scale, r.cy * scale);
 }
@@ -261,13 +279,32 @@ QImage SlideRenderer::render(const Slide& slide, Emu slideWidthEmu, Emu slideHei
             if (decoded.isNull()) {
                 drawPlaceholderBox(p, r, QStringLiteral("missing image"), maxFontPx);
             } else if (r.width() >= 1 && r.height() >= 1) {
+                // Honour <a:srcRect> FIRST (BUG-37): the deck may show only part of
+                // the source, and everything below must reason about that part. On
+                // the real deck a picture cropped 29.178% off each side was drawn
+                // whole, so the white margins PowerPoint discards appeared as a box
+                // around the artwork on a dark slide.
+                const QRectF src = sourceRect(decoded.size(), e.image.srcRect);
+                if (src.width() < 1 || src.height() < 1) {
+                    break; // cropped to nothing
+                }
                 // Preserve aspect ratio (BUG-10): fit within the frame and center,
                 // so a frame whose aspect differs from the image does not squish it.
-                const QSizeF fit = QSizeF(decoded.size()).scaled(r.size(), Qt::KeepAspectRatio);
+                const QSizeF fit = QSizeF(src.size()).scaled(r.size(), Qt::KeepAspectRatio);
                 const QRectF dst(r.x() + (r.width() - fit.width()) / 2.0,
                                  r.y() + (r.height() - fit.height()) / 2.0, fit.width(),
                                  fit.height());
-                p.drawImage(dst, decoded);
+                // <a:alphaModFix> — uniform picture opacity. Restored immediately so
+                // one translucent picture cannot wash out everything drawn after it.
+                const double alpha = e.image.alphaPerMille / 100000.0;
+                const bool translucent = alpha < 0.999;
+                if (translucent) {
+                    p.setOpacity(alpha);
+                }
+                p.drawImage(dst, decoded, src);
+                if (translucent) {
+                    p.setOpacity(1.0);
+                }
             }
             break;
         }

@@ -510,3 +510,37 @@ TEST_CASE("BUG-32: a background we cannot paint warns instead of rendering silen
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// BUG-37 — <a:srcRect> source cropping and <a:alphaModFix> picture opacity.
+//
+// Karl's slide 1 shows artwork sitting in a white box on a dark navy background.
+// The deck crops that picture 29.178% off EACH side (l="29178" r="29178"); we drew
+// it whole, so the margins PowerPoint discards came along with it.
+// ---------------------------------------------------------------------------
+TEST_CASE("BUG-37: a picture's source crop and opacity are read from its blipFill") {
+    LoadResult r = DeckLoader::load(fixture("good_srcrect.pptx"));
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 3);
+
+    SUBCASE("srcRect insets are read in DrawingML units, per side") {
+        const SrcRect& sr = els[0].image.srcRect;
+        CHECK(sr.leftPerMille == 25000);
+        CHECK(sr.rightPerMille == 25000);
+        CHECK(sr.topPerMille == 0);
+        CHECK(sr.bottomPerMille == 0);
+        CHECK_FALSE(sr.isIdentity());
+    }
+
+    SUBCASE("a picture with no srcRect is the identity crop, not a zero-size one") {
+        CHECK(els[1].image.srcRect.isIdentity());
+    }
+
+    SUBCASE("alphaModFix is read; a picture without one is fully opaque") {
+        CHECK(els[0].image.alphaPerMille == 100000);
+        CHECK(els[1].image.alphaPerMille == 100000);
+        CHECK(els[2].image.alphaPerMille == 50000);
+    }
+}

@@ -20,6 +20,20 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Fixed
+- **BUG-37 — `<a:srcRect>` source cropping was ignored, so pictures were drawn whole.** Karl reported
+  a slide-1 graphic sitting in a white box on the dark navy background. That picture is a JPEG, and
+  JPEG cannot store transparency — the white is in the pixels. The deck's answer is to **crop it
+  away**: `l="29178" r="29178"`, 29.178% off each side. We drew all of it. Slide 9's picture is
+  cropped 31.6%/40.9% and was equally wrong. `<a:srcRect>` is now read from the `<p:blipFill>` (a
+  direct child, so a nested fill elsewhere in the `<p:pic>` cannot supply the wrong crop) and passed
+  as the source rectangle; negative insets, which ask for padding outside the image, clamp to the
+  image bounds instead of producing an out-of-bounds source rect.
+- **BUG-38 — `<a:alphaModFix>` picture opacity was ignored.** Slide 1's two EMF graphics are declared
+  at 70% opacity and rendered fully opaque. Opacity is now applied per draw and restored immediately,
+  so one translucent picture cannot wash out everything drawn after it.
+
+
+### Fixed
 - **BUG-31 — the application could not be quit by any graceful means. Second attempt; the first fix
   was insufficient.** Not the window button, not Cmd+Q, not Dock → Quit, not even Activity Monitor's
   Quit — only Force Quit (SIGKILL). Qt documents the mechanism for `QCoreApplication::quit()`: the

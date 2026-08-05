@@ -788,6 +788,56 @@ def build_good_emf_image():
     write_zip("good_emf_image.pptx", parts)
 
 
+def pic_sp_cropped(rid, x, y, cx, cy, l=0, t=0, r=0, b=0, alpha=None):
+    """A <p:pic> carrying <a:srcRect> crop insets and optional <a:alphaModFix>."""
+    amf = f'<a:alphaModFix amt="{alpha}"/>' if alpha is not None else ""
+    src = f'<a:srcRect l="{l}" t="{t}" r="{r}" b="{b}"/>' if (l or t or r or b) else ""
+    return (
+        "<p:pic><p:blipFill>"
+        f'<a:blip r:embed="{rid}">{amf}</a:blip>{src}<a:stretch><a:fillRect/></a:stretch>'
+        "</p:blipFill>"
+        f'<p:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm></p:spPr>'
+        "</p:pic>"
+    )
+
+
+def stripe_png():
+    """A 4x1 PNG: white, white, RED, white. Cropping the outer 25% each side leaves
+    the middle 2 px (white+RED); the point is that the WHITE margins disappear."""
+    import struct, zlib
+    def chunk(tag, data):
+        return (struct.pack(">I", len(data)) + tag + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+    px = [(255, 255, 255), (255, 255, 255), (255, 0, 0), (255, 255, 255)]
+    raw = b"\x00" + b"".join(bytes(c) for c in px)
+    return (b"\x89PNG\r\n\x1a\x0a".replace(b"\x0a", b"\n")
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", 4, 1, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def build_good_srcrect():
+    # BUG-37: <a:srcRect> selects the part of the source the deck actually shows.
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        # Three pictures of the SAME 4x1 source (white, white, RED, white):
+        #   [0] cropped 25% off each side, opaque  -> shows 2 px: white, RED (50% red)
+        #   [1] uncropped, opaque                  -> shows 4 px (25% red)
+        #   [2] uncropped, 50% opacity             -> red must composite to pink
+        # [0] vs [1] differ ONLY by the crop, so the assertion cannot pass by accident.
+        "ppt/slides/slide1.xml": slide_xml([
+            pic_sp_cropped("rId1", 0, 0, 6000000, 3000000, l=25000, r=25000),
+            pic_sp_cropped("rId1", 6000000, 0, 6000000, 3000000),
+            pic_sp_cropped("rId1", 0, 3500000, 6000000, 3000000, alpha=50000),
+        ]),
+        "ppt/slides/_rels/slide1.xml.rels": slide_rels(image_target="../media/image1.png"),
+        "ppt/media/image1.png": stripe_png(),
+    }
+    write_zip("good_srcrect.pptx", parts)
+
+
 def build_good_overflow():
     # An unsupported element positioned partly OUTSIDE the slide (negative off) —
     # without a clip rect its placeholder box would bleed into the letterbox (R4).
@@ -964,6 +1014,7 @@ if __name__ == "__main__":
     build_good_hugefont()
     build_good_gif_image()
     build_good_emf_image()
+    build_good_srcrect()
     build_good_overflow()
     build_good_manypara()
     build_good_theme()
