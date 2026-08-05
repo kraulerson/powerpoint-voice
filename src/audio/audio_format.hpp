@@ -45,6 +45,11 @@ struct AudioFormat {
     }
 };
 
+// How many int16 samples a buffer of `frameCount` frames in this format occupies.
+// Returns 0 for an invalid format or an overflowing product, so a caller that checks
+// the result can never be handed a size it should trust.
+std::size_t sampleCountFor(std::size_t frameCount, const AudioFormat& fmt);
+
 // Average the interleaved channels down to one. A microphone ARRAY presented as
 // multiple channels must be mixed, not have one channel picked: on a MacBook Pro
 // the elements are not equivalent, and taking channel 0 alone throws away most of
@@ -61,7 +66,17 @@ std::vector<std::int16_t> resampleMono(const std::vector<std::int16_t>& in, int 
 
 // The whole conversion: whatever the device gave us -> 16 kHz mono. Returns empty
 // for an invalid format or empty input rather than guessing.
+// The whole conversion: whatever the device gave us -> 16 kHz mono.
+//
+// `sampleCount` is the number of int16 samples ACTUALLY AVAILABLE at `interleaved`,
+// and it is not optional. The earlier signature took a pointer and a frame count and
+// trusted them, which meant a device that changed its channel count or sample rate
+// mid-stream — both events this module's own audit predicts — produced a HEAP
+// OVER-READ, because the format used to compute the read length no longer described
+// the buffer that was handed over (audit finding BUG-56). The read length is now
+// checked against what the caller says it has, and a mismatch returns nothing.
 std::vector<std::int16_t> toRecognizerFormat(const std::int16_t* interleaved,
-                                             std::size_t frameCount, const AudioFormat& in);
+                                             std::size_t sampleCount, std::size_t frameCount,
+                                             const AudioFormat& in);
 
 } // namespace pptv

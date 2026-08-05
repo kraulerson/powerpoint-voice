@@ -2,8 +2,22 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <limits>
 
 namespace pptv {
+
+std::size_t sampleCountFor(std::size_t frameCount, const AudioFormat& fmt) {
+    if (!fmt.isValid() || frameCount == 0) {
+        return 0;
+    }
+    const auto ch = static_cast<std::size_t>(fmt.channels);
+    // Reject the multiply if it would wrap. frameCount comes from a device callback
+    // and channels from the device's own description; neither is ours to trust.
+    if (frameCount > std::numeric_limits<std::size_t>::max() / ch) {
+        return 0;
+    }
+    return frameCount * ch;
+}
 
 std::vector<std::int16_t> downmixToMono(const std::int16_t* interleaved, std::size_t frameCount,
                                         int channels) {
@@ -64,8 +78,16 @@ std::vector<std::int16_t> resampleMono(const std::vector<std::int16_t>& in, int 
 }
 
 std::vector<std::int16_t> toRecognizerFormat(const std::int16_t* interleaved,
-                                             std::size_t frameCount, const AudioFormat& in) {
+                                             std::size_t sampleCount, std::size_t frameCount,
+                                             const AudioFormat& in) {
     if (interleaved == nullptr || frameCount == 0 || !in.isValid()) {
+        return {};
+    }
+    // The buffer must actually hold what the format says it holds. If the device
+    // changed shape between describing itself and delivering, this is where it is
+    // caught — the alternative is reading past the end of a real audio buffer.
+    const std::size_t needed = sampleCountFor(frameCount, in);
+    if (needed == 0 || needed > sampleCount) {
         return {};
     }
     std::vector<std::int16_t> mono =

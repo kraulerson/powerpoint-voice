@@ -55,6 +55,15 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 FetchContent_MakeAvailable(doctest)
 
 # ---------------------------------------------------------------------------
+# Vendored speech engine. Prepared (not modified) at build time — see the comment
+# in cmake/VendorVosk.cmake for why the shipped file cannot be loaded as-is.
+# ---------------------------------------------------------------------------
+if(APPLE)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VendorVosk.cmake")
+  pptv_prepare_vosk(PPTV_VOSK_LIB)
+endif()
+
+# ---------------------------------------------------------------------------
 # Library target (app logic — testable without the GUI event loop)
 # ---------------------------------------------------------------------------
 add_library(pptv_core STATIC
