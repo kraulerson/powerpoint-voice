@@ -19,6 +19,23 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Security
+- **F8c — voice will not run unless the grammar can actually be enforced.** The safety property is
+  that the decoder is *incapable* of producing anything but the five commands, not that it prefers
+  them: the audience is within earshot of the microphone (TM-002/TM-019). Vosk fails **open** here —
+  a model built with a static graph accepts a grammar and then decodes the full ~200,000-word
+  vocabulary with no error at all. Such a model is now refused and voice stays off. The vendored
+  model is asserted grammar-capable by a test, so a future model swap that loses the dynamic graph
+  fails loudly rather than silently widening what can be heard.
+- The grammar JSON is **built character by character from an allow-list** rather than interpolated:
+  malformed grammar JSON segfaults Vosk rather than returning an error, so nothing may depend on the
+  input being well formed.
+
+### Added
+- Tests asserting the grammar and the command matcher cannot drift apart: every grammar phrase must
+  be one `matchCommand()` accepts, and no word in the grammar may lie outside the five commands.
+
+
 ### Added
 - **F8b — microphone capture.** Captures from the system default input device through miniaudio →
   CoreAudio and converts whatever the device provides into the recogniser's 16 kHz mono. Bound to the

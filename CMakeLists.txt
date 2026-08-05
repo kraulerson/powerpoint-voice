@@ -77,6 +77,7 @@ add_library(pptv_core STATIC
   src/command/number_parser.cpp
   src/command/command_matcher.cpp
   src/command/recognizer_controller.cpp
+  src/command/vosk_recognizer.cpp
   src/present/notice.cpp
   src/present/presentation_controller.cpp
   src/present/display_geometry.cpp

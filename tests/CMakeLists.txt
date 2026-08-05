@@ -6,6 +6,7 @@ add_executable(pptv_tests
   test_app_info.cpp
   test_audio_format.cpp
   test_audio_capture.cpp
+  test_vosk_recognizer.cpp
   test_deck_loader.cpp
   test_slide_renderer.cpp
   test_number_parser.cpp
@@ -18,7 +19,8 @@ add_executable(pptv_tests
   test_pre_render_worker.cpp)
 target_link_libraries(pptv_tests PRIVATE pptv_core doctest::doctest Qt6::Test)
 target_compile_definitions(pptv_tests PRIVATE
-  FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+  FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+  PPTV_VOSK_MODEL_DIR="${CMAKE_BINARY_DIR}/vosk/model/vosk-model-small-en-us-0.15")
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(pptv_tests)
