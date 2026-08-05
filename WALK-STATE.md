@@ -1,6 +1,6 @@
 # WALK-STATE — powerpoint-voice full-rigor walk (resume file)
 
-**Last updated:** 2026-08-05 (session 3; PR #17 merged, PR #18 open — BUG-32 + the CORRECTED BUG-30)
+**Last updated:** 2026-08-05 (session 4; PRs #18-#24 all merged; UAT-4 agent arm running)
 **A fresh session (e.g. post-/compact) must be able to continue from THIS FILE ALONE.**
 **To resume: read this file top-to-bottom, then `git -C <project> log --oneline -5` and
 `bash scripts/process-checklist.sh --status` to confirm live state, then continue at "NEXT".**
@@ -112,53 +112,47 @@ Binding consequences for the voice work:
 
 ## 5. NEXT (in order) — resume here
 
-0. **Sync:** `git checkout main && git pull`; delete merged branches; append a
-   `WALK-UNBLOCK-AUDIT.md` row for the PR #18 merge. Run `bash scripts/check-versions.sh`.
-1. **ASK KARL TO RE-TEST THE ORIGINAL .pptx** and confirm BUG-30 (crash) and BUG-31 (unquittable)
-   are closed, and that backgrounds now appear (BUG-32). **BUG-30 is NOT self-verifiable** — it does
-   not reproduce on this machine; his run is the only instrument. Also worth his eyes: slides
-   1/2/8/10 have DARK backgrounds now, so any previously-invisible white text should appear.
-2. **F7c — the deferred hardening** (`--start-feature "F7c-render-hardening"`). Closes:
-   - **BUG-34** (new, SEV-2, the residual of BUG-30): the pre-render worker still uses Qt's font
-     database off the GUI thread, so a SPONTANEOUS theme change (dark mode at sunset, a display
-     attaching, RustDesk reconnecting) landing mid-pre-render can still race it. Fix: resolve every
-     family the deck names to an INSTALLED family once on the GUI thread and hand the renderer
-     concrete families, so the worker never enters font fallback. **This also fixes BUG-33** (slow
-     first render: ~50 families, almost none on macOS, each a full fallback search on first use).
-   - **BUG-21**: the TM-018 caps count shapes + text runs only. Add total CHARACTERS and total
-     DECLARED image pixels, completing the ratified four-cap set (TM-018.3-A).
-   - **BUG-22**: the always-on **2 GB** raster window (ratified Bible section 3 A3-1(3) / B1-A).
-   - **BUG-23**: isPlaceholder discarded; `HoldLastGood` unused; a `const` `std::move`; two
-     parentless widgets.
-   - **BUG-29**: the 19 SEV-3/4 UAT-3 findings — full detail in
-     `tests/uat/sessions/2026-08-05-session-3/submissions/uat-3-triage.md`. Highest-value: notices
-     never expire; Ctrl+Shift+F/R are consumed then dropped; typed slide numbers give no feedback;
-     the blackout hint is shown to the AUDIENCE and is factually wrong; **8 ctest entries execute
-     ZERO test cases**; libpng writes deck-derived bytes to stderr (TM-012/013).
-3. **F6 keyboard parity** — formalise the five commands + keybinding config on the shared
-   matchCommand -> PresentationController path.
-4. **UAT session 4** (fires after 2 more features). **Per ISSUE-022, do NOT mark `gate_passed`
-   until KARL's human results are in** — the checklist does not enforce this and every SEV-1 that
-   has reached a merged PR in this walk came from his arm, not the agents'.
-5. **Voice engine** — `docs/design-notes/voice-engine-design.md` holds the design AND the three
-   critics' NEEDS_CHANGES findings, which must be folded in first. Highest-value:
-   `vosk_recognizer_set_grm` is NOT exported by the 0.3.44 macOS lib (green on Ubuntu CI, fails on
-   the showtime Mac); a model without the expected layout silently degrades to a full ~200k-word
-   decoder; invalid grammar JSON SEGFAULTs; OOV grammar tokens are silently dropped; `assert()` is a
-   no-op in this forced-Release build. **Karl tests over RustDesk with NO microphone — voice work
-   needs the physical machine.**
-6. **F5 transcript overlay** + listening glyph + pre-show check (final MVP item).
-7. **Phase 2 exit -> Phase 3** (no open SEV-1/2, all MVP features, CI green), then the five-scanner
-   gate, six-reviewer eval, Karl's auditor sign-offs, dual 3->4 approval.
-8. **Phase 4** — author the C++ macOS build/sign steps in `release.yml` (ISSUE-003/010), rollback
-   test, go-live smoke test, HANDOFF.md, tag **v1.0.0**. Walk DONE.
+0. **Sync:** `git checkout main && git pull`; delete merged branches; `bash scripts/check-versions.sh`.
+   Current: **main @ cd11cf8, 224 tests green, no open SEV-1.**
+1. **UAT SESSION 4 IS OPEN** (`--start-uat 4` done, `agents_dispatched` marked). The agent arm is a
+   5-tester + 5-skeptic workflow. **Per ISSUE-022 do NOT mark `gate_passed` on the agent arm alone** —
+   every SEV-1 that reached a merged PR in this walk came from Karl, not the agents. Karl has asked
+   NOT to be handed a build until voice works, so the plan agreed: run the agent arm now, hold the
+   gate open, and fold his results in when F8c gives him something worth testing.
+2. **F8c — the Vosk recogniser.** The last piece before voice actually works. Everything around it is
+   already built and audited: `IRecognizer` + `RecognizerController` (the Active/Paused gate),
+   `matchCommand` (the closed five-command grammar), `PresentationController` (the single slide-index
+   funnel), F8a (format conversion), F8b (capture). **F8c is the join.**
+   - use `vosk_recognizer_new_grm` — VERIFIED exported on both arm64 and x86_64; `set_grm` is NOT
+     exported and must not be used
+   - the model at `build/vosk/model/vosk-model-small-en-us-0.15` carries `Gr.fst`+`HCLr.fst`, so the
+     grammar really constrains. A model with only `HCLG.fst` would degrade SILENTLY to a ~200k-word
+     decoder — the audience-triggers-your-slides failure. Assert the layout at load.
+   - invalid grammar JSON SEGFAULTS vosk; build the JSON, never interpolate
+   - `docs/design-notes/voice-engine-design.md` holds the design AND three critics' NEEDS_CHANGES
+     findings, which must be folded in first
+   - link against `build/vosk/libvosk.dylib` (the PREPARED copy — the vendored one cannot load)
+3. **F6 keyboard parity** · 4. **F5 transcript overlay + listening glyph + pre-show check**
+5. **F7c render hardening** — BUG-21/22/23/29/33/34/42/44/54/55, and **BUG-40 (SEV-2, flaky
+   worker-thread tests) which has now blocked or failed three commits.**
+6. **Phase 2 exit -> Phase 3**, then Phase 4 (release.yml still invalid for C++ — ISSUE-003/010).
 
-### Standing rule earned this session (OBSERVATION-023)
-**Do not record a root cause you have not reproduced or read from an instrument.** Say "hypothesis"
-until then, and say so to Karl too. Look for the artefact FIRST — a macOS crash writes a full
-backtrace to `~/Library/Logs/DiagnosticReports/`, and reading it took two minutes after a full cycle
-of theorising. **A regression test that passes with the fix reverted is a finding, not an
-inconvenience** — it is the cheapest disproof of a diagnosis available, and it is what caught this.
+### The two open risks to the talk
+- **The projector path has never been verified on real hardware** (section 2c). Highest talk-risk
+  reduction available. Must be in the one build handed over after voice lands.
+- **Voice cannot be verified here at all** — no microphone. Karl's MacBook Pro is the only instrument.
+
+### Rules earned this session — keep applying
+- **Do not record a root cause you have not reproduced or read from an instrument** (OBS-023). Look
+  for the artefact FIRST: a macOS crash writes a full backtrace to `~/Library/Logs/DiagnosticReports/`.
+- **A regression test that passes with the fix reverted is a finding**, not an inconvenience. It has
+  caught four worthless tests this session. Mutate every new test before trusting it.
+- **Every element of an evidence list must trace to output already read** (OBS-024). A check still
+  running is written as "still running", never as its expected value.
+- **`fix:` commits bypass the Build Loop and its audit** (ISSUE-025). Review every change, not just
+  features — two rounds of adversarial review found TEN defects in my own work.
+- **Every build handed to Karl carries a specific question it exists to answer** (section 2c).
+- Use a `/tmp` backup for scratch edits, never `git checkout --` on a file with unstaged real work.
 
 ## 6. Build / run recipe (macOS local — REQUIRED env)
 
