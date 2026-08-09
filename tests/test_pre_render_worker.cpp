@@ -438,3 +438,59 @@ TEST_CASE("RT4: a deck whose backgrounds are inherited pre-renders off-thread") 
     CHECK(run.emitted == 4);
     CHECK(run.nullImages == 0);
 }
+
+// BUG-21 — the TM-018 caps measured the wrong quantity. Shapes and runs alone let
+// through slides that take minutes: 2000 pictures of one 31 Mpx image ~309 s, and
+// 5000 runs x 300k characters ~657 s, both UNDER the two original caps. ISOLATE held
+// so the UI never blocked, but the slide never appeared — during a talk that is the
+// same as losing it. These complete the ratified four-cap set (Bible §3, TM-018.3-A).
+TEST_CASE("O/BUG-21: characters and declared image pixels are measured and capped") {
+    RenderCaps caps;
+    SUBCASE("the four caps exist with the ratified values") {
+        CHECK(caps.maxShapesPerSlide == 2000);
+        CHECK(caps.maxTextRunsPerSlide == 5000);
+        CHECK(caps.maxTextCharsPerSlide == 200000);
+        CHECK(caps.maxImagePixelsPerSlide == 200000000);
+    }
+
+    SUBCASE("a character flood is caught even when runs and shapes are under cap") {
+        Slide s;
+        s.elements.resize(1);
+        s.elements[0].kind = ElementKind::TextBox;
+        s.elements[0].textBox.paragraphs.resize(1);
+        s.elements[0].textBox.paragraphs[0].runs.resize(1);
+        s.elements[0].textBox.paragraphs[0].runs[0].text = QString(300000, QLatin1Char('x'));
+        const auto c = measureComplexity(s);
+        CHECK(c.shapes == 1);   // under cap
+        CHECK(c.textRuns == 1); // under cap
+        CHECK(c.textChars == 300000);
+        CHECK(exceedsCaps(c, caps)); // ...and still rejected
+    }
+
+    SUBCASE("declared image area is caught the same way") {
+        Slide s;
+        s.elements.resize(1);
+        s.elements[0].kind = ElementKind::Image;
+        // ~30000 x 30000 px expressed in EMU at 96 dpi.
+        s.elements[0].image.rect.cx = 30000LL * 9525;
+        s.elements[0].image.rect.cy = 30000LL * 9525;
+        const auto c = measureComplexity(s);
+        CHECK(c.shapes == 1);
+        CHECK(c.imagePixels > caps.maxImagePixelsPerSlide);
+        CHECK(exceedsCaps(c, caps));
+    }
+
+    SUBCASE("an ordinary slide passes all four") {
+        Slide s;
+        s.elements.resize(6);
+        for (auto& e : s.elements) {
+            e.kind = ElementKind::TextBox;
+            e.textBox.paragraphs.resize(3);
+            for (auto& p : e.textBox.paragraphs) {
+                p.runs.resize(2);
+                p.runs[0].text = QStringLiteral("a reasonable line of presenter text");
+            }
+        }
+        CHECK_FALSE(exceedsCaps(measureComplexity(s), caps));
+    }
+}

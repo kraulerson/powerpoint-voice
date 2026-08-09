@@ -27,6 +27,14 @@ namespace pptv {
 struct SlideComplexity {
     int textRuns = 0;
     int shapes = 0;
+    // BUG-21: shapes and runs alone measure the WRONG QUANTITY. Measured on
+    // under-cap slides: 2000 pictures of one 31 Mpx image took ~309 s, and 5000 runs
+    // x 300k characters took ~657 s. Both passed the two original caps. ISOLATE held
+    // — the UI never blocked — but the slide simply never appeared, which during a
+    // talk is the same as losing it. These complete the ratified four-cap set
+    // (Bible section 3, TM-018.3-A).
+    long long textChars = 0;   // total characters across every run
+    long long imagePixels = 0; // total DECLARED pixels across every picture frame
 };
 
 // TM-018 mitigation 2 caps. F7b enforces the two that are countable from the slide
@@ -34,6 +42,11 @@ struct SlideComplexity {
 struct RenderCaps {
     int maxTextRunsPerSlide = 5000;
     int maxShapesPerSlide = 2000;
+    // Chosen from the measurements above with an order of magnitude of headroom over
+    // any real deck: the reference deck's busiest slide carries a few thousand
+    // characters and well under a megapixel of declared image area.
+    long long maxTextCharsPerSlide = 200000;
+    long long maxImagePixelsPerSlide = 200000000; // 200 Mpx ~ six 4K images
 };
 
 SlideComplexity measureComplexity(const Slide& slide);

@@ -838,3 +838,50 @@ marked with a recorded, audited "arms outstanding" note that Phase 2 exit then r
 **Same shape as ISSUE-016/017/018/019/020/022/025 — the seventh instance.** The enforced control and
 the documented intent disagree, and enforcement is what gets followed. Here enforcement would force
 the dishonest answer, which is the sharpest form of the pattern the walk has produced.
+
+---
+
+## ISSUE-028 — The Phase 2→3 bug gate counts PROSE, not status: `grep -c 'SEV-1.*Open'` (MAJOR, FRAMEWORK)
+
+`scripts/test-gate.sh:387-393` counts blocking bugs with a substring match over the whole line:
+
+```sh
+sev1_count=$(grep -c 'SEV-1.*Open' "BUGS.md" ...)
+sev2_deferred=$(grep -c 'SEV-2.*Deferred' "BUGS.md" ...)
+```
+
+BUGS.md rows are `| id | severity | STATUS | feature | description | ... |`. The status is a specific
+column; the match is against everything after the severity. **Any Fixed bug whose DESCRIPTION happens
+to contain the word "Open" is counted as an open SEV-1 and blocks the phase gate.**
+
+Measured here: three rows, all `Fixed`, all counted as blocking —
+
+| row | why it matched |
+|---|---|
+| BUG-18 | *"could not **open** a deck"* |
+| BUG-47 | *"Strict **Open** XML Presentation"* — the actual name of a PowerPoint save format |
+| BUG-60 | *"delete the Cmd+**O**…"*, *"does Cmd+O work"*, and the SIGNAL NAME `deckOpenAttempted` |
+
+None is an open bug. The gate reported `SEV-1 bugs open: 3` and refused the transition.
+
+**Why this is worse than a false positive.** The only way to satisfy it is to *reword the bug
+descriptions* — which is contorting the audit record to please a grep. I did exactly that to proceed — four separate rewrites across three rows, ending with having to
+describe a signal by paraphrase rather than by its actual name (`deckOpenAttempted`) because the
+IDENTIFIER ITSELF collides. The record is measurably less accurate for it. A gate that
+pressures the operator into editing evidence is inverted: the evidence should constrain the gate.
+
+**It also fails the other way.** A row whose status column says `Fixed` but whose text contains
+"Deferred" ("...previously Deferred to F7c...") counts as a deferred SEV-2 forever. And a genuinely
+open bug written without the literal word "Open" — say `Status: OPEN` in caps, or `Not fixed` —
+counts as zero.
+
+**Suggested fix.** Parse the column, not the line. The table shape is already fixed by the template:
+
+```sh
+awk -F'|' '$3 ~ /SEV-1/ && $4 ~ /^ *Open *$/' BUGS.md | wc -l
+```
+
+**Seventh instance of the walk's dominant pattern** (ISSUE-016/017/018/019/020/022/025/027): the
+enforced control and the documented intent disagree. Here the control does not even implement its own
+documented data model — `test-gate.sh:386` lists the legal status values in a comment directly above
+the code that ignores them.
