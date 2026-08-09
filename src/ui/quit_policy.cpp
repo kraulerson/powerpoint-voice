@@ -13,6 +13,7 @@ namespace pptv {
 namespace {
 
 bool g_quitInProgress = false;
+bool g_terminating = false;
 
 // Watches the application object for QEvent::Quit — the point Qt documents for
 // influencing whether a quit succeeds.
@@ -32,6 +33,7 @@ class QuitFilter : public QObject {
   protected:
     bool eventFilter(QObject* watched, QEvent* event) override {
         if (watched == qApp && event->type() == QEvent::Quit) {
+            g_terminating = true;
             g_quitInProgress = true;
 #ifdef QT_WIDGETS_LIB
             QApplication::closeAllWindows();
@@ -56,6 +58,10 @@ void installApplicationQuitFilter() {
     }
     filter = new QuitFilter(qApp);
     qApp->installEventFilter(filter);
+}
+
+bool applicationIsTerminating() {
+    return g_terminating;
 }
 
 bool applicationQuitInProgress() {

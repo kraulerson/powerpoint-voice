@@ -39,6 +39,7 @@ enum class RecognizerInitError {
 
 const char* describeRecognizerInitError(RecognizerInitError e);
 
+// Includes the mandatory "[unk]" escape hatch (BUG-67).
 // The exact phrases the decoder is permitted to emit. Built from the SAME command
 // list the matcher accepts, so the two cannot drift apart.
 std::vector<QString> grammarPhrases();
@@ -57,6 +58,15 @@ struct RecognizerSetup {
     QString modelDir;
     std::string grammar;
 };
+
+// Where the speech model actually is at RUN time.
+//
+// The compile-time PPTV_VOSK_MODEL_DIR points into the build tree, which does not
+// exist on the machine that runs the talk. Inside an .app bundle the model lives in
+// Contents/Resources/vosk-model, so that is checked FIRST and the build-tree path is
+// only a development fallback. Getting this wrong does not crash — voice simply
+// reports "model missing" on the presenter's machine and nowhere else.
+QString resolveModelDir();
 
 // Resolves and validates without touching the Vosk library, so every precondition
 // is testable on a machine with no model and no microphone.

@@ -22,8 +22,11 @@ for handoff clarity. Categories are ordered by impact severity.
 ### Added
 - **F8d — voice decode. The application now listens and acts.** Microphone → 16 kHz mono →
   grammar-constrained Vosk → the recognizer gate → the presentation controller. The decoder is
-  created with `vosk_recognizer_new_grm` against a dynamic-graph model, so it is *incapable* of
-  emitting anything but the five commands.
+  created with `vosk_recognizer_new_grm` against a dynamic-graph model, which constrains the
+  **vocabulary** — measured across 404 utterances, every word emitted was in the grammar. It does
+  **not** constrain word ORDER: Vosk compiles the grammar into a backoff bigram, not a phrase
+  matcher. An earlier version of this entry claimed the decoder was "incapable of emitting anything
+  but the five commands"; that was false and is withdrawn (BUG-66).
 
 ### Security
 - **BUG-65 closed.** Vosk silently drops grammar words the model does not know, quietly widening

@@ -143,6 +143,26 @@ set_target_properties(powerpoint_voice PROPERTIES
   MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
   MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
 
+# Stage the speech engine and model INSIDE the .app so it runs on a machine that
+# has neither this build tree nor Homebrew. Without this the app launches fine and
+# then reports "model missing" — only on the presenter's machine, never here.
+if(APPLE)
+  add_custom_command(TARGET powerpoint_voice POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+      "$<TARGET_BUNDLE_CONTENT_DIR:powerpoint_voice>/Frameworks"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PPTV_VOSK_LIB}"
+      "$<TARGET_BUNDLE_CONTENT_DIR:powerpoint_voice>/Frameworks/libvosk.dylib"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PPTV_VOSK_MODEL}"
+      "$<TARGET_BUNDLE_CONTENT_DIR:powerpoint_voice>/Resources/vosk-model"
+    COMMENT "Staging libvosk and the speech model into the bundle"
+    VERBATIM)
+  # ...and let the executable find the staged library rather than the build tree.
+  set_target_properties(powerpoint_voice PROPERTIES
+    INSTALL_RPATH "@executable_path/../Frameworks"
+    BUILD_WITH_INSTALL_RPATH FALSE)
+  target_link_options(powerpoint_voice PRIVATE "-Wl,-rpath,@executable_path/../Frameworks")
+endif()
+
 # Headless dev/UAT utility: render a deck's slides to PNGs for fidelity checks.
 add_executable(render_preview tools/render_preview.cpp)
 target_link_libraries(render_preview PRIVATE pptv_core Qt6::Gui)

@@ -1,5 +1,6 @@
 #include "command/vosk_recognizer.hpp"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 
@@ -55,6 +56,13 @@ std::vector<QString> grammarPhrases() {
         jump += QLatin1Char(' ') + QString::fromLatin1(n);
     }
     out.push_back(jump);
+    // MANDATORY. Without it the decoder has no legal path for out-of-grammar audio
+    // and must force-fit every cough and audience question onto the nearest command
+    // (BUG-67). docs/design-notes/voice-engine-design.md:46 said so before F8c was
+    // written; it was not folded in, and 98 of 102 near-miss phrases fired real
+    // commands as a result. It reduces rather than removes the hazard — measured
+    // 98 -> 85 — so it is a mitigation, not the property once claimed.
+    out.push_back(QStringLiteral("[unk]"));
     return out;
 }
 
@@ -73,15 +81,24 @@ std::string grammarJson(const std::vector<QString>& phrases) {
         }
         first = false;
         out += "\"";
-        for (const QChar& c : trimmed) {
-            // Only lower-case ASCII letters and single spaces survive. Anything else
-            // is dropped rather than escaped: the grammar is a closed list we author,
-            // so an unexpected character means a mistake, not an input to sanitise.
-            const char ch = c.toLatin1();
-            if ((ch >= 'a' && ch <= 'z') || ch == ' ') {
-                out += ch;
-            } else if (ch >= 'A' && ch <= 'Z') {
-                out += static_cast<char>(ch - 'A' + 'a');
+        if (trimmed == QStringLiteral("[unk]")) {
+            // The ONE bracketed token that must survive. Vosk needs a literal
+            // "[unk]" as an escape hatch for out-of-grammar audio; the a-z filter
+            // below would silently reduce it to "unk", which Vosk then drops as
+            // out-of-vocabulary — leaving no escape hatch and no error (BUG-67).
+            out += "[unk]";
+        } else {
+            for (const QChar& c : trimmed) {
+                // Only lower-case ASCII letters and single spaces survive. Anything
+                // else is dropped rather than escaped: the grammar is a closed list
+                // we author, so an unexpected character means a mistake, not an
+                // input to sanitise.
+                const char ch = c.toLatin1();
+                if ((ch >= 'a' && ch <= 'z') || ch == ' ') {
+                    out += ch;
+                } else if (ch >= 'A' && ch <= 'Z') {
+                    out += static_cast<char>(ch - 'A' + 'a');
+                }
             }
         }
         out += "\"";
@@ -99,6 +116,23 @@ bool modelIsGrammarCapable(const QString& dir) {
            QFileInfo::exists(graph.filePath(QStringLiteral("Gr.fst")));
 }
 
+QString resolveModelDir() {
+    // 1. inside the app bundle: <app>/Contents/Resources/vosk-model
+    const QDir exeDir(QCoreApplication::applicationDirPath());
+    const QString bundled =
+        QDir::cleanPath(exeDir.filePath(QStringLiteral("../Resources/vosk-model")));
+    if (QFileInfo(bundled).isDir()) {
+        return bundled;
+    }
+    // 2. beside the executable, for a non-bundle layout
+    const QString beside = exeDir.filePath(QStringLiteral("vosk-model"));
+    if (QFileInfo(beside).isDir()) {
+        return beside;
+    }
+    // 3. the build tree — development only.
+    return QStringLiteral(PPTV_VOSK_MODEL_DIR);
+}
+
 RecognizerSetup prepareRecognizer(const QString& modelDir) {
     RecognizerSetup s;
     s.modelDir = modelDir;
@@ -114,6 +148,14 @@ RecognizerSetup prepareRecognizer(const QString& modelDir) {
     s.grammar = grammarJson(phrases);
     // A grammar that lost every phrase would constrain nothing.
     if (phrases.empty() || s.grammar.size() < 3) {
+        s.error = RecognizerInitError::GrammarRejected;
+        return s;
+    }
+    // Validate the ESCAPE HATCH SURVIVED THE BUILDER, not merely that it was asked
+    // for. The naive fix here is booby-trapped: the a-z filter turns "[unk]" into
+    // "unk", Vosk drops that as out-of-vocabulary, and BUG-65's guard misses it
+    // because that guard inspects the phrases rather than the emitted JSON.
+    if (s.grammar.find("\"[unk]\"") == std::string::npos) {
         s.error = RecognizerInitError::GrammarRejected;
         return s;
     }

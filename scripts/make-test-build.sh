@@ -37,6 +37,13 @@ echo "==> re-sign (install_name_tool invalidates every signature it touches)"
 find "$APP" -name "*.dylib" -print0 | xargs -0 -I{} codesign -f -s - {} 2>/dev/null || true
 codesign -f -s - --deep "$APP"
 
+echo "==> verify the speech engine and model are INSIDE the bundle"
+# Without these the app launches and then reports "model missing" — on the
+# presenter's machine only, because the build tree exists here and nowhere else.
+test -f "$APP/Contents/Frameworks/libvosk.dylib" || { echo "FAILED: libvosk not staged" >&2; exit 1; }
+test -f "$APP/Contents/Resources/vosk-model/graph/Gr.fst" || { echo "FAILED: model not staged, or not grammar-capable" >&2; exit 1; }
+test -f "$APP/Contents/Resources/vosk-model/graph/HCLr.fst" || { echo "FAILED: model lacks a dynamic graph; grammar would be IGNORED" >&2; exit 1; }
+
 echo "==> verify self-containment"
 leaks=$(find "$APP" -type f \( -perm -u+x -o -name "*.dylib" \) \
         -exec sh -c 'otool -L "$1" 2>/dev/null | tail -n +2 | grep -q /opt/homebrew && basename "$1"' _ {} \; | sort -u)

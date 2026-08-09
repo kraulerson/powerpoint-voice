@@ -128,6 +128,9 @@ TEST_CASE("VR: EVERY grammar phrase is one the matcher accepts") {
         if (phrase.startsWith(QStringLiteral("go to slide"))) {
             continue; // a word list, not a literal utterance
         }
+        if (phrase == QStringLiteral("[unk]")) {
+            continue; // the escape hatch is deliberately NOT a command
+        }
         const auto cmd = matchCommand(phrase);
         CHECK_MESSAGE(cmd.has_value(), "grammar phrase not understood: ", phrase.toStdString());
     }
@@ -151,6 +154,9 @@ TEST_CASE("VR: the grammar contains NO word outside the five commands") {
         QStringLiteral("fifty"),     QStringLiteral("sixty"),        QStringLiteral("seventy"),
         QStringLiteral("eighty"),    QStringLiteral("ninety"),       QStringLiteral("hundred")};
     for (const QString& phrase : grammarPhrases()) {
+        if (phrase == QStringLiteral("[unk]")) {
+            continue; // Vosk's out-of-grammar escape hatch, not a command word
+        }
         for (const QString& word : phrase.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
             bool ok = false;
             for (const QString& a : allowed) {
@@ -173,4 +179,46 @@ TEST_CASE("VR: the VENDORED model really is grammar-capable") {
     }
     CHECK(modelIsGrammarCapable(dir));
     CHECK(prepareRecognizer(dir).error == RecognizerInitError::None);
+}
+
+// BUG-67 — the [unk] escape hatch is MANDATORY and must survive the JSON builder.
+//
+// Without it the decoder has no legal path for out-of-grammar audio and force-fits
+// every utterance onto the nearest command: 98 of 102 near-miss phrases fired real
+// commands, including "continue presenting" un-pausing the deck during Q&A.
+//
+// The naive fix is booby-trapped: the builder's a-z allow-list silently reduces
+// "[unk]" to "unk", which Vosk drops as out-of-vocabulary — and BUG-65's guard does
+// not catch that, because it inspects the phrases rather than the emitted JSON.
+TEST_CASE("VR/BUG-67: the [unk] escape hatch is present and survives the builder") {
+    SUBCASE("the grammar asks for it") {
+        bool found = false;
+        for (const QString& p : grammarPhrases()) {
+            if (p == QStringLiteral("[unk]")) {
+                found = true;
+            }
+        }
+        CHECK(found);
+    }
+
+    SUBCASE("the BUILT JSON still contains it, brackets intact") {
+        const std::string j = grammarJson(grammarPhrases());
+        CHECK(j.find("\"[unk]\"") != std::string::npos);
+        // The bug was that it silently became "unk" — assert the corrupted form is
+        // NOT what we emitted.
+        CHECK(j.find("\"unk\"") == std::string::npos);
+    }
+
+    SUBCASE("a grammar that LOST it is refused, not run") {
+        // This is what prepareRecognizer must catch: asking for the hatch is not
+        // the same as emitting it.
+        const std::string without = grammarJson({QStringLiteral("next slide")});
+        CHECK(without.find("[unk]") == std::string::npos);
+    }
+
+    SUBCASE("brackets are still stripped from everything else") {
+        const std::string j = grammarJson({QStringLiteral("[evil]"), QStringLiteral("next slide")});
+        CHECK(j.find("[evil]") == std::string::npos);
+        CHECK(j.find("evil") != std::string::npos); // reduced, not passed through
+    }
 }

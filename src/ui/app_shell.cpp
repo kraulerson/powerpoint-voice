@@ -13,6 +13,8 @@
 #include "present/display_geometry.hpp"
 #include "render/slide_renderer.hpp"
 #include "ui/presentation_window.hpp"
+#include <unistd.h>
+
 #include "ui/quit_policy.hpp"
 #include "ui/slide_surface.hpp"
 #include "ui/start_view.hpp"
@@ -73,7 +75,7 @@ QString AppShell::armVoice() {
     // Order matters: validate the model and grammar BEFORE opening the microphone,
     // so a model that cannot constrain never causes a permission prompt for a
     // capability we are about to refuse to use.
-    const RecognizerSetup setup = prepareRecognizer(QStringLiteral(PPTV_VOSK_MODEL_DIR));
+    const RecognizerSetup setup = prepareRecognizer(resolveModelDir());
     if (setup.error != RecognizerInitError::None) {
         return QString::fromUtf8(describeRecognizerInitError(setup.error));
     }
@@ -140,7 +142,26 @@ void AppShell::teardownWorkers() {
         // that is not an event loop — and a single legal slide can take minutes, so
         // waiting forever would hang the app on exit. If the worker will not stop,
         // terminate rather than destroy a running QThread (which is a qFatal abort).
-        if (!t->wait(5000)) {
+        // On the QUIT path a long wait is worse than useless: exec() has already
+        // returned, so the GUI thread has NO RUNLOOP while it blocks here and macOS
+        // never re-invokes applicationShouldTerminate:. Every further Dock or
+        // Activity Monitor quit in that window is silently discarded, which from the
+        // outside is indistinguishable from the app refusing to die (BUG-42).
+        //
+        // The tempting fix — skip the wait and detach — was MEASURED WRONG by an
+        // adversarial reviewer: 8 of 14 runs SEGV, because ~QGuiApplication tears
+        // down the font database while the render thread is still inside
+        // QFont/QPainter. Their third variant, _exit(0), was clean in 6 of 6.
+        //
+        // So: wait briefly, and if the worker is genuinely mid-slide, leave by the
+        // one door that cannot race a destructor. _exit skips static destructors and
+        // atexit handlers, which is safe here precisely because this application
+        // writes nothing — TM-011 forbids a disk cache, so there is nothing to flush.
+        const int waitMs = applicationIsTerminating() ? 300 : 5000;
+        if (!t->wait(waitMs)) {
+            if (applicationIsTerminating()) {
+                ::_exit(0);
+            }
             // A single legal slide can render for minutes (BUG-21), so the wait can
             // genuinely expire. terminate() is unsafe (it can strand allocator locks)
             // and destroying a running QThread is a qFatal ABORT — which is what the

@@ -132,3 +132,22 @@ TEST_CASE("audit F3: malformed sequences reject, never a wrong jump") {
     CHECK(parseSlideNumber(QStringLiteral("twenty three")) == 23);
     CHECK(parseSlideNumber(QStringLiteral("one hundred twenty three")) == 123);
 }
+
+// BUG-69 — filler was stripped ANYWHERE, including between number words, so the
+// decoder's bigram spray became a slide jump. Heard during ordinary conference
+// prose: "go to slide zero two three go six" -> GoToSlide(236).
+TEST_CASE("BUG-69: filler mid-number aborts the jump, except the English 'and'") {
+    SUBCASE("decoder spray is rejected") {
+        CHECK_FALSE(parseSlideNumber(QStringLiteral("zero two three go six")).has_value());
+        CHECK_FALSE(parseSlideNumber(QStringLiteral("five slide six")).has_value());
+        CHECK_FALSE(parseSlideNumber(QStringLiteral("one go two")).has_value());
+        CHECK_FALSE(parseSlideNumber(QStringLiteral("three please four")).has_value());
+    }
+    SUBCASE("leading filler is still fine — that is how people speak") {
+        CHECK(parseSlideNumber(QStringLiteral("slide five")) == 5);
+        CHECK(parseSlideNumber(QStringLiteral("the number seventeen")) == 17);
+    }
+    SUBCASE("'and' survives mid-number, because English numbers contain it") {
+        CHECK(parseSlideNumber(QStringLiteral("one hundred and twenty")) == 120);
+    }
+}

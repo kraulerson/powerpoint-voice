@@ -8,6 +8,20 @@
 #include "ui/quit_policy.hpp"
 
 int main(int argc, char** argv) {
+    // BUG-34 — stop Qt following the desktop theme, BEFORE the application exists.
+    //
+    // The residual of BUG-30 is that a theme change invalidates Qt's font state on
+    // the GUI thread while the pre-render worker is reading it. The BUG-30 fix
+    // removed the trigger we control (showing our own window); this removes the
+    // class. With desktop-settings awareness off, Qt no longer reacts to macOS
+    // switching to dark mode at sunset, a display being attached, or a remote-desktop
+    // session reconnecting — the three spontaneous triggers we could not preempt,
+    // because the invalidation happens inside Qt before any handler of ours runs.
+    //
+    // Safe here because this application has no desktop-theme integration to lose: it
+    // paints a fixed minimal-dark shell and a black presentation surface (Bible §9),
+    // and the slide colours come from the DECK, not the platform palette.
+    QApplication::setDesktopSettingsAware(false);
     QApplication app(argc, argv);
     QApplication::setApplicationName(pptv::appName());
     QApplication::setApplicationVersion(pptv::appVersion());
