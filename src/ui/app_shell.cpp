@@ -55,7 +55,49 @@ AppShell::AppShell(QObject* parent) : QObject(parent) {
 }
 
 AppShell::~AppShell() {
+    // Voice FIRST, before anything else and before any member is released (F-1).
+    // The microphone is the only input still arriving at this point: the deck and
+    // render workers are ours to cancel, but CoreAudio's real-time thread is not,
+    // and it is calling into objects this destructor is about to free.
+    teardownVoice();
     teardownWorkers();
+}
+
+bool AppShell::voiceGatePausedForTest() const {
+    return voiceGate_ && voiceGate_->state() == RecognizerController::State::Paused;
+}
+
+void AppShell::openDeckGenerationForTest(int slideCount) {
+    // The two things openDeck() does that matter to the generation guard, without a
+    // file, a thread or a window: a new generation and a raster set sized for it.
+    ++deckGeneration_;
+    controller_.setDeck(slideCount);
+    rasters_.assign(static_cast<std::size_t>(slideCount < 0 ? 0 : slideCount), QImage());
+}
+
+bool AppShell::hasRasterForTest(int index) const {
+    if (index < 0 || index >= static_cast<int>(rasters_.size())) {
+        return false;
+    }
+    return !rasters_[static_cast<std::size_t>(index)].isNull();
+}
+
+void AppShell::teardownVoice() {
+    // One order, and only one. VoicePipeline::stop() stops the DEVICE, and
+    // ma_device_stop() does not return until the audio callback has finished — so
+    // once the pipeline is gone, nothing can be inside the decoder, and only then
+    // is the engine the decoder calls into safe to free.
+    //
+    // Doing it the other way round frees VoskEngine underneath a live `feed()`.
+    // That is not theoretical: a Phase 3 reviewer caught it under AddressSanitizer
+    // with both stacks, 7 reproductions out of 7. It is invisible on a machine with
+    // no microphone, which is exactly why it survived to Phase 3 here.
+    if (voice_) {
+        voice_->stop();
+    }
+    voice_.reset();
+    engine_.reset();
+    voiceGate_.reset();
 }
 
 void AppShell::showStart() {
@@ -70,6 +112,21 @@ void AppShell::showStart() {
     start_->show();
     start_->raise();
     start_->activateWindow();
+}
+
+void AppShell::installVoiceGate() {
+    // The gate the whole command layer was built around: it decides whether a heard
+    // phrase becomes a command, and it is the single owner of Paused.
+    voiceGate_ = std::make_unique<RecognizerController>([this](Command c) {
+        // Keep the KEYBOARD's view of the pause state in step with the gate's, so P
+        // stays a true toggle after a SPOKEN "pause presentation" (F-2). The gate
+        // commits its state before calling this sink — documented contract — so
+        // state() here is already the new one.
+        if (window_ && voiceGate_) {
+            window_->setPaused(voiceGate_->state() == RecognizerController::State::Paused);
+        }
+        applyResult(controller_.dispatch(c, CommandSource::Voice, false));
+    });
 }
 
 QString AppShell::armVoice() {
@@ -87,10 +144,7 @@ QString AppShell::armVoice() {
         return QString::fromUtf8(describeRecognizerInitError(err));
     }
 
-    // The gate the whole command layer was built around: it decides whether a heard
-    // phrase becomes a command, and it is the single owner of Paused.
-    voiceGate_ = std::make_unique<RecognizerController>(
-        [this](Command c) { applyResult(controller_.dispatch(c, CommandSource::Voice, false)); });
+    installVoiceGate();
 
     voice_ = std::make_unique<VoicePipeline>(this);
     voice_->setCapture(makeMiniaudioCapture());
@@ -116,6 +170,64 @@ QString AppShell::armVoice() {
     return QString();
 }
 
+void AppShell::installWindowSinks(PresentationWindow* w) {
+    if (w == nullptr) {
+        return;
+    }
+    // QPointer, not a raw capture: the sink outlives nothing in particular, and a
+    // window destroyed under it must read as absent rather than as a dangling write.
+    const QPointer<PresentationWindow> target(w);
+    w->setCommandSink([this, target](Command c) {
+        // Pause and continue are not slide movements, so PresentationController
+        // treats them as no-ops. Their real effect lives in the recogniser gate —
+        // which means the KEYBOARD has to reach through the gate too, or P does
+        // absolutely nothing (F-2). It did nothing: PresentationWindow carried a
+        // `paused_` flag with no writer, so P always translated to
+        // PausePresentation, and that command changed nothing anywhere. A presenter
+        // pressing P before taking questions would have believed voice was gated
+        // while it was still fully live — the failure this key exists to prevent.
+        if (c.type == CommandType::PausePresentation ||
+            c.type == CommandType::ContinuePresentation) {
+            // With voice not armed there is nothing to gate, and reporting "Resumed"
+            // about a subsystem that is not running is a lie the presenter would act
+            // on. So P is silently inert in that case rather than falsely reassuring.
+            if (!voiceGate_) {
+                return;
+            }
+            const bool wantPaused = (c.type == CommandType::PausePresentation);
+            voiceGate_->setPaused(wantPaused);
+            if (target) {
+                target->setPaused(wantPaused);
+            }
+        }
+        applyResult(controller_.dispatch(c, CommandSource::Keyboard, false));
+    });
+    w->setUiRequestSink([this](UiRequest r) {
+        switch (r) {
+        case UiRequest::RequestHolding:
+        case UiRequest::RequestQuitConfirm:
+            controller_.requestHolding(clock_.elapsed());
+            refresh();
+            break;
+        case UiRequest::CancelQuit:
+            controller_.cancelQuit();
+            refresh();
+            break;
+        case UiRequest::MoveSlideWindowToNextScreen:
+            moveWindowToNextScreen();
+            break;
+        case UiRequest::ConfirmQuit:
+            controller_.confirmQuit();
+            if (window_) {
+                window_->close();
+            }
+            break;
+        default:
+            break;
+        }
+    });
+}
+
 void AppShell::browseForDeck() {
     const QString path =
         QFileDialog::getOpenFileName(start_, tr("Open presentation"), QString(),
@@ -133,6 +245,21 @@ void AppShell::teardownWorkers() {
     }
     if (renderWorker_) {
         renderWorker_->cancel();
+    }
+    // CUT THE WIRES BACK TO US, before anything else (F-CHAOS-2). A worker whose wait
+    // expires is deliberately abandoned rather than terminated (see below) — and an
+    // abandoned worker keeps rendering. Its slideReady is still connected here, so
+    // slides from the PREVIOUS deck arrive after openDeck() has resized rasters_ for
+    // the new one and land in the new deck's slots. The projector then shows the old
+    // deck's content under the new deck's slide numbers, silently.
+    //
+    // Belt and braces with the generation check in acceptSlide(): disconnect stops
+    // the connection, the generation stops anything Qt has already queued.
+    if (loadWorker_) {
+        disconnect(loadWorker_, nullptr, this, nullptr);
+    }
+    if (renderWorker_) {
+        disconnect(renderWorker_, nullptr, this, nullptr);
     }
     for (QPointer<QThread> t : {loadThread_, renderThread_}) {
         if (!t) {
@@ -184,14 +311,23 @@ void AppShell::teardownWorkers() {
 void AppShell::openDeck(const QString& path) {
     emit deckOpenAttempted(path);
     teardownWorkers();
+    // A new deck is a new generation. Everything an abandoned worker of a previous
+    // generation still emits is now stale by definition (F-CHAOS-2).
+    ++deckGeneration_;
 
     loadThread_ = new QThread(this);
     loadWorker_ = new DeckLoadWorker();
     loadWorker_->setPath(path);
     loadWorker_->setLoadFn([](const QString& p) { return DeckLoader::load(p); });
     loadWorker_->moveToThread(loadThread_);
+    const int gen = deckGeneration_;
     connect(loadThread_, &QThread::started, loadWorker_, &DeckLoadWorker::start);
-    connect(loadWorker_, &DeckLoadWorker::loaded, this, &AppShell::onDeckLoaded);
+    connect(loadWorker_, &DeckLoadWorker::loaded, this, [this, gen](DeckLoadOutcome outcome) {
+        if (gen != deckGeneration_) {
+            return; // a deck the presenter has already moved on from
+        }
+        onDeckLoaded(std::move(outcome));
+    });
     connect(loadWorker_, &DeckLoadWorker::finished, loadThread_, &QThread::quit);
     connect(loadThread_, &QThread::finished, loadWorker_, &QObject::deleteLater);
     loadThread_->start();
@@ -226,33 +362,7 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
 
     if (!window_) {
         window_ = new PresentationWindow(&controller_);
-        window_->setCommandSink([this](Command c) {
-            applyResult(controller_.dispatch(c, CommandSource::Keyboard, false));
-        });
-        window_->setUiRequestSink([this](UiRequest r) {
-            switch (r) {
-            case UiRequest::RequestHolding:
-            case UiRequest::RequestQuitConfirm:
-                controller_.requestHolding(clock_.elapsed());
-                refresh();
-                break;
-            case UiRequest::CancelQuit:
-                controller_.cancelQuit();
-                refresh();
-                break;
-            case UiRequest::MoveSlideWindowToNextScreen:
-                moveWindowToNextScreen();
-                break;
-            case UiRequest::ConfirmQuit:
-                controller_.confirmQuit();
-                if (window_) {
-                    window_->close();
-                }
-                break;
-            default:
-                break;
-            }
-        });
+        installWindowSinks(window_);
     }
 
     // Pre-render every slide off the UI thread BEFORE the talk (TM-018), starting at
@@ -286,7 +396,11 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
     });
     renderWorker_->moveToThread(renderThread_);
     connect(renderThread_, &QThread::started, renderWorker_, &PreRenderWorker::start);
-    connect(renderWorker_, &PreRenderWorker::slideReady, this, &AppShell::onSlideReady);
+    const int gen = deckGeneration_;
+    connect(renderWorker_, &PreRenderWorker::slideReady, this,
+            [this, gen](int index, const QImage& image, bool isPlaceholder) {
+                acceptSlide(gen, index, image, isPlaceholder);
+            });
     connect(renderWorker_, &PreRenderWorker::finished, renderThread_, &QThread::quit);
     connect(renderThread_, &QThread::finished, renderWorker_, &QObject::deleteLater);
     // NOTE: renderThread_->start() is deliberately NOT called here — see the end of
@@ -342,6 +456,19 @@ void AppShell::onDeckLoaded(DeckLoadOutcome outcome) {
             }
         },
         Qt::QueuedConnection);
+}
+
+void AppShell::acceptSlide(int generation, int index, const QImage& image, bool isPlaceholder) {
+    // The generation check (F-CHAOS-2). A render worker whose wait expired during
+    // teardown is ABANDONED, not stopped — that is deliberate (see teardownWorkers),
+    // and it means the old worker is still rasterising the OLD deck while the new one
+    // is being loaded. Its slides would land in rasters_, which openDeck has already
+    // resized for the new deck, and the projector would show the previous deck's
+    // content under the new deck's slide numbers. Silently: every index is in range.
+    if (generation != deckGeneration_) {
+        return;
+    }
+    onSlideReady(index, image, isPlaceholder);
 }
 
 void AppShell::onSlideReady(int index, QImage image, bool /*isPlaceholder*/) {

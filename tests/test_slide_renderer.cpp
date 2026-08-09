@@ -528,7 +528,7 @@ TEST_CASE("BUG-37 review2: a sub-pixel crop draws, and opacity does not leak") {
 // Every one of the 51 blipFill elements in the reference deck carries <a:stretch>,
 // and we were letterboxing all of them — so the crop could be exactly right and the
 // picture still the wrong size and shape.
-TEST_CASE("BUG-53: a stretched picture fills its frame; an unstretched one does not") {
+TEST_CASE("BUG-53: a stretched picture fills its frame, an unstretched one does not") {
     LoadResult r = DeckLoader::load(fixture("good_stretch.pptx"));
     REQUIRE(r.ok);
     REQUIRE(r.presentation.slides[0].elements.size() == 2);

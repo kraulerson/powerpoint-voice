@@ -64,6 +64,19 @@ class RecognizerController {
     // Feed one recognized phrase; emits at most one Command per the state rules.
     void onPhrase(const QString& phrase);
 
+    // Pause or resume from a source that is NOT speech — i.e. the P key (F-2).
+    //
+    // This class is the single owner of Paused, deliberately: the presenter has two
+    // ways to reach the same gate and they must not disagree. PresentationWindow used
+    // to hold its own `paused_` flag that nothing ever wrote, so P translated to
+    // PausePresentation every time, PresentationController treats pause and continue
+    // as no-ops, and the key did nothing at all — while looking, to the presenter,
+    // exactly like the pause they were relying on for Q&A.
+    //
+    // Deliberately does NOT call the sink. The caller is dispatching the command it
+    // already has; emitting a second one here would move the deck twice.
+    void setPaused(bool paused);
+
     State state() const;
 
   private:

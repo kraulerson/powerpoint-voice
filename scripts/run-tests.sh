@@ -25,4 +25,9 @@ fi
 
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build
+
+# Every registered test must actually RUN. A truncated registration reports
+# "Passed" having executed nothing — seven tests were in that state at Phase 3.
+bash scripts/lint-test-names.sh build
+
 ctest --test-dir build --output-on-failure

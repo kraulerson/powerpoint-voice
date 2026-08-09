@@ -59,6 +59,42 @@ void DeckLoadWorker::start() {
     }
 
     DeckLoadOutcome out;
+    // EXCEPTION BOUNDARY (F-CHAOS-3). This runs as a slot on a QThread, and Qt does
+    // not catch: an exception leaving here unwinds through the worker thread's event
+    // loop and std::terminate()s the process — no dialog, no fallback, the talk over.
+    // The work below is exactly where that can happen: a hostile or merely large deck
+    // reaches allocations sized by the FILE, so std::bad_alloc is a normal outcome of
+    // a normal input, and the whole loader is a walk over untrusted XML.
+    //
+    // Caught here, it becomes the failure the app already knows how to show: a
+    // closed-vocabulary "could not be opened" and a return to the start screen. The
+    // catch is deliberately (...) — the contract is "nothing escapes this thread",
+    // not "these particular types are handled".
+    try {
+        runLoad(out);
+    } catch (...) {
+        out.ok = false;
+        out.presentation.reset();
+        // LoadErrorKind::None describes itself as "The deck could not be opened.",
+        // which is the true statement here. No exception text ever reaches the user:
+        // it can carry a path or file bytes, and this dialog lands on the projector
+        // (Bible section 8 / TM-013).
+        out.error = LoadError{};
+    }
+
+    // Re-check AFTER the parse: a deck that finishes arriving once the presenter has
+    // already moved on must be dropped, not delivered late over whatever they are
+    // now looking at.
+    if (cancelled_.load(std::memory_order_relaxed)) {
+        emit finished();
+        return;
+    }
+
+    emit loaded(out);
+    emit finished();
+}
+
+void DeckLoadWorker::runLoad(DeckLoadOutcome& out) {
     if (loadFn_) {
         // Measure the file before parsing: the size is reported even on the failure
         // paths (e.g. FileTooLarge), where the parse never produces a deck.
@@ -83,17 +119,6 @@ void DeckLoadWorker::start() {
             out.presentation = std::make_shared<const Presentation>(std::move(r.presentation));
         }
     }
-
-    // Re-check AFTER the parse: a deck that finishes arriving once the presenter has
-    // already moved on must be dropped, not delivered late over whatever they are
-    // now looking at.
-    if (cancelled_.load(std::memory_order_relaxed)) {
-        emit finished();
-        return;
-    }
-
-    emit loaded(out);
-    emit finished();
 }
 
 } // namespace pptv

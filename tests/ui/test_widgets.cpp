@@ -469,3 +469,123 @@ TEST_CASE("Q/BUG-42: an application quit is recognised as terminating, and stays
     CHECK_FALSE(applicationQuitInProgress()); // scoped: already back down
     CHECK_FALSE(w.isVisible());
 }
+
+// ===========================================================================
+// F-2 (Phase 3) — the P key was DEAD, and the whole suite stayed green.
+//
+// PresentationWindow held a `paused_` flag with ZERO writers, so KeyContext::paused
+// was permanently false, P always translated to PausePresentation, and
+// PresentationController treats pause and continue as no-ops. Pressing P did
+// nothing at all — while looking, to the presenter, exactly like the pause they
+// were relying on before taking questions from a room of twenty people.
+//
+// It survived because the wiring that gives the key meaning lives in AppShell, and
+// AppShell could not be driven without a microphone and a real deck. The two seams
+// used here install exactly that wiring and nothing else.
+// ===========================================================================
+
+TEST_CASE("W/F-2: the P key actually pauses the voice gate, and toggles back") {
+    PresentationController c;
+    c.setDeck(10);
+    // Declared BEFORE the shell so the shell is destroyed first — the sinks the
+    // shell installs must not outlive it holding this window.
+    PresentationWindow w(&c);
+    AppShell shell;
+    shell.installVoiceGateForTest();
+    shell.installWindowSinksForTest(&w);
+    w.resize(800, 600);
+    w.show();
+
+    REQUIRE_FALSE(shell.voiceGatePausedForTest());
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK(shell.voiceGatePausedForTest()); // P PAUSES — it used to do nothing
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK_FALSE(shell.voiceGatePausedForTest()); // ...and P resumes
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK(shell.voiceGatePausedForTest()); // a real toggle, not a one-shot
+}
+
+TEST_CASE("W/F-2: pausing gates VOICE, never the keyboard") {
+    // The keyboard is the guaranteed control path and nothing may take it away
+    // mid-talk (F8b/F8c audits). Asserted at the window, with the shell's wiring out
+    // of the way, so it stays true regardless of what the gate is doing.
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    std::vector<Command> got;
+    w.setCommandSink([&](Command cmd) { got.push_back(cmd); });
+    w.resize(800, 600);
+    w.show();
+
+    w.setPaused(true);
+    QTest::keyClick(&w, Qt::Key_Right);
+    REQUIRE(got.size() == 1);
+    CHECK(got[0].type == CommandType::NextSlide); // still navigates while paused
+
+    // ...and while paused, P asks to CONTINUE rather than pausing a second time.
+    QTest::keyClick(&w, Qt::Key_P);
+    REQUIRE(got.size() == 2);
+    CHECK(got[1].type == CommandType::ContinuePresentation);
+
+    // The flag is what decides that, which is precisely why it needed a writer.
+    w.setPaused(false);
+    QTest::keyClick(&w, Qt::Key_P);
+    REQUIRE(got.size() == 3);
+    CHECK(got[2].type == CommandType::PausePresentation);
+}
+
+TEST_CASE("W/F-2: with no voice armed, P is inert rather than falsely reassuring") {
+    // Nothing to gate, so claiming "Resumed" would be a lie the presenter acts on.
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    AppShell shell; // deliberately NO installVoiceGateForTest()
+    shell.installWindowSinksForTest(&w);
+    w.resize(800, 600);
+    w.show();
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK_FALSE(shell.voiceGatePausedForTest());
+    CHECK(c.currentSlide1Based() == 1); // and it certainly did not move the deck
+}
+
+// ===========================================================================
+// F-CHAOS-2 (Phase 3) — an abandoned render worker painted the PREVIOUS deck.
+//
+// teardownWorkers() deliberately ABANDONS a worker whose wait expires rather than
+// terminating it (terminate() can strand allocator locks; destroying a running
+// QThread is a qFatal abort). An abandoned render worker keeps rasterising the old
+// deck — and its slideReady was still connected here, so those slides landed in
+// rasters_ AFTER openDeck() had resized it for the new deck. Every index is in
+// range, so nothing complained: the projector simply showed the old deck's content
+// under the new deck's slide numbers.
+// ===========================================================================
+
+TEST_CASE("W/F-CHAOS-2: a raster from a previous deck is dropped, not painted") {
+    AppShell shell;
+    shell.openDeckGenerationForTest(5);
+    const int stale = shell.deckGenerationForTest();
+
+    // The first deck's worker delivers a slide — accepted, it is the current deck.
+    shell.deliverSlideForTest(stale, 0, filled(QSize(64, 36), Qt::red));
+    REQUIRE(shell.hasRasterForTest(0));
+
+    // The presenter opens a different deck. The old worker was not stopped; it is
+    // still rendering, and it still has slides to hand over.
+    shell.openDeckGenerationForTest(5);
+    const int current = shell.deckGenerationForTest();
+    REQUIRE(current != stale);
+    REQUIRE_FALSE(shell.hasRasterForTest(0)); // fresh, empty raster set
+
+    shell.deliverSlideForTest(stale, 0, filled(QSize(64, 36), Qt::red));
+    shell.deliverSlideForTest(stale, 3, filled(QSize(64, 36), Qt::red));
+    CHECK_FALSE(shell.hasRasterForTest(0)); // the OLD deck's pixels never land
+    CHECK_FALSE(shell.hasRasterForTest(3));
+
+    // ...while the new deck's own worker is unaffected.
+    shell.deliverSlideForTest(current, 3, filled(QSize(64, 36), Qt::blue));
+    CHECK(shell.hasRasterForTest(3));
+}

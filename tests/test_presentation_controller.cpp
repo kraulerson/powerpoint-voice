@@ -55,7 +55,7 @@ TEST_CASE("A: a negative slide is rejected and the index never goes negative") {
     CHECK(r.notice.arg == 47);
 }
 
-TEST_CASE("A: one past the end is rejected; the last slide is reachable") {
+TEST_CASE("A: one past the end is rejected, the last slide is reachable") {
     auto c = atSlide(47, 12);
     CHECK(c.dispatch(go(48), CommandSource::Voice, false).outcome == Outcome::Rejected);
     CHECK(c.currentSlide1Based() == 12);
@@ -196,7 +196,7 @@ TEST_CASE("A: fuzz — the slide index is ALWAYS in range after any command sequ
 // can end the presentation. Quitting requires a deliberate confirmQuit().
 // ===========================================================================
 
-TEST_CASE("D: Esc goes to the holding screen; a command returns to presenting") {
+TEST_CASE("D: Esc goes to the holding screen, a command returns to presenting") {
     auto c = atSlide(47, 12);
     c.requestHolding(0);
     CHECK(c.mode() == Mode::Holding);
@@ -207,7 +207,7 @@ TEST_CASE("D: Esc goes to the holding screen; a command returns to presenting") 
     CHECK(c.currentSlide1Based() == 13);
 }
 
-TEST_CASE("D: a second Esc asks to quit; cancel returns to holding") {
+TEST_CASE("D: a second Esc asks to quit, cancel returns to holding") {
     auto c = atSlide(47, 12);
     c.requestHolding(0);
     c.requestHolding(0);

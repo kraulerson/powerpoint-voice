@@ -184,3 +184,47 @@ TEST_CASE("P: a worker that is cancelled before it starts does no work at all") 
     CHECK(loadedSpy.count() == 0);
     CHECK_FALSE(called);
 }
+
+// ===========================================================================
+// F-CHAOS-3 (Phase 3) — an exception on a worker thread killed the process.
+//
+// start() is a slot invoked on a QThread. Qt does not catch: an exception leaving
+// it unwinds through the worker's event loop and std::terminate()s the app — no
+// dialog, no fallback, the talk over. And the work inside is exactly where that can
+// happen: allocations are sized by an UNTRUSTED file, so std::bad_alloc is a normal
+// outcome of a normal input.
+// ===========================================================================
+
+TEST_CASE("P/F-CHAOS-3: an exception in the parse becomes a load FAILURE, not a crash") {
+    WorkerHarness h;
+    h.worker.setLoadFn([](const QString&) -> LoadResult {
+        throw std::bad_alloc(); // what a 20 GB expansion actually looks like
+    });
+    QSignalSpy loadedSpy(&h.worker, &DeckLoadWorker::loaded);
+    QSignalSpy finishedSpy(&h.worker, &DeckLoadWorker::finished);
+    h.thread.start();
+
+    // Both signals must still arrive. finished() in particular: the thread's quit()
+    // hangs off it, so losing it leaves a live thread teardown has to abandon.
+    REQUIRE((loadedSpy.count() > 0 || loadedSpy.wait(5000)));
+    REQUIRE((finishedSpy.count() > 0 || finishedSpy.wait(5000)));
+
+    const auto outcome = loadedSpy.at(0).at(0).value<DeckLoadOutcome>();
+    CHECK_FALSE(outcome.ok);
+    CHECK(outcome.presentation == nullptr);
+    // The message the user sees is the closed-vocabulary one. No exception text ever
+    // reaches a dialog: it can carry a path or file bytes, and the dialog can land on
+    // the projector (Bible section 8 / TM-013).
+    CHECK(describeLoadError(outcome.error.kind) == QStringLiteral("The deck could not be opened."));
+}
+
+TEST_CASE("P/F-CHAOS-3: a non-standard exception type is contained too") {
+    // The boundary is catch(...), not catch(std::exception&) — the contract is
+    // "nothing escapes this thread", not "these types are handled".
+    WorkerHarness h;
+    h.worker.setLoadFn([](const QString&) -> LoadResult { throw 42; });
+    QSignalSpy loadedSpy(&h.worker, &DeckLoadWorker::loaded);
+    h.thread.start();
+    REQUIRE((loadedSpy.count() > 0 || loadedSpy.wait(5000)));
+    CHECK_FALSE(loadedSpy.at(0).at(0).value<DeckLoadOutcome>().ok);
+}

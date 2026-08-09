@@ -885,3 +885,54 @@ awk -F'|' '$3 ~ /SEV-1/ && $4 ~ /^ *Open *$/' BUGS.md | wc -l
 enforced control and the documented intent disagree. Here the control does not even implement its own
 documented data model — `test-gate.sh:386` lists the legal status values in a comment directly above
 the code that ignores them.
+
+---
+
+## OBSERVATION-029 — "100% tests passed" was false for seven tests, and nothing in the toolchain said so (PROJECT finding, mine)
+
+**Found:** 2026-08-09, Phase 3, while mutation-testing an unrelated fix.
+
+I mutated `PreRenderWorker::renderOne` to remove its new exception boundary and ran the regression
+test through ctest to confirm it went red. It reported **Passed**. Run directly against the test
+binary, the same test failed with two wrong assertions.
+
+`doctest_discover_tests()` writes each TEST_CASE name into a CMake list. CMake's list separator is
+`;`. A test whose NAME contains a semicolon is therefore registered as two entries, each a fragment;
+ctest invokes the binary with `--test-case=<fragment>`, doctest matches nothing, runs **0 test
+cases**, and exits 0. ctest prints `Passed`.
+
+Seven tests in this repo were in that state:
+
+| test | in the suite since |
+|---|---|
+| `A: one past the end is rejected; the last slide is reachable` | Phase 2, F7a |
+| `D: Esc goes to the holding screen; a command returns to presenting` | Phase 2, F7a |
+| `D: a second Esc asks to quit; cancel returns to holding` | Phase 2, F7a |
+| `BUG-53: a stretched picture fills its frame; an unstretched one does not` | UAT-4 remediation |
+| `UAT2 BUG-11/17: 'resume presentation' un-pauses; a bare word does not` | UAT-2 remediation |
+| `R/F-CHAOS-3: a throwing slide becomes a placeholder; the rest still render` | today |
+| **`C-02: an [unk] on ONE edge is stripped; on BOTH edges it is not`** | **today — committed hours earlier** |
+
+The last one is the sharpest. It is the regression test for BUG-71, written specifically because a
+skeptic proved my first fix reopened an audience-false-trigger threat. I wrote it, watched ctest say
+267 tests passed, and committed. It had never executed.
+
+**Why I did not see it.** The only visible symptom is that `ctest -N` lists MORE tests than the
+binaries contain — 282 registered against 275 real. Both numbers grow every session and neither is
+printed next to the other. Every other signal was green.
+
+**What this says about the walk's evidence.** I have repeatedly cited a test count as proof
+("211 tests green", "267 tests green"). Those counts were inflated by seven, and more importantly
+the specific tests they were meant to vouch for were among the missing ones twice
+(BUG-53's and BUG-11/17's). This is the same failure as OBSERVATION-021 — "fixed" meaning "edited"
+rather than "verified" — arriving through the tooling instead of through my own claims.
+
+**Fixed** by `scripts/lint-test-names.sh`, which compares the ctest registration against
+`--list-test-cases` in BOTH directions and fails on any mismatch, wired into the commit-time gate and
+CI. It is not a `;` check: it catches any truncation, including whatever the next separator turns out
+to be. Verified by reintroducing a semicolon into an unrelated test name.
+
+**Not a framework finding** — the framework does not choose the test harness, and this project picked
+doctest + `doctest_discover_tests`. Recorded here because the *reasoning* generalises: a gate that
+consumes a count rather than a comparison cannot tell "all passed" from "none ran". The framework's
+own `test-gate.sh` consumes exactly such a count.

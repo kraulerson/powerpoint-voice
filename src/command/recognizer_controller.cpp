@@ -72,6 +72,17 @@ void RecognizerController::onPhrase(const QString& phrase) {
     }
 }
 
+void RecognizerController::setPaused(bool paused) {
+    // Refused mid-dispatch. onPhrase commits state before calling the sink, so a
+    // sink that reached back in here would leave the gate in a state that disagrees
+    // with the command already on its way out (audit S2/S5, same reasoning as the
+    // reentrancy backstop above).
+    if (inDispatch_) {
+        return;
+    }
+    state_ = paused ? State::Paused : State::Active;
+}
+
 RecognizerController::State RecognizerController::state() const {
     return state_;
 }

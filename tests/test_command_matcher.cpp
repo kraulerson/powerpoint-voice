@@ -208,7 +208,7 @@ TEST_CASE("BUG-17: filler cannot reduce speech to a lone command word") {
 // express, so a perfectly good command with ANY adjacent speech arrives as
 // "[unk] next slide". Phase 3 measured 36 of 60 naturally-phrased commands failing
 // for exactly this — a regression introduced by the BUG-67 [unk] fix itself.
-TEST_CASE("C-02: an [unk] on ONE edge is stripped; on BOTH edges it is not") {
+TEST_CASE("C-02: an [unk] on ONE edge is stripped, on BOTH edges it is not") {
     SUBCASE("natural phrasing fires — this is what regressed") {
         CHECK(matchCommand(QStringLiteral("[unk] next slide")).has_value());
         CHECK(matchCommand(QStringLiteral("next slide [unk]")).has_value());

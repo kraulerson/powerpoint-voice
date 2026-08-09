@@ -19,7 +19,38 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Security
+- **BUG-75 (F-CHAOS-3) — an exception on either worker thread killed the process.** Both worker
+  `start()` methods are slots invoked on a `QThread`, and Qt does not catch: an exception leaving one
+  unwinds through that thread's event loop and `std::terminate()`s the app — no dialog, no fallback,
+  the talk over. Both do work sized by an **untrusted file**, so `std::bad_alloc` is a normal outcome
+  of a normal input. The loader now reports it as the ordinary "could not be opened" failure, with no
+  exception text reaching a dialog that can land on the projector (TM-013). The renderer's boundary
+  is **per slide**, so one unrenderable slide costs one placeholder box rather than the other
+  ninety-nine.
+
 ### Fixed
+- **BUG-72 (F-1) — quitting freed the speech engine underneath the live audio thread.**
+  `~AppShell` stopped the deck and render workers and never stopped voice, so `VoskEngine` was
+  destroyed while CoreAudio's real-time thread was inside `feed()`. Invisible on the development
+  machine, which has no microphone; live on the presenter's laptop, on every Cmd+Q at the end of a
+  talk. Voice is now torn down first — the pipeline stops (which joins the audio thread), then the
+  engine, then the gate — and the member declaration order enforces the same thing independently.
+  Measured: **7/7 heap-use-after-free in the old order, 0/7 in the new.**
+- **BUG-73 (F-2) — the P key did nothing.** `PresentationWindow::setPaused()` had zero callers, so
+  the key always translated to "pause presentation", which the presentation controller treats as a
+  no-op. A presenter pressing P before taking questions would have believed voice was gated while it
+  was still fully live. The keyboard now reaches the same gate the voice does, in both directions.
+- **BUG-74 (F-CHAOS-2) — an abandoned render worker painted the previous deck.** A worker whose
+  shutdown wait expires is deliberately abandoned rather than terminated (BUG-42), and it keeps
+  rendering: its slides landed in the raster set after it had been resized for the **new** deck.
+  Every index was in range, so nothing complained. Now guarded twice — the connection is cut at
+  teardown, and a deck generation counter drops anything already queued.
+- **BUG-76 — seven tests had never once run, while the suite reported 100% green.** A TEST_CASE name
+  containing `;` is split by CMake's list separator, so ctest invokes a fragment that matches no test
+  case: doctest runs 0 cases, exits 0, and ctest prints "Passed". One of the seven was the C-02
+  regression test committed the same day. `scripts/lint-test-names.sh` now compares the ctest
+  registration against the binaries' own list in both directions and fails on any mismatch.
 - **C-01 — a picture on slide 1 of the reference deck vanished again, and my own BUG-58 fix is what
   did it.** That fix namespaced a placeholder key by the non-visual-properties element containing
   it. The deck's slide-1 picture sits under `<p:nvPicPr>` while the layout entry that positions it

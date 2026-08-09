@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include <vector>
 
@@ -51,6 +52,50 @@ class FakeCapture : public IAudioCapture {
   private:
     CaptureSink sink_;
     std::atomic<bool> running_{false};
+};
+
+// A capture that behaves like a REAL device rather than a passive stub: it drives
+// the sink from its own thread, and its stop() does not return until that thread
+// has left the sink. That is the contract miniaudio's ma_device_stop() provides and
+// the contract VoicePipeline::stop() is built on (F-1) — modelling it is the only
+// way to test the shutdown ordering without a microphone.
+class ThreadedFakeCapture : public IAudioCapture {
+  public:
+    ~ThreadedFakeCapture() override { stop(); }
+
+    CaptureError start() override {
+        if (running_.exchange(true)) {
+            return CaptureError::None;
+        }
+        thread_ = std::thread([this] {
+            const std::vector<std::int16_t> buf(960 * 2, 0);
+            while (!quit_.load()) {
+                if (sink_) {
+                    sink_(buf.data(), buf.size());
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
+        return CaptureError::None;
+    }
+
+    void stop() override {
+        quit_ = true;
+        if (thread_.joinable()) {
+            thread_.join(); // the JOIN — this is the property under test
+        }
+        running_ = false;
+    }
+
+    bool isRunning() const override { return running_.load(); }
+    AudioFormat deviceFormat() const override { return AudioFormat{48000, 2}; }
+    void setSink(CaptureSink s) override { sink_ = std::move(s); }
+
+  private:
+    CaptureSink sink_;
+    std::atomic<bool> running_{false};
+    std::atomic<bool> quit_{false};
+    std::thread thread_;
 };
 
 void pump(int ms = 200) {
@@ -203,4 +248,91 @@ TEST_CASE("VP: an invalid device format decodes nothing rather than guessing") {
     REQUIRE(p.start() == CaptureError::None);
     raw->deliverOffThread(std::vector<std::int16_t>(1920, 0));
     CHECK(decodes.load() == 0);
+}
+
+// ===========================================================================
+// F-1 — the shutdown ordering that AppShell's destructor depends on.
+//
+// AppShell owns three things: the pipeline, the VoskEngine the pipeline's decoder
+// calls into, and the gate. Freeing the engine while the audio thread is inside
+// feed() is a use-after-free, and a Phase 3 reviewer reproduced exactly that under
+// AddressSanitizer, 7 times out of 7, with both stacks. It cannot happen on the
+// development machine — no input device — so it survived to Phase 3 unseen.
+//
+// The fix is an ORDER: stop the pipeline first, then free what its decoder touches.
+// That order is only sound if stop() actually JOINS a callback already in flight,
+// which is what these assert.
+// ===========================================================================
+
+TEST_CASE("VP/F-1: stop() does not return while the decoder is still running") {
+    VoicePipeline p;
+    p.setCapture(std::make_unique<ThreadedFakeCapture>());
+
+    std::atomic<bool> inDecode{false};
+    std::atomic<int> entries{0};
+    p.setDecoder([&](const std::int16_t*, std::size_t) {
+        inDecode = true;
+        ++entries;
+        // Stands in for VoskEngine::feed(), which is not instantaneous — decoding a
+        // buffer is the window in which the engine must not be freed.
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        inDecode = false;
+        return QString();
+    });
+
+    REQUIRE(p.start() == CaptureError::None);
+    // Wait until the decoder is genuinely being entered, so stop() is racing
+    // something real rather than an idle thread.
+    for (int i = 0; i < 200 && entries.load() == 0; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE(entries.load() > 0);
+
+    p.stop();
+
+    // THE assertion. If stop() returns while a decode is in flight, everything the
+    // decoder captured — in production, the VoskEngine — is being freed underneath
+    // a live call.
+    CHECK_FALSE(inDecode.load());
+    CHECK_FALSE(p.isRunning());
+
+    // And nothing more arrives afterwards.
+    const int settled = entries.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    CHECK(entries.load() == settled);
+}
+
+TEST_CASE("VP/F-1: destroying the pipeline joins too — the destructor is a stop()") {
+    std::atomic<bool> inDecode{false};
+    std::atomic<int> entries{0};
+    {
+        VoicePipeline p;
+        p.setCapture(std::make_unique<ThreadedFakeCapture>());
+        p.setDecoder([&](const std::int16_t*, std::size_t) {
+            inDecode = true;
+            ++entries;
+            std::this_thread::sleep_for(std::chrono::milliseconds(40));
+            inDecode = false;
+            return QString();
+        });
+        REQUIRE(p.start() == CaptureError::None);
+        for (int i = 0; i < 200 && entries.load() == 0; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        REQUIRE(entries.load() > 0);
+    } // ~VoicePipeline
+
+    // The locals above outlive the pipeline only because this is a test. In AppShell
+    // the equivalent captures are the VoskEngine, which is freed immediately after —
+    // so this has to hold before the closing brace, not eventually.
+    //
+    // Honest about its own strength: this one does NOT distinguish the two ways the
+    // join can happen. ~VoicePipeline calls stop(), and then destroys the capture,
+    // whose own destructor also stops. Deleting the explicit stop() leaves this test
+    // green (measured). Its sibling above is the one that pins that; this pins the
+    // weaker but still necessary property that DESTRUCTION joins by some route.
+    CHECK_FALSE(inDecode.load());
+    const int settled = entries.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    CHECK(entries.load() == settled);
 }
