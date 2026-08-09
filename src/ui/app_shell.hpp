@@ -42,7 +42,12 @@ class AppShell : public QObject {
     // halves of that wiring against a caller-owned window, and expose the one bit of
     // state the key is supposed to move. Nothing else.
     void installVoiceGateForTest() { installVoiceGate(); }
-    void installWindowSinksForTest(PresentationWindow* w) { installWindowSinks(w); }
+    // Adopts a caller-owned window as THE window and wires it exactly as openDeck
+    // would. The caller must outlive the shell.
+    void installWindowSinksForTest(PresentationWindow* w) {
+        window_ = w;
+        installWindowSinks(w);
+    }
     bool voiceGatePausedForTest() const;
 
     // Test seams for F-CHAOS-2. A raster arriving from an ABANDONED worker is not

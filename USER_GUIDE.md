@@ -78,6 +78,7 @@ single word in conversation cannot move your deck.
 | **→**, **↓**, **Space** or **Page Down** | next slide |
 | **←**, **↑** or **Page Up** | previous slide |
 | **type a number, then Enter** | go to that slide |
+| **P** | pause voice — press again to resume |
 | **Esc** | blank the projector (privacy) |
 | **Esc** again | offer to quit |
 | **⌘Q** | quit immediately |
@@ -85,10 +86,23 @@ single word in conversation cannot move your deck.
 The keyboard works whether or not voice is running. If anything at all goes wrong with the
 microphone, keep presenting — nothing about a voice failure can stop the deck.
 
+**P does exactly what "pause presentation" does**, so you never have to speak to silence the
+microphone. Arrow keys keep working while paused — pausing stops the *voice*, never the keyboard.
+With voice not running, P does nothing (there is nothing to pause).
+
+### With a screen reader
+
+VoiceOver reads the presentation window. It announces which slide you are on ("Slide 3 of 10"),
+whether the projector is blanked, and each notice as it appears. The window itself carries the key
+list, so ⌃⌥ + the window gives you the controls without a menu bar.
+
+It never reads the deck's own text. That is deliberate — the accessibility tree is readable by other
+applications, and your slides are not something to publish there.
+
 ### During discussion
 
-Say **"pause presentation"** before you take questions. Voice stops responding until you say
-**"continue presentation"**.
+Say **"pause presentation"** — or press **P** — before you take questions. Voice stops responding
+until you say **"continue presentation"** or press **P** again.
 
 This matters: with a room talking, an isolated phrase that sounds like a command can occasionally be
 misheard. Pausing removes that entirely. See *Known limits* below.
@@ -125,8 +139,8 @@ phrase spoken **alone**, with a pause either side, that sounds like a command �
 In practice: normal conversation and background chatter do not move your slides. Someone answering a
 question with a two-word fragment occasionally might.
 
-**If it happens:** say "previous slide", or press ←. And say **"pause presentation"** during
-discussion, which removes the risk entirely.
+**If it happens:** say "previous slide", or press ←. And say **"pause presentation"** (or press
+**P**) during discussion, which removes the risk entirely.
 
 ### Pictures the app cannot draw
 

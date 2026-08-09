@@ -68,11 +68,17 @@ bool AppShell::voiceGatePausedForTest() const {
 }
 
 void AppShell::openDeckGenerationForTest(int slideCount) {
-    // The two things openDeck() does that matter to the generation guard, without a
-    // file, a thread or a window: a new generation and a raster set sized for it.
+    // What openDeck() does once a deck has arrived, without a file or a thread: a new
+    // generation, a deck of that length, and a raster set sized for it.
     ++deckGeneration_;
-    controller_.setDeck(slideCount);
-    rasters_.assign(static_cast<std::size_t>(slideCount < 0 ? 0 : slideCount), QImage());
+    const int n = slideCount < 0 ? 0 : slideCount;
+    Presentation p;
+    p.slideWidth = 9144000;
+    p.slideHeight = 6858000;
+    p.slides.resize(static_cast<std::size_t>(n));
+    deck_ = std::make_shared<const Presentation>(std::move(p));
+    controller_.setDeck(n);
+    rasters_.assign(static_cast<std::size_t>(n), QImage());
 }
 
 bool AppShell::hasRasterForTest(int index) const {
@@ -509,6 +515,11 @@ void AppShell::refresh() {
         window_->surface()->setStatusText(
             noticeForRole(Notice{NoticeId::HoldingHint}, NoticeRole::Operator, false));
         window_->setNotice(QString());
+        // A blank projector and a broken app look identical to a screen reader
+        // otherwise — both are an unnamed rectangle saying nothing (A11Y-1).
+        window_->surface()->setAccessibleState(
+            QStringLiteral("Projector blanked. The deck is hidden. Press any navigation key to "
+                           "return to it."));
         return;
     case Mode::ConfirmQuit:
         // The prompt must be VISIBLE — it swallows every key, so an invisible one
@@ -516,6 +527,7 @@ void AppShell::refresh() {
         window_->setSlideImage(QImage());
         window_->surface()->setStatusText(quitConfirmHint());
         window_->setNotice(QString());
+        window_->surface()->setAccessibleState(quitConfirmHint());
         return;
     case Mode::Idle:
     case Mode::Presenting:
@@ -554,11 +566,18 @@ void AppShell::showSlide(int index1Based) {
         return;
     }
     const std::size_t i = static_cast<std::size_t>(index1Based - 1);
+    const int count = deck_ ? static_cast<int>(deck_->slides.size()) : 0;
     if (i < rasters_.size() && !rasters_[i].isNull()) {
         window_->setSlideImage(rasters_[i]);
+        // Says WHICH slide, never what is on it: the accessibility tree is readable by
+        // other processes and the deck is Confidential (A11Y-1, TM-012/013).
+        window_->surface()->setAccessibleState(
+            QStringLiteral("Slide %1 of %2.").arg(index1Based).arg(count));
     } else {
         window_->setSlideImage(QImage());
         window_->surface()->setStatusText(QStringLiteral("Rendering slide %1...").arg(index1Based));
+        window_->surface()->setAccessibleState(
+            QStringLiteral("Rendering slide %1 of %2.").arg(index1Based).arg(count));
     }
     if (renderWorker_) {
         // Tell the renderer what the presenter is looking at, so it re-steers.

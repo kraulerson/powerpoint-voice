@@ -589,3 +589,69 @@ TEST_CASE("W/F-CHAOS-2: a raster from a previous deck is dropped, not painted") 
     shell.deliverSlideForTest(current, 3, filled(QSize(64, 36), Qt::blue));
     CHECK(shell.hasRasterForTest(3));
 }
+
+// ===========================================================================
+// A11Y-1 (Phase 3) — the presentation was silent to VoiceOver.
+//
+// Every surface here is a custom-painted QWidget. To a screen reader that is an
+// unnamed rectangle with no text in it, so the deck, the privacy blackout, the quit
+// prompt and a crashed app were all indistinguishable: silence. The window has no
+// menu bar and no on-screen controls either, so there was nothing to discover the
+// key map from.
+//
+// The constraint that shapes all of this: the accessibility tree is readable by
+// other processes, and the deck is Confidential. So the state is named — "Slide 3
+// of 10" — and its CONTENT never is (Bible section 8, TM-012/013).
+// ===========================================================================
+
+TEST_CASE("W/A11Y-1: the presentation window names itself and its key map") {
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    CHECK_FALSE(w.accessibleName().isEmpty());
+    // The key map is the only way in: no menu, no toolbar, no visible control.
+    const QString desc = w.accessibleDescription();
+    CHECK(desc.contains(QStringLiteral("arrow")));
+    CHECK(desc.contains(QStringLiteral("Escape")));
+    CHECK(desc.contains(QStringLiteral("P ")));
+}
+
+TEST_CASE("W/A11Y-1: the slide surface says WHICH slide, and never what is on it") {
+    SlideSurface s;
+    CHECK_FALSE(s.accessibleName().isEmpty());
+
+    s.setAccessibleState(QStringLiteral("Slide 3 of 10."));
+    CHECK(s.accessibleDescription() == QStringLiteral("Slide 3 of 10."));
+
+    // A blanked projector must be distinguishable from a broken app.
+    s.setAccessibleState(QStringLiteral("Projector blanked. The deck is hidden."));
+    CHECK(s.accessibleDescription().contains(QStringLiteral("blanked")));
+}
+
+TEST_CASE("W/A11Y-1: a notice is announced, and repeats are not") {
+    NoticeStrip strip;
+    CHECK_FALSE(strip.accessibleName().isEmpty());
+
+    strip.setText(QStringLiteral("Deck has 10 slides"));
+    CHECK(strip.accessibleDescription() == QStringLiteral("Deck has 10 slides"));
+
+    // Clearing is reflected too, so a stale notice is not left in the tree for a
+    // screen reader to read back long after it faded from the screen.
+    strip.setText(QString());
+    CHECK(strip.accessibleDescription().isEmpty());
+}
+
+TEST_CASE("W/A11Y-1: the shell actually WIRES the spoken state to the presentation") {
+    // The naming above is worth nothing if nobody updates it — that is BUG-60's
+    // lesson, and this is the equivalent assertion for the accessibility tree.
+    PresentationController c;
+    PresentationWindow w(&c); // declared first: it must outlive the shell
+    AppShell shell;
+    shell.installWindowSinksForTest(&w);
+    shell.openDeckGenerationForTest(10);
+
+    shell.deliverSlideForTest(shell.deckGenerationForTest(), 0, filled(QSize(64, 36), Qt::red));
+    CHECK(w.surface()->accessibleDescription() == QStringLiteral("Slide 1 of 10."));
+    // ...and it does NOT leak what is on the slide.
+    CHECK_FALSE(w.surface()->accessibleDescription().contains(QStringLiteral("red")));
+}

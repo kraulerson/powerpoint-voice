@@ -46,6 +46,13 @@ for handoff clarity. Categories are ordered by impact severity.
   rendering: its slides landed in the raster set after it had been resized for the **new** deck.
   Every index was in range, so nothing complained. Now guarded twice — the connection is cut at
   teardown, and a deck generation counter drops anything already queued.
+- **BUG-77/78 (A11Y-1/A11Y-2) — the presentation was silent to VoiceOver, and the pause gate was
+  voice-only.** Every surface is custom-painted, so a screen reader saw one unnamed rectangle: the
+  deck, the privacy blackout, the quit prompt and a hung app were indistinguishable, and with no menu
+  bar there was nothing to discover the key map from. The window now carries the key map, the surface
+  says which slide is showing, and a notice is announced rather than left to be polled. **The state
+  is named and the deck's content never is** — the accessibility tree is readable by other processes
+  (TM-012/013). A11Y-2 is closed by the P-key fix above.
 - **BUG-76 — seven tests had never once run, while the suite reported 100% green.** A TEST_CASE name
   containing `;` is split by CMake's list separator, so ctest invokes a fragment that matches no test
   case: doctest runs 0 cases, exits 0, and ctest prints "Passed". One of the seven was the C-02

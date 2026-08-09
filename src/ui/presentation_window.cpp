@@ -23,6 +23,14 @@ PresentationWindow::PresentationWindow(PresentationController* controller, QWidg
     p.setColor(QPalette::Window, Qt::black);
     setPalette(p);
     setAutoFillBackground(true);
+    // A11Y-1. The window carries the KEY MAP, because there is no menu bar, no
+    // toolbar and no on-screen control to discover it from — a screen-reader user
+    // landing here would otherwise be told nothing at all about how to drive it.
+    setAccessibleName(QStringLiteral("Presentation"));
+    setAccessibleDescription(
+        QStringLiteral("Right arrow or space for the next slide, left arrow for the previous, "
+                       "type a number then Enter to jump, P to pause or resume voice, "
+                       "Escape to blank the projector."));
     clock_.start();
 }
 

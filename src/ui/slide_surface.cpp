@@ -1,5 +1,7 @@
 #include "ui/slide_surface.hpp"
 
+#include <QAccessible>
+#include <QAccessibleEvent>
 #include <QPaintEvent>
 #include <QPainter>
 
@@ -12,6 +14,21 @@ SlideSurface::SlideSurface(QWidget* parent) : QWidget(parent) {
     QPalette p = palette();
     p.setColor(QPalette::Window, Qt::black);
     setPalette(p);
+    // A11Y-1. Without this the surface is an unnamed rectangle to VoiceOver — the
+    // deck, the blackout and the quit prompt are all the same silence.
+    setAccessibleName(QStringLiteral("Slide"));
+    setAccessibleDescription(QStringLiteral("No deck open."));
+}
+
+void SlideSurface::setAccessibleState(const QString& what) {
+    if (accessibleDescription() == what) {
+        return; // do not make a screen reader repeat itself on every repaint
+    }
+    setAccessibleDescription(what);
+    // Push it rather than wait to be polled: the slide changing is an event the
+    // presenter needs told, not a property they will think to go and read.
+    QAccessibleEvent ev(this, QAccessible::DescriptionChanged);
+    QAccessible::updateAccessibility(&ev);
 }
 
 void SlideSurface::setSlideImage(const QImage& img) {
