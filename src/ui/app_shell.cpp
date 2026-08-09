@@ -73,7 +73,7 @@ QString AppShell::armVoice() {
     // Order matters: validate the model and grammar BEFORE opening the microphone,
     // so a model that cannot constrain never causes a permission prompt for a
     // capability we are about to refuse to use.
-    const RecognizerSetup setup = prepareRecognizer(QStringLiteral(PPTV_VOSK_MODEL_DIR));
+    const RecognizerSetup setup = prepareRecognizer(resolveModelDir());
     if (setup.error != RecognizerInitError::None) {
         return QString::fromUtf8(describeRecognizerInitError(setup.error));
     }

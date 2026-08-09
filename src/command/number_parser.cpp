@@ -95,7 +95,22 @@ std::optional<int> parseSlideNumber(const QString& spoken) {
     static const QRegularExpression numeral(QStringLiteral("^\\d+$"));
     for (const QString& t : raw) {
         if (isFiller(t)) {
-            continue;
+            // Filler is tolerated ONLY BEFORE the number starts ("go to slide five",
+            // "show me page ten"). Once digits are flowing, a filler word means the
+            // tokens did not come from someone reading a number aloud — and the
+            // decoder's bigram sprays exactly these words. Skipping it mid-number
+            // turned the heard phrase "go to slide zero two three go six" into a
+            // jump to slide 236 during ordinary conference prose (BUG-69).
+            if (nums.isEmpty()) {
+                continue;
+            }
+            // "and" is the one exception: English numbers genuinely contain it
+            // ("one hundred and twenty"). Every other filler mid-number is decoder
+            // spray, not speech.
+            if (t == QStringLiteral("and")) {
+                continue;
+            }
+            return std::nullopt;
         }
         if (numeral.match(t).hasMatch() || wordValues().contains(t)) {
             nums.append(t);

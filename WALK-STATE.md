@@ -67,6 +67,28 @@ Binding consequences for the voice work:
   `.app` (~33 MB zipped) and FAILS LOUDLY if anything still references `/opt/homebrew`. First launch
   needs right-click -> Open. This is not the release build — that is Phase 4 (ISSUE-003/010).
 
+## 2d. SCHEDULE AND SCOPE — Karl, 2026-08-06 (BINDING)
+
+- **Talk: Wednesday 2026-08-12.** Karl is in all-day meetings **Tuesday 8/11**, so the
+  **hard deadline is end of Monday 2026-08-10** — he must have a final build in hand with time to
+  test it before Tuesday.
+- **Room: ~20 people.** Karl judges the odds of someone uttering a near-miss command LOW and
+  accepts that residual risk. He will say "pause presentation" for discussion.
+- **Pre-show check: Karl does it himself.** F5's automated pre-show check is therefore CUT from the
+  MVP for this talk — do not build it.
+
+**The consequence that raises one priority rather than lowering it:** his mitigation is to pause
+during discussion, and discussion is exactly when twenty people talk. The near-miss that un-pauses
+("continue presenting", "presume the presentation" -> ContinuePresentation) fires through the very
+defence he is relying on. **That specific case matters more than false triggers in general.**
+
+Priorities under this schedule:
+1. the un-pause near-miss (BUG-67's worst case) — measure, then harden
+2. measure the `[unk]` fix honestly and close or re-open BUG-66/67/68
+3. BUG-42 (up to 5 s to quit, further quit requests discarded) — he would see this
+4. final build to Karl by Monday 8/10 with a short test script
+5. everything else is post-talk
+
 ## 3. Standing protocols (LEARNED — keep applying)
 
 1. **Merges to main:** agent prepares PR + green CI on BOTH platforms, then STOPS. Karl
