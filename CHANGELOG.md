@@ -19,6 +19,24 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Fixed
+- **C-01 — a picture on slide 1 of the reference deck vanished again, and my own BUG-58 fix is what
+  did it.** That fix namespaced a placeholder key by the non-visual-properties element containing
+  it. The deck's slide-1 picture sits under `<p:nvPicPr>` while the layout entry that positions it
+  sits under `<p:sp>`, so the two stopped matching, the picture inherited no geometry, went back to
+  `0x0` and was silently never drawn — BUG-41 reopened by its own remedy, with no warning emitted.
+  The commit claimed "not triggered on Karl's deck (all 45 layout placeholders sit under nvSpPr)";
+  that checked the layout side only, and a key has to match on **both**. Placeholder identity is
+  `type:idx` again, which is what ECMA-376 defines and what PowerPoint writes. The key collision
+  BUG-58 was actually about is handled where it belongs — at insertion, first entry wins — so
+  document order (which is z-order, not priority) no longer decides whose geometry a slide adopts.
+- **C-02 — naturally-phrased commands stopped working.** Vosk emits a literal `[unk]` token wherever
+  it heard something outside the grammar, so "okay, next slide" decodes as `[unk] next slide`.
+  Measurement across a 60-clip corpus of natural phrasings: **36 of 60 rejected**. An `[unk]` at one
+  edge is now stripped. At **both** edges it is not: `"the next slide shows our results for this
+  quarter"` decodes as `[unk] next slide [unk]`, so stripping both would turn narration into a slide
+  change and reopen TM-002/019.
+
 ### Security
 - **BUG-21 — the TM-018 render caps measured the wrong quantity.** Shapes and text runs alone let
   through slides that take minutes: 2000 pictures of one 31 Mpx image measured ~309 s, and 5000 runs

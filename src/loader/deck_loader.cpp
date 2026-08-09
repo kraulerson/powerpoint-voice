@@ -542,27 +542,34 @@ QString placeholderKey(const pugi::xml_node& sp) {
     // PowerPoint writes a picture dropped into a layout's picture placeholder —
     // inherited no geometry, ended up 0x0, and was silently never drawn (BUG-41).
     pugi::xml_node ph;
-    QString holderKind;
     for (const char* holder : {"nvSpPr", "nvPicPr", "nvGraphicFramePr", "nvCxnSpPr"}) {
         ph = descendantLocal(childLocal(sp, holder), "ph");
         if (ph) {
-            holderKind = QString::fromLatin1(holder);
             break;
         }
     }
     if (!ph) {
         return {};
     }
-    // The key is namespaced by HOLDER as well as type+idx. Without that, a layout's
-    // <p:pic ph idx="1"> and its <p:sp ph idx="1"> collide in one map and the LAST
-    // in document order wins — so a text shape can silently adopt a picture's
-    // rectangle (adversarial review F4). Document order in a layout is z-order, not
-    // priority, so that choice is arbitrary as well as wrong.
+    // Identity is type+idx and NOTHING ELSE — that is what ECMA-376 makes a
+    // placeholder reference, and it is what PowerPoint writes.
+    //
+    // I previously namespaced this by the containing non-visual-properties element to
+    // close a pic/sp key collision (BUG-58). That BROKE THE REAL DECK: its slide 1
+    // picture sits under <p:nvPicPr> while the layout entry that positions it sits
+    // under <p:sp>, so the two stopped matching and the picture went back to 0x0 and
+    // silently vanished — BUG-41 reintroduced by its own fix. The commit message
+    // claimed "not triggered on Karl's deck (all 45 layout placeholders sit under
+    // nvSpPr)"; that verified the layout side only, and a key must match on BOTH.
+    //
+    // The collision BUG-58 was about is handled where it belongs — at insertion, in
+    // parseLayoutPlaceholders — by preferring the first entry rather than letting
+    // document order (which is z-order, not priority) silently overwrite.
     QString type = attrLocal(ph, "type");
     if (type.isEmpty()) {
         type = QStringLiteral("body");
     }
-    return holderKind + QLatin1Char('|') + type + QLatin1Char(':') + attrLocal(ph, "idx");
+    return type + QLatin1Char(':') + attrLocal(ph, "idx");
 }
 
 // Map placeholder key -> geometry, parsed from a slideLayout part (BUG-2). Real
@@ -584,7 +591,11 @@ QHash<QString, RectEmu> parseLayoutPlaceholders(const QByteArray& xml) {
             continue;
         }
         RectEmu rect = parseXfrm(childLocal(sp, "spPr"));
-        if (rect.cx > 0 && rect.cy > 0) {
+        // FIRST entry wins. Two shapes in one layout can legally claim the same
+        // type+idx; letting the later one overwrite meant document order — which is
+        // z-order, not priority — silently decided whose geometry a slide adopted
+        // (BUG-58). Deterministic and order-independent this way.
+        if (rect.cx > 0 && rect.cy > 0 && !map.contains(key)) {
             map.insert(key, rect);
         }
     }
