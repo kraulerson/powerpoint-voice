@@ -152,13 +152,34 @@ Full contract: `docs/phase-0/data-contract.md` (9 inputs: 3 declared + 6 implied
 - F2 — Voice navigation: "next slide" / "previous slide"
 - F3 — Recognition control: "pause presentation" / "continue presentation"
 - F4 — "Go to slide N" with robust number forms
-- F5 — Live transcript overlay + listening-state glyph + pre-show voice check
-- F6 — Strict keyboard parity (exactly the five commands)
 - F7 — Presentation UI: minimal dark, dual-display, safe exit to holding screen
+- F8 — Voice engine: microphone capture, format conversion, grammar-constrained decode
+  (added during Phase 2 as F8a-F8d; the original cutline folded this into F2/F3)
 
 ---
 
 **CUTLINE — nothing below this line is built in Phase 2 without Orchestrator approval**
+
+---
+
+**MOVED BELOW THE LINE — deliberate scope cut, Karl Raulerson, 2026-08-09:**
+
+- **F5 — Live transcript overlay + listening-state glyph + pre-show voice check.**
+  The pre-show check was cut on 2026-08-06: Karl performs that check himself. The overlay and glyph
+  were never started. Recorded rather than silently skipped, because the Phase 2 checkpoint requires
+  "all MVP Cutline features built" and this gate would otherwise pass on an untrue statement.
+- **F6 — Strict keyboard parity (exactly the five commands).**
+  The KEYBOARD ITSELF IS BUILT AND TESTED — `key_translator` drives all five commands through the
+  same `matchCommand` -> `PresentationController` path as voice, and Karl has presented with it. What
+  F6 additionally specified was a *keybinding configuration surface*; that is unbuilt. So this is a
+  cut of configurability, not of function.
+
+  **Rationale (Karl, 2026-08-09):** the talk is 2026-08-12 and he is unavailable 2026-08-11, so the
+  working deadline is 2026-08-10. Neither item affects the talk: the keyboard works, and he does the
+  pre-show check by hand. Building them under that deadline would add unreviewed code to a product
+  whose risky surfaces are now measured and verified.
+
+  Both return to the Post-MVP backlog below and are the first candidates for v1.1.
 
 ---
 

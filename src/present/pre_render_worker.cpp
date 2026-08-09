@@ -18,13 +18,32 @@ SlideComplexity measureComplexity(const Slide& slide) {
         }
         for (const auto& para : e.textBox.paragraphs) {
             c.textRuns += static_cast<int>(para.runs.size());
+            for (const auto& run : para.runs) {
+                c.textChars += run.text.size();
+            }
+        }
+    }
+    // Declared image area, from the model's frame geometry — never from decoding the
+    // image, because decoding is the expensive step this cap exists to avoid. A deck
+    // that references one 31 Mpx image 2000 times declares 2000 frames' worth here.
+    for (const auto& e : slide.elements) {
+        if (e.kind != ElementKind::Image) {
+            continue;
+        }
+        const long long w = e.image.rect.cx > 0 ? e.image.rect.cx : 0;
+        const long long h = e.image.rect.cy > 0 ? e.image.rect.cy : 0;
+        // EMU -> approximate pixels at 96 dpi: 914400 EMU per inch.
+        const long long px = (w / 9525) * (h / 9525);
+        if (px > 0 && c.imagePixels < (1LL << 62)) {
+            c.imagePixels += px;
         }
     }
     return c;
 }
 
 bool exceedsCaps(const SlideComplexity& c, const RenderCaps& caps) {
-    return c.shapes > caps.maxShapesPerSlide || c.textRuns > caps.maxTextRunsPerSlide;
+    return c.shapes > caps.maxShapesPerSlide || c.textRuns > caps.maxTextRunsPerSlide ||
+           c.textChars > caps.maxTextCharsPerSlide || c.imagePixels > caps.maxImagePixelsPerSlide;
 }
 
 std::vector<int> renderOrder(int current, int count) {

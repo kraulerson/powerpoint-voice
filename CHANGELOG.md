@@ -19,6 +19,25 @@ for handoff clarity. Categories are ordered by impact severity.
 
 ## [Unreleased]
 
+### Security
+- **BUG-21 — the TM-018 render caps measured the wrong quantity.** Shapes and text runs alone let
+  through slides that take minutes: 2000 pictures of one 31 Mpx image measured ~309 s, and 5000 runs
+  x 300k characters ~657 s, both under the two original caps. ISOLATE held — the UI never blocked —
+  but the slide never appeared, which during a talk is the same as losing it. Total characters and
+  total DECLARED image pixels now complete the ratified four-cap set (Bible section 3, TM-018.3-A).
+  The reference deck sits three orders of magnitude under every cap.
+- **BUG-22 — the raster cache was unbounded.** 3840x2160 RGB32 is ~31.6 MB per slide, so a 300-slide
+  deck is ~9.27 GB: the machine swaps, then the OOM killer takes the app mid-talk. A fixed 2 GB
+  window now evicts the slides FURTHEST from the one being shown, and never the one being shown —
+  evicting that would blank the projector, the outcome the whole subsystem exists to prevent.
+
+### Changed
+- MVP cutline amended: **F5 and F6 moved below the line as a deliberate scope cut** (Karl,
+  2026-08-09). The keyboard itself is built and tested — what F6 additionally specified was a
+  keybinding configuration surface — and Karl performs the pre-show check himself. Recorded in
+  PRODUCT_MANIFESTO.md section 5 rather than left as a silently unmet gate condition.
+
+
 ### Added
 - **F8d — voice decode. The application now listens and acts.** Microphone → 16 kHz mono →
   grammar-constrained Vosk → the recognizer gate → the presentation controller. The decoder is

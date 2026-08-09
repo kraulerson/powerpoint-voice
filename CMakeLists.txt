@@ -83,7 +83,8 @@ add_library(pptv_core STATIC
   src/present/display_geometry.cpp
   src/present/key_translator.cpp
   src/present/deck_load_worker.cpp
-  src/present/pre_render_worker.cpp)
+  src/present/pre_render_worker.cpp
+  src/present/raster_cache.cpp)
 target_include_directories(pptv_core PUBLIC src PRIVATE third_party/miniaudio third_party/vosk/include)
 # Qt6::Gui for the renderer (QImage/QPainter/QFont); libzip+pugixml for the loader.
 # The Vosk engine compiles on every platform, so it must LINK on every platform.

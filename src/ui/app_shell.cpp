@@ -11,6 +11,7 @@
 #include "command/vosk_recognizer.hpp"
 #include "loader/deck_loader.hpp"
 #include "present/display_geometry.hpp"
+#include "present/raster_cache.hpp"
 #include "render/slide_renderer.hpp"
 #include "ui/presentation_window.hpp"
 #include <unistd.h>
@@ -348,6 +349,17 @@ void AppShell::onSlideReady(int index, QImage image, bool /*isPlaceholder*/) {
     // the ratified amendment A3-1(1).
     if (index >= 0 && index < static_cast<int>(rasters_.size())) {
         rasters_[static_cast<std::size_t>(index)] = image;
+        // Keep the raster window inside its budget (BUG-22). Unbounded, a 300-slide
+        // 4K deck is ~9.27 GB and the machine swaps then dies mid-talk.
+        std::vector<std::size_t> sizes;
+        sizes.reserve(rasters_.size());
+        for (const QImage& r : rasters_) {
+            sizes.push_back(rasterBytes(r));
+        }
+        for (int victim :
+             evictionOrder(sizes, controller_.currentIndex0Based(), kRasterBudgetBytes)) {
+            rasters_[static_cast<std::size_t>(victim)] = QImage();
+        }
     }
     if (index == controller_.currentIndex0Based()) {
         // refresh(), NOT showSlide(): refresh is the only mode-aware path. Calling
