@@ -25,6 +25,12 @@ namespace pptv {
 // QCoreApplication instance.
 void installApplicationQuitFilter();
 
+// True from the moment an application quit is requested, and never cleared. Distinct
+// from applicationQuitInProgress() below, which is scoped to one closeAllWindows()
+// call: this one answers "are we on the way out?" during teardown, long after that
+// scope has ended.
+bool applicationIsTerminating();
+
 // True only for the duration of an application-level quit. A window must accept a
 // close request while this holds, whatever mode it is in.
 bool applicationQuitInProgress();

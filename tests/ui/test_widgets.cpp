@@ -442,3 +442,30 @@ TEST_CASE("S/BUG-60: AppShell actually wires the start screen to opening a deck"
         CHECK(view->acceptDrops());
     }
 }
+
+// BUG-42 — quitting could take 5 s with every further quit request discarded.
+//
+// After exec() returns the GUI thread has NO RUNLOOP while teardown blocks, so macOS
+// never re-invokes applicationShouldTerminate: and additional Dock / Activity Monitor
+// quits vanish. From outside that is indistinguishable from refusing to die.
+//
+// The tempting fix — skip the wait, detach the thread — was MEASURED WRONG by an
+// adversarial reviewer: 8 of 14 runs SEGV, because ~QGuiApplication tears down the
+// font database while the render thread is still inside QFont/QPainter.
+TEST_CASE("Q/BUG-42: an application quit is recognised as terminating, and stays so") {
+    // The flag must survive past the closeAllWindows() scope, because teardown runs
+    // long after it — that is the whole point of it being separate from
+    // applicationQuitInProgress().
+    CHECK_FALSE(applicationQuitInProgress()); // scoped flag is down between quits
+
+    PresentationController c;
+    c.setDeck(3);
+    PresentationWindow w(&c);
+    w.show();
+    QEvent quit(QEvent::Quit);
+    QCoreApplication::sendEvent(qApp, &quit);
+
+    CHECK(applicationIsTerminating());        // sticky: still true after the scope ended
+    CHECK_FALSE(applicationQuitInProgress()); // scoped: already back down
+    CHECK_FALSE(w.isVisible());
+}
