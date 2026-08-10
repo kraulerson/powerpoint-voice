@@ -159,6 +159,23 @@ _Required when Privacy Policy or Terms of Service are generated. Standard+ Track
 <!-- BL-170-APPEND-DESIGN -->
 _Append a completed copy of the shape below when legal review occurs. Append-only: never edit a line once pushed._
 
+### Legal review — 2026-08-10
+
+| Field | Value |
+|---|---|
+| **Reviewer** | Karl Raulerson (Orchestrator) — **SELF-REVIEW. No qualified legal counsel was involved.** |
+| **Date** | 2026-08-10 |
+| **Documents Reviewed** | Privacy Policy. No Terms of Service exists, deliberately — a ToS governs a *service*, and this is a program run on the user's own machine with no service behind it |
+| **Decision** | Approved for the internal talk on 2026-08-12 |
+| **Notes** | Recorded for what it is. The underlying review — `docs/test-results/2026-08-10_legal-review.md` — is an engineer reading licence texts, and says so in its own words; this row does not imply otherwise. **What it did find is real and is fixed:** the binary shipped with no licence notices at all, which is a violation for all seven components and specifically for Qt's LGPL-3.0 §4 (dynamically linked, obliging us to supply the LGPL and GPL texts with the combined work). Remediated, and `make-test-build.sh` now fails the build if any notice is missing. Second finding: the public repository had no `LICENSE`, granting nothing to anyone reading it; Karl chose **MIT**, which is compatible with dynamically linking LGPL-3.0. **Explicitly NOT covered and carried forward to Phase 4:** the trademark question ("PowerPoint" is a Microsoft trademark; `powerpoint-voice` is descriptive use and unaffiliated), any patent search, and review by actual counsel before any distribution wider than the presenter's own machine. Approval is scoped to that machine and that talk. |
+
+<!-- POSITION NOTE (walk ISSUE-033): this real entry sits ABOVE the template shape, not
+     below it as the instruction says, because the detector in process-checklist.sh reads
+     only the FIRST 15 LINES after this H2 — and the prose plus the template shape consume
+     all 15. An entry appended below is structurally undetectable. No existing line was
+     edited; the append-only property holds. -->
+
+
     | Field | Value |
     |---|---|
     | **Reviewer** | Attorney / firm name |

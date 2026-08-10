@@ -1100,3 +1100,60 @@ saying what belongs in it, and a fail-closed default.
 **Ninth instance of the walk's dominant pattern** (ISSUE-016/017/018/019/020/022/025/027/028/030):
 the enforced control and the documented intent disagree. Here the same checklist disagrees with
 itself, step to step.
+
+---
+
+## ISSUE-033 — An APPROVAL_LOG entry appended exactly as the template instructs is STRUCTURALLY UNDETECTABLE (MAJOR, FRAMEWORK)
+
+**Found:** 2026-08-10, closing the last step of the Phase 3 checklist.
+
+`APPROVAL_LOG.md` ships this instruction under its Attorney / Legal Review header:
+
+> *"Append a completed copy of the shape below when legal review occurs. Append-only: never edit
+> a line once pushed."*
+
+I did exactly that. The gate still refused, reporting *"no attorney review recorded"*.
+
+**Why.** The detector in `process-checklist.sh` reads only the **first 15 lines** after the H2:
+
+```sh
+awk '... /^##[^#].*(attorney|legal review)/ {f=1; next} f && /^## / {exit} f' APPROVAL_LOG.md \
+  | head -15 | grep -E '^\|' | grep -qE '[0-9]{4}-...'
+```
+
+And the section's own scaffolding consumes all fifteen:
+
+| Line | Content |
+|---|---|
+| 1–6 | blank, the "_Required when…_" prose, blank, the `BL-170-APPEND-DESIGN` comment, the append instruction, blank |
+| 7–13 | the 7-line indented template shape |
+| 14–15 | blank, and then whatever you appended |
+
+An entry appended **below** the template — which is what the instruction says to do — begins at
+line 15 and its data rows land at 16 and beyond. **The window closes before the first real row.**
+
+**This is the same defect class the surrounding comment says it was written to fix.** The code
+carries a long `BL-115-ATTORNEY-ENTRY` note explaining that an earlier unbounded `grep -A 15`
+reached into the *neighbouring* Penetration Test section, so a filled pen-test date satisfied the
+attorney gate. The bound was added to stop over-reach — and now under-reaches past the only place
+the template tells you to write.
+
+**Two ways it misleads, not one.** It fails closed for an honest entry (what happened to me), and
+it would pass for a *template placeholder* if that placeholder ever carried a real-looking date,
+since it cannot tell the shape from an entry.
+
+**What I did.** Put the real entry ABOVE the template shape, which is the only position the
+detector can see, with an HTML comment in the file explaining why it sits where the instruction
+says it should not. No existing line was edited, so the append-only property still holds. Then I
+re-ran the gate rather than force-overriding it — `SOIF_FORCE_STEP` refuses agent sessions by
+design, correctly.
+
+**Suggested fix.** Any of: anchor the scan on the LAST match rather than the first 15 lines; skip
+indented lines (the template is indented 4 spaces, real entries are not — the file already
+distinguishes them visually); or scan the whole section and require a row that is not
+byte-identical to the template.
+
+**Tenth instance of the walk's dominant pattern** (ISSUE-016/017/018/019/020/022/025/027/028/030/032):
+the enforced control and the documented intent disagree. This is the sharpest one yet, because
+here **the control and the instruction are in the same file**, and following the instruction is
+what fails the control.
