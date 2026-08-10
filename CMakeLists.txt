@@ -117,6 +117,7 @@ target_compile_definitions(pptv_core PUBLIC
 # and forward.
 # ---------------------------------------------------------------------------
 add_library(pptv_ui STATIC
+  src/ui/a11y_announce.cpp
   src/ui/start_view.cpp
   src/ui/slide_surface.cpp
   src/ui/notice_strip.cpp

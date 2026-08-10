@@ -1,9 +1,9 @@
 #include "ui/slide_surface.hpp"
 
-#include <QAccessible>
-#include <QAccessibleEvent>
 #include <QPaintEvent>
 #include <QPainter>
+
+#include "ui/a11y_announce.hpp"
 
 namespace pptv {
 
@@ -29,16 +29,12 @@ void SlideSurface::setAccessibleState(const QString& what) {
     // ...and ANNOUNCE it, because a slide change is an event the presenter needs
     // told, not a property they will think to go and read.
     //
-    // It must be QAccessibleAnnouncementEvent specifically (BUG-80). The first
-    // version of this raised QAccessible::DescriptionChanged, which does NOTHING on
-    // macOS: there is no such AppKit notification, so Qt's Cocoa plugin drops the
-    // event on the floor. `nm -mu libqcocoa.dylib` shows the complete set it can
-    // post — Focused/SelectedText/Title/ValueChanged, plus
-    // NSAccessibilityAnnouncementRequestedNotification with AnnouncementKey and
-    // PriorityKey. Announcement is the only one of those that carries a message,
-    // and macOS is the platform this ships on.
-    QAccessibleAnnouncementEvent ev(this, what);
-    QAccessible::updateAccessibility(&ev);
+    // announceToScreenReader, not a bare QAccessibleEvent (BUG-80/87). The first
+    // version raised QAccessible::DescriptionChanged, which does NOTHING on macOS —
+    // no such AppKit notification exists, so Qt's Cocoa plugin drops it. The second
+    // used the right event but did not compile on CI's older Qt. The helper carries
+    // both the correct event and the version guard, in one place.
+    announceToScreenReader(this, what);
 }
 
 void SlideSurface::setSlideImage(const QImage& img) {

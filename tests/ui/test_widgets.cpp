@@ -23,6 +23,7 @@
 #include "audio/audio_capture.hpp"
 #include "command/vosk_engine.hpp"
 #include "present/presentation_controller.hpp"
+#include "ui/a11y_announce.hpp"
 #include "ui/app_shell.hpp"
 #include "ui/notice_strip.hpp"
 #include "ui/presentation_window.hpp"
@@ -812,6 +813,14 @@ struct A11yCapture {
 } // namespace
 
 TEST_CASE("W/BUG-80: a notice reaches the platform as an ANNOUNCEMENT, with its text") {
+    // Qt 6.8 introduced the only event type macOS can act on. This project SHIPS on
+    // macOS/Qt 6.11, so that path is the one that matters; CI's Ubuntu Qt is older
+    // and compiles a documented no-op (BUG-87). Asserted against the build's own
+    // capability rather than assumed either way.
+    if (!accessibilityAnnouncementsAvailable()) {
+        MESSAGE("Qt < 6.8: no announcement API on this build — nothing to assert.");
+        return;
+    }
     A11yCapture capture;
     NoticeStrip strip;
     strip.setText(QStringLiteral("Deck has 10 slides"));
@@ -828,6 +837,10 @@ TEST_CASE("W/BUG-80: a notice reaches the platform as an ANNOUNCEMENT, with its 
 }
 
 TEST_CASE("W/BUG-80: a slide change is announced, and an unchanged state is not") {
+    if (!accessibilityAnnouncementsAvailable()) {
+        MESSAGE("Qt < 6.8: no announcement API on this build — nothing to assert.");
+        return;
+    }
     A11yCapture capture;
     SlideSurface s;
 
