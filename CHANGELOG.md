@@ -20,6 +20,98 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Security
+- **BUG-81 — holding the P key left the microphone LIVE.** P toggles the voice gate and nothing
+  checked for auto-repeat, so a held key (one press, ~5 repeats on macOS defaults) flipped it an even
+  number of times and landed back on. The presenter believes voice is gated, turns to the room for
+  questions, and the audience can drive the deck — **the exact failure the P key exists to prevent,
+  re-created by the fix that made P work.** Auto-repeat is now swallowed for P and Esc, the two keys
+  that are state machines rather than movements; arrows and digits still repeat.
+- **BUG-83 — the real-time audio thread had no exception boundary.** The worker-thread boundaries
+  below missed the one thread that runs *during* the whole talk. `onSamples` executes inside
+  miniaudio's C data callback and allocates on every buffer — an exception unwinding out of a C-ABI
+  frame is `std::terminate`, mid-sentence, with the deck on the projector. A dropped buffer is 20 ms
+  nobody notices; nothing is logged, because that callback carries everything said in the room.
+- **BUG-79 — the shutdown fix below rested on a guarantee the audio library does not provide.**
+  `ma_device_stop()` does not join the callback on CoreAudio: the event it waits on is signalled on
+  device **start** as well as stop and is latching, so the wait consumes a stale signal and returns
+  immediately. The real barrier is the sink mutex — and it was taken *after* the device was
+  uninitialised. It now runs first. The evidence chain is quoted, with line numbers, in
+  `miniaudio_capture.cpp`.
+- **BUG-75 (F-CHAOS-3) — an exception on either worker thread killed the process.** Both worker
+  `start()` methods are slots invoked on a `QThread`, and Qt does not catch: an exception leaving one
+  unwinds through that thread's event loop and `std::terminate()`s the app — no dialog, no fallback,
+  the talk over. Both do work sized by an **untrusted file**, so `std::bad_alloc` is a normal outcome
+  of a normal input. The loader now reports it as the ordinary "could not be opened" failure, with no
+  exception text reaching a dialog that can land on the projector (TM-013). The renderer's boundary
+  is **per slide**, so one unrenderable slide costs one placeholder box rather than the other
+  ninety-nine.
+
+### Fixed
+- **BUG-72 (F-1) — quitting freed the speech engine underneath the live audio thread.**
+  `~AppShell` stopped the deck and render workers and never stopped voice, so `VoskEngine` was
+  destroyed while CoreAudio's real-time thread was inside `feed()`. Invisible on the development
+  machine, which has no microphone; live on the presenter's laptop, on every Cmd+Q at the end of a
+  talk. Voice is now torn down first — the pipeline stops (which joins the audio thread), then the
+  engine, then the gate — and the member declaration order enforces the same thing independently.
+  Measured: **7/7 heap-use-after-free in the old order, 0/7 in the new.** Two things about this fix
+  were wrong when first written and are corrected above: the mechanism it named (BUG-79) and its
+  regression test, which pinned a property of a test double and survived deleting the entire fix.
+- **BUG-73 (F-2) — the P key did nothing.** `PresentationWindow::setPaused()` had zero callers, so
+  the key always translated to "pause presentation", which the presentation controller treats as a
+  no-op. A presenter pressing P before taking questions would have believed voice was gated while it
+  was still fully live. The keyboard now reaches the same gate the voice does, in both directions.
+- **BUG-74 (F-CHAOS-2) — an abandoned render worker painted the previous deck.** A worker whose
+  shutdown wait expires is deliberately abandoned rather than terminated (BUG-42), and it keeps
+  rendering: its slides landed in the raster set after it had been resized for the **new** deck.
+  Every index was in range, so nothing complained. Now guarded twice — the connection is cut at
+  teardown, and a deck generation counter drops anything already queued.
+- **BUG-77/78 (A11Y-1/A11Y-2) — the presentation was silent to VoiceOver, and the pause gate was
+  voice-only.** Every surface is custom-painted, so a screen reader saw one unnamed rectangle: the
+  deck, the privacy blackout, the quit prompt and a hung app were indistinguishable, and with no menu
+  bar there was nothing to discover the key map from. The window now carries the key map, the surface
+  says which slide is showing, and a notice is announced rather than left to be polled. **The state
+  is named and the deck's content never is** — the accessibility tree is readable by other processes
+  (TM-012/013). A11Y-2 is closed by the P-key fix above.
+- **BUG-82 — a pause that worked looked exactly like a pause that did nothing.** Pausing showed no
+  message at all (resuming did), so the presenter had no way to confirm the microphone was gated
+  before taking questions. The "Paused — voice control is off" notice already existed in the code and
+  was unreachable: nothing emitted it, and the one caller that could display it passed a hardcoded
+  "not paused".
+- **BUG-80 — the screen-reader announcements were a no-op on macOS.** They used two Qt event types
+  that Apple's side of Qt discards, so VoiceOver said nothing; the tests asserted the stored text,
+  which was set correctly either way. Now uses the one event type that reaches the platform.
+- **BUG-84 — the test-registration lint had three holes**, all found with a deliberately broken probe
+  project: it failed **open** if no file matched `*tests`, it was blind to a newline in a test name
+  (the same class of bug it was written for), and it wrongly blocked the build on any ordinary
+  non-doctest check. It now discovers binaries from ctest's own command lines and compares **counts**,
+  which no separator can disguise.
+- **BUG-76 — tests that had never once run, while the suite reported 100% green.** Counted precisely:
+  **five** had been dead since Phase 2 and UAT remediation, a **sixth** was committed dead the same
+  day (the C-02 regression test below), and a **seventh** was caught in the working tree before it
+  could be committed. A TEST_CASE name
+  containing `;` is split by CMake's list separator, so ctest invokes a fragment that matches no test
+  case: doctest runs 0 cases, exits 0, and ctest prints "Passed". One of the seven was the C-02
+  regression test committed the same day. `scripts/lint-test-names.sh` now compares the ctest
+  registration against the binaries' own list and fails on any mismatch (see BUG-84 for what that
+  check had to become before it was trustworthy).
+- **C-01 — a picture on slide 1 of the reference deck vanished again, and my own BUG-58 fix is what
+  did it.** That fix namespaced a placeholder key by the non-visual-properties element containing
+  it. The deck's slide-1 picture sits under `<p:nvPicPr>` while the layout entry that positions it
+  sits under `<p:sp>`, so the two stopped matching, the picture inherited no geometry, went back to
+  `0x0` and was silently never drawn — BUG-41 reopened by its own remedy, with no warning emitted.
+  The commit claimed "not triggered on Karl's deck (all 45 layout placeholders sit under nvSpPr)";
+  that checked the layout side only, and a key has to match on **both**. Placeholder identity is
+  `type:idx` again, which is what ECMA-376 defines and what PowerPoint writes. The key collision
+  BUG-58 was actually about is handled where it belongs — at insertion, first entry wins — so
+  document order (which is z-order, not priority) no longer decides whose geometry a slide adopts.
+- **C-02 — naturally-phrased commands stopped working.** Vosk emits a literal `[unk]` token wherever
+  it heard something outside the grammar, so "okay, next slide" decodes as `[unk] next slide`.
+  Measurement across a 60-clip corpus of natural phrasings: **36 of 60 rejected**. An `[unk]` at one
+  edge is now stripped. At **both** edges it is not: `"the next slide shows our results for this
+  quarter"` decodes as `[unk] next slide [unk]`, so stripping both would turn narration into a slide
+  change and reopen TM-002/019.
+
+### Security
 - **BUG-21 — the TM-018 render caps measured the wrong quantity.** Shapes and text runs alone let
   through slides that take minutes: 2000 pictures of one 31 Mpx image measured ~309 s, and 5000 runs
   x 300k characters ~657 s, both under the two original caps. ISOLATE held — the UI never blocked —

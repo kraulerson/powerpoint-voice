@@ -33,6 +33,29 @@ KeyAction KeyCommandTranslator::onKey(int key, Qt::KeyboardModifiers mods, const
                                       qint64 nowMs) {
     KeyAction a;
 
+    // AUTO-REPEAT IS NOT A SECOND PRESS, for the two keys that are state machines
+    // rather than movements (BUG-81).
+    //
+    // P toggles the microphone gate. macOS begins repeating after ~500 ms at ~11/s,
+    // so a presenter who HOLDS P for a second — which people do, and which is exactly
+    // what someone does when they want to be sure something took — generates one
+    // press and about five repeats. Six flips lands back on Active: the presenter
+    // believes they have silenced the microphone and takes questions from twenty
+    // people with voice fully live. That is the precise failure BUG-73 exists to
+    // prevent, re-created by BUG-73's own fix, and measured on a probe driving the
+    // real sink: "after ONE held press of P the gate is ACTIVE."
+    //
+    // Esc is the same shape: hold it and the deck walks Presenting -> Holding ->
+    // ConfirmQuit without a second deliberate press.
+    //
+    // Navigation and digits are deliberately left repeatable — holding the right
+    // arrow to run forward is a real thing presenters do, and repeating a digit types
+    // a digit, which is what a keyboard is supposed to do.
+    if (ctx.autoRepeat && (key == Qt::Key_P || key == Qt::Key_Escape)) {
+        a.consumed = true; // swallowed, so it cannot fall through to Qt's default
+        return a;
+    }
+
     // The deliberate quit chord is checked FIRST so nothing else can shadow it.
     // Qt maps Cmd to ControlModifier on macOS, so Cmd+Q and Ctrl+Q both arrive here;
     // accept Shift-less Q too, because the platform-standard quit chord is what a Mac

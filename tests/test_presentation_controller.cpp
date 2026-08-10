@@ -55,7 +55,7 @@ TEST_CASE("A: a negative slide is rejected and the index never goes negative") {
     CHECK(r.notice.arg == 47);
 }
 
-TEST_CASE("A: one past the end is rejected; the last slide is reachable") {
+TEST_CASE("A: one past the end is rejected, the last slide is reachable") {
     auto c = atSlide(47, 12);
     CHECK(c.dispatch(go(48), CommandSource::Voice, false).outcome == Outcome::Rejected);
     CHECK(c.currentSlide1Based() == 12);
@@ -196,7 +196,7 @@ TEST_CASE("A: fuzz — the slide index is ALWAYS in range after any command sequ
 // can end the presentation. Quitting requires a deliberate confirmQuit().
 // ===========================================================================
 
-TEST_CASE("D: Esc goes to the holding screen; a command returns to presenting") {
+TEST_CASE("D: Esc goes to the holding screen, a command returns to presenting") {
     auto c = atSlide(47, 12);
     c.requestHolding(0);
     CHECK(c.mode() == Mode::Holding);
@@ -207,7 +207,7 @@ TEST_CASE("D: Esc goes to the holding screen; a command returns to presenting") 
     CHECK(c.currentSlide1Based() == 13);
 }
 
-TEST_CASE("D: a second Esc asks to quit; cancel returns to holding") {
+TEST_CASE("D: a second Esc asks to quit, cancel returns to holding") {
     auto c = atSlide(47, 12);
     c.requestHolding(0);
     c.requestHolding(0);
@@ -446,4 +446,43 @@ TEST_CASE("audit MEDIUM-5: resuming emits a Resumed notice the presenter can see
 TEST_CASE("audit LOW-8: an unmatched command is a loud rejection, not a silent no-op") {
     DispatchResult d;
     CHECK(d.outcome == Outcome::Rejected);
+}
+
+// ===========================================================================
+// BUG-82 — a pause that WORKED was indistinguishable from a pause that did nothing.
+//
+// Pausing produced no notice at all, so a successful pause, the dead P key of
+// BUG-73, and the early return when voice was never armed all looked identical: an
+// empty notice strip. The presenter had no way to confirm the microphone was gated
+// before turning to the room — and no way to notice BUG-81 putting them back to
+// live. NoticeId::Paused already existed and was structurally unreachable.
+// ===========================================================================
+
+TEST_CASE("BUG-82: pausing SAYS SO, and the notice survives while paused") {
+    PresentationController c;
+    c.setDeck(10);
+    const DispatchResult r =
+        c.dispatch(Command{CommandType::PausePresentation}, CommandSource::Keyboard, false);
+    CHECK(r.outcome == Outcome::NoMove); // still not a slide movement
+    REQUIRE(r.notice.id == NoticeId::Paused);
+    // Sticky, not transient: "am I paused?" must still be answerable a minute later,
+    // which is the whole span the presenter is taking questions in.
+    CHECK(r.notice.cls == NoticeClass::Sticky);
+
+    // And it renders, which it could not before — noticeForRole suppresses it unless
+    // the caller passes the REAL pause state, and AppShell hardcoded false.
+    CHECK(noticeForRole(r.notice, NoticeRole::Audience, true) ==
+          QStringLiteral("Paused — voice control is off"));
+    CHECK(noticeForRole(r.notice, NoticeRole::Audience, false).isEmpty());
+}
+
+TEST_CASE("BUG-82: resuming still says so, and pausing and resuming differ") {
+    PresentationController c;
+    c.setDeck(10);
+    const DispatchResult paused =
+        c.dispatch(Command{CommandType::PausePresentation}, CommandSource::Keyboard, false);
+    const DispatchResult resumed =
+        c.dispatch(Command{CommandType::ContinuePresentation}, CommandSource::Keyboard, false);
+    CHECK(resumed.notice.id == NoticeId::Resumed);
+    CHECK(paused.notice.id != resumed.notice.id);
 }

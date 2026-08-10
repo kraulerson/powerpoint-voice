@@ -494,3 +494,75 @@ TEST_CASE("O/BUG-21: characters and declared image pixels are measured and cappe
         CHECK_FALSE(exceedsCaps(measureComplexity(s), caps));
     }
 }
+
+// ===========================================================================
+// F-CHAOS-3 (Phase 3) — an exception on the render thread killed the process.
+//
+// Same class as the loader's, with one extra requirement: the boundary is per
+// SLIDE. One slide that cannot be rasterised must cost one placeholder box, not the
+// remaining ninety-nine — aborting the run would turn a cosmetic failure into a
+// lost deck, which is the trade this class exists to refuse.
+// ===========================================================================
+
+TEST_CASE("R/F-CHAOS-3: a throwing slide becomes a placeholder, the rest still render") {
+    PreRenderWorker w;
+    w.setDeck(deckOf(5));
+    w.setTarget(QSize(64, 36));
+    w.setRenderFn([](const Slide&, const QSize& t) -> QImage {
+        static int calls = 0;
+        if (++calls == 2) {
+            throw std::bad_alloc(); // a 4K raster on a machine already holding a deck
+        }
+        QImage img(t, QImage::Format_RGB32);
+        img.fill(Qt::red);
+        return img;
+    });
+    w.setPlaceholderFn([](int, const QSize& t) {
+        QImage img(t, QImage::Format_RGB32);
+        img.fill(Qt::darkGray);
+        return img;
+    });
+
+    std::vector<int> ready;
+    std::vector<bool> placeholders;
+    QObject::connect(&w, &PreRenderWorker::slideReady, [&](int i, const QImage&, bool p) {
+        ready.push_back(i);
+        placeholders.push_back(p);
+    });
+    QSignalSpy finishedSpy(&w, &PreRenderWorker::finished);
+
+    CHECK_NOTHROW(w.start());
+
+    CHECK(ready.size() == 5); // every slide still delivered
+    CHECK(finishedSpy.count() == 1);
+    // Exactly one of them is a placeholder — the one that threw.
+    int placeholderCount = 0;
+    for (bool p : placeholders) {
+        if (p) {
+            ++placeholderCount;
+        }
+    }
+    CHECK(placeholderCount == 1);
+}
+
+TEST_CASE("R/F-CHAOS-3: a throwing PLACEHOLDER still yields a raster, never a null") {
+    // The floor. A null raster reaching the surface is a BLACK PROJECTOR, so the
+    // last fallback must not be able to fail either.
+    PreRenderWorker w;
+    w.setDeck(deckOf(2));
+    w.setTarget(QSize(64, 36));
+    w.setRenderFn([](const Slide&, const QSize&) -> QImage { throw std::bad_alloc(); });
+    w.setPlaceholderFn([](int, const QSize&) -> QImage { throw std::bad_alloc(); });
+
+    int nulls = 0;
+    int count = 0;
+    QObject::connect(&w, &PreRenderWorker::slideReady, [&](int, const QImage& img, bool) {
+        ++count;
+        if (img.isNull()) {
+            ++nulls;
+        }
+    });
+    CHECK_NOTHROW(w.start());
+    CHECK(count == 2);
+    CHECK(nulls == 0);
+}

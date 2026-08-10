@@ -885,3 +885,159 @@ awk -F'|' '$3 ~ /SEV-1/ && $4 ~ /^ *Open *$/' BUGS.md | wc -l
 enforced control and the documented intent disagree. Here the control does not even implement its own
 documented data model — `test-gate.sh:386` lists the legal status values in a comment directly above
 the code that ignores them.
+
+---
+
+## OBSERVATION-029 — "100% tests passed" was false for seven tests, and nothing in the toolchain said so (PROJECT finding, mine)
+
+**Found:** 2026-08-09, Phase 3, while mutation-testing an unrelated fix.
+
+I mutated `PreRenderWorker::renderOne` to remove its new exception boundary and ran the regression
+test through ctest to confirm it went red. It reported **Passed**. Run directly against the test
+binary, the same test failed with two wrong assertions.
+
+`doctest_discover_tests()` writes each TEST_CASE name into a CMake list. CMake's list separator is
+`;`. A test whose NAME contains a semicolon is therefore registered as two entries, each a fragment;
+ctest invokes the binary with `--test-case=<fragment>`, doctest matches nothing, runs **0 test
+cases**, and exits 0. ctest prints `Passed`.
+
+Seven tests in this repo were in that state:
+
+| test | in the suite since |
+|---|---|
+| `A: one past the end is rejected; the last slide is reachable` | Phase 2, F7a |
+| `D: Esc goes to the holding screen; a command returns to presenting` | Phase 2, F7a |
+| `D: a second Esc asks to quit; cancel returns to holding` | Phase 2, F7a |
+| `BUG-53: a stretched picture fills its frame; an unstretched one does not` | UAT-4 remediation |
+| `UAT2 BUG-11/17: 'resume presentation' un-pauses; a bare word does not` | UAT-2 remediation |
+| `R/F-CHAOS-3: a throwing slide becomes a placeholder; the rest still render` | today |
+| **`C-02: an [unk] on ONE edge is stripped; on BOTH edges it is not`** | **today — committed hours earlier** |
+
+The last one is the sharpest. It is the regression test for BUG-71, written specifically because a
+skeptic proved my first fix reopened an audience-false-trigger threat. I wrote it, watched ctest say
+267 tests passed, and committed. It had never executed.
+
+**Why I did not see it.** The only visible symptom is that `ctest -N` lists MORE tests than the
+binaries contain — 282 registered against 275 real. Both numbers grow every session and neither is
+printed next to the other. Every other signal was green.
+
+**What this says about the walk's evidence.** I have repeatedly cited a test count as proof
+("211 tests green", "267 tests green"). Those counts were inflated by seven, and more importantly
+the specific tests they were meant to vouch for were among the missing ones twice
+(BUG-53's and BUG-11/17's). This is the same failure as OBSERVATION-021 — "fixed" meaning "edited"
+rather than "verified" — arriving through the tooling instead of through my own claims.
+
+**Fixed** by `scripts/lint-test-names.sh`, which compares the ctest registration against
+`--list-test-cases` in BOTH directions and fails on any mismatch, wired into the commit-time gate and
+CI. It is not a `;` check: it catches any truncation, including whatever the next separator turns out
+to be. Verified by reintroducing a semicolon into an unrelated test name.
+
+**Not a framework finding** — the framework does not choose the test harness, and this project picked
+doctest + `doctest_discover_tests`. Recorded here because the *reasoning* generalises: a gate that
+consumes a count rather than a comparison cannot tell "all passed" from "none ran". The framework's
+own `test-gate.sh` consumes exactly such a count.
+
+---
+
+## ISSUE-030 — Entering Phase 3 makes CI red on EVERY pull request, because the gate check evaluates the NEXT gate unconditionally (MAJOR, FRAMEWORK)
+
+**Found:** 2026-08-09, on the first PR raised after `current_phase` became 3.
+
+`.github/workflows/ci.yml` (framework template) runs the gate check unscoped:
+
+```yaml
+- name: Governance - Phase gate check
+  run: bash scripts/check-phase-gate.sh
+```
+
+At `current_phase=3` a bare run evaluates the **Phase 3→4 readiness region** and counts its unmet
+conditions as blocking inconsistencies. On this project that is 7:
+
+| # | item | gate it belongs to |
+|---|---|---|
+| 1 | `[FAIL]` Full Track requires penetration test — **no exemption path available** | 3→4 |
+| 2 | `[FAIL]` no review manifest (Security AND Red Team reviews) | 3→4 |
+| 3 | `[WARN]` HANDOFF.md not found | 3→4 |
+| 4 | `[WARN]` docs/INCIDENT_RESPONSE.md not found | 3→4 |
+| 5 | `[WARN]` release pipeline has 9 unconfigured TODOs | 3→4 |
+| 6 | `[WARN]` Phase 3 process checklist not started: 0/9 | 3→4 |
+| 7 | attestation-warning count (5 open SEV-3, feature count 10 > cutline 7) | 2→3 |
+
+Items 1–6 are **Phase 4 entry conditions**. They are unmeetable by definition while Phase 3 is being
+*done* — a pen test and a completed 9-step validation checklist are the *output* of Phase 3, not its
+entry ticket. So from the moment a project enters Phase 3, every pull request is red until Phase 3 is
+finished, and the CI signal is dead for exactly the phase whose entire purpose is validation.
+
+**The script already knows this.** Run scoped, it says so itself:
+
+```
+$ bash scripts/check-phase-gate.sh --gate phase_2_to_3
+[NEXT] Phase 3→4 readiness (... penetration test, review manifest, Phase-3 process checklist ...)
+       is NOT evaluated under --gate phase_2_to_3 — these belong to the phase_3_to_4 gate and are
+       not counted against it.
+1 inconsistency(ies) found — blocking.
+```
+
+7 → 1. The scoping mechanism (BL-166-GATE-SCOPE) is present, documented, and correct; the CI template
+simply does not use it.
+
+**The residual 1 has no attestation path.** It is the pair of `User attestation required` warnings —
+5 open SEV-3 bugs and feature count above the MVP cutline. Karl attested to both at the 2026-08-09
+Phase 2→3 gate, in `APPROVAL_LOG.md`. The script re-raises them anyway and counts them, because
+nothing it reads records that an attestation happened. `SOLO_REVIEWERS_ATTESTED`, `zdr_attested` and
+the BL-070 scanner attestations all exist; the bug-gate and cutline warnings have no equivalent. So
+scoping alone still exits 1 — measured.
+
+**Suggested fix (framework):**
+1. `ci.yml` should scope to the gate in force: `--gate phase_$((current_phase - 1))_to_$current_phase`
+   (or simply not count a region the run itself labels `[NEXT]`).
+2. Give the bug-gate and cutline warnings the same attestation path the ZDR and reviewer gates have,
+   so a recorded `APPROVAL_LOG.md` attestation clears them instead of re-raising them forever.
+
+**Eighth instance of the walk's dominant pattern** (ISSUE-016/017/018/019/020/022/025/027/028): the
+enforced control and the documented intent disagree. Here the control contradicts *the same script's
+own scoped mode*, in the same run.
+
+**Escalated to Karl** rather than fixed unilaterally — it changes what CI enforces, and the standing
+rule on this walk is that enforcement changes are his call, not mine.
+
+---
+
+## OBSERVATION-031 — Three adversarial reviewers found eight defects in one PR of fixes, five of them in the fixes themselves (PROJECT finding, mine)
+
+**When:** 2026-08-09, on PR #30 — the Phase 3 remediation branch.
+
+I dispatched three adversarial reviewers over a PR I had already mutation-tested, and considered ready.
+They returned **eight confirmed defects**, of which **five were in the remediation itself**:
+
+| # | In | What |
+|---|---|---|
+| BUG-81 | the BUG-73 fix | **SEV-1.** Holding P toggled the mic gate once per auto-repeat, landing back on LIVE. BUG-73's own failure mode, re-created by BUG-73's fix. |
+| BUG-79 | the BUG-72 fix | The stated mechanism (`ma_device_stop()` joins the callback) is not implemented by the vendored library; the real barrier was on the wrong side of the device teardown. |
+| BUG-80 | the BUG-77 fix | The screen-reader announcements are discarded by Qt's macOS plugin. The fix did nothing on the only platform this ships on. |
+| BUG-84 | the BUG-76 fix | The lint written to stop silently-dead tests failed OPEN on a filename convention, and was blind to the newline form of the very bug it was written for. |
+| BUG-85 | the BUG-73 tests | Two widget tests wired the window to a different controller than the sink wrote to, making one assertion unfalsifiable. |
+
+And the single most useful finding was not a defect at all but a **measurement**: a reviewer deleted my
+entire BUG-72 fix — the `teardownVoice()` call *and* the member declaration order — rebuilt, and **all
+279 tests stayed green**. My regression test asserted a property of a test double that joins by
+construction. I had mutation-tested that fix and recorded "mutation killed"; what I had actually killed
+was one line of `VoicePipeline::stop()`, not the fix.
+
+**The pattern, stated plainly.** Every one of these is the same shape as
+[OBSERVATION-021](#observation-021) — *"fixed" meaning "edited", not "verified"* — and I produced five
+more instances of it in a single session **while explicitly trying not to**. Mutation-testing each fix
+was not enough, because I chose the mutations, and I chose ones my tests already caught. An
+adversarial reader chose different ones.
+
+**What actually worked.** Not any process step. Three readers with (a) no stake in the fix being
+correct, (b) an explicit instruction to refute rather than confirm, and (c) permission to go read the
+vendored third-party source and disassemble the linked Qt plugin. Two of the eight findings required
+exactly that: nobody finds the `ma_device_stop` defect by reading our code, and nobody finds the
+VoiceOver defect without `nm`-ing the Cocoa plugin.
+
+**Framework consequence, and it is ISSUE-025 again.** `fix:` commits bypass the Build Loop, so none
+of this remediation faced the adversarial security audit a *feature* would have. The audit that caught
+these was one I chose to run, off-process, because Karl asked for it in session 4. It is not in the
+framework anywhere. **A remediation is a code change and needs the same adversary the feature got** —
+already filed as ISSUE-018 and ISSUE-025; this is the strongest evidence either has.

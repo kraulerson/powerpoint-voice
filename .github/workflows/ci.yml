@@ -44,6 +44,14 @@ jobs:
         if: ${{ hashFiles('CMakeLists.txt') != '' }}
         run: cmake --build build
 
+      # Guards against a test that is REGISTERED but never RUN. A TEST_CASE name
+      # containing ';' is split by CMake's list separator, so ctest invokes a
+      # fragment that matches no test case, doctest runs 0 cases and exits 0, and
+      # ctest prints "Passed". Seven tests were in exactly that state at Phase 3.
+      - name: Test registration is honest
+        if: ${{ hashFiles('CMakeLists.txt') != '' }}
+        run: bash scripts/lint-test-names.sh build
+
       - name: Test
         if: ${{ hashFiles('CMakeLists.txt') != '' }}
         run: ctest --test-dir build --output-on-failure

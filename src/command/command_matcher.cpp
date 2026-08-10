@@ -51,6 +51,34 @@ std::optional<Command> matchCommand(const QString& phrase) {
     // period or capital ("Next slide.") still fires the command instead of
     // silently no-op'ing (audit M-MED-1).
     QString norm = phrase.simplified().toLower();
+
+    // The decoder's out-of-grammar escape hatch. Vosk emits a literal "[unk]" token
+    // wherever it heard something the grammar cannot express, so a perfectly good
+    // command with ANY adjacent speech arrives as "[unk] next slide" or
+    // "next slide [unk]". Phase 3 measured 36 of 60 naturally-phrased commands
+    // failing for exactly this (C-02) — "okay next slide", "next slide please".
+    //
+    // It is stripped at ONE edge only, never both. That restriction is not tidiness:
+    // a Phase 3 reviewer produced the counterexample that kills the naive fix. [unk]
+    // on BOTH sides means there was speech on both sides of the command words, which
+    // is a sentence CONTAINING them rather than someone issuing one — the prose "the
+    // next slide shows our results for this quarter" decodes as "[unk] next slide
+    // [unk]". Stripping both edges there turns narration into a slide change and
+    // reopens the audience-false-trigger threat this design exists to close
+    // (TM-002/019). Leaving the pair intact makes it reject, which is correct.
+    {
+        const bool leadUnk = norm.startsWith(QStringLiteral("[unk] "));
+        const bool trailUnk = norm.endsWith(QStringLiteral(" [unk]"));
+        if (leadUnk != trailUnk) { // exactly one, never both
+            if (leadUnk) {
+                norm = norm.mid(6);
+            } else {
+                norm.chop(6);
+            }
+            norm = norm.simplified();
+        }
+    }
+
     static const QRegularExpression kEdgeJunk(QStringLiteral("^[\\s[:punct:]]+|[\\s[:punct:]]+$"));
     norm.remove(kEdgeJunk);
     if (norm.isEmpty()) {

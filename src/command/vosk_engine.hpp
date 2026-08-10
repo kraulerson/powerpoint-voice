@@ -47,6 +47,15 @@ class VoskEngine {
     // otherwise an empty string. Called on the audio consumer thread.
     QString feed(const std::int16_t* samples, std::size_t count);
 
+    // How many VoskEngines have been destroyed in this process (BUG-79).
+    //
+    // BUG-72 is entirely about WHEN this object dies relative to the audio thread,
+    // and that is not observable from outside — which is exactly why a reviewer
+    // could delete the whole BUG-72 fix and leave 279 tests green. A decoder that
+    // samples this counter on entry and on exit can say whether the engine it was
+    // calling into was freed underneath it. Nothing reads it in production.
+    static long destructionCountForTest();
+
   private:
     struct Impl;
     std::unique_ptr<Impl> d_;

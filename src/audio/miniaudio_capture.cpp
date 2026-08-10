@@ -67,14 +67,49 @@ class MiniaudioCapture final : public IAudioCapture {
         if (!initialised_) {
             return;
         }
+        // ORDER IS THE WHOLE THING HERE (BUG-79). Quiesce and JOIN the callback
+        // first; only then touch the device.
+        //
+        // The previous order stopped and UNINITIALISED the device and took this lock
+        // afterwards, on the stated belief that `ma_device_stop()` does not return
+        // until the audio callback has finished. The vendored miniaudio 0.11.25 does
+        // not implement that on CoreAudio, and the whole chain is in
+        // third_party/miniaudio/miniaudio.h:
+        //
+        //   * ma_device_stop__coreaudio (36443) calls AudioOutputUnitStop and then
+        //     waits on coreaudio.stopEvent (36464). Its own comment above the call
+        //     says "It's not clear from the documentation whether or not
+        //     AudioOutputUnitStop() actually drains the device or not."
+        //   * stopEvent is signalled at exactly one place — the `done:` label of
+        //     on_start_stop__coreaudio (35367), a listener on
+        //     kAudioOutputUnitProperty_IsRunning. That property changes on START as
+        //     well as stop, and the start path falls straight through to `done:`.
+        //   * ma_event is LATCHING: ma_event_signal__posix sets value=1 and it
+        //     persists; ma_event_wait__posix (17768) returns immediately whenever
+        //     value != 0, then auto-resets. Nothing consumes the signal left behind
+        //     by device start.
+        //
+        // So the wait consumes a stale signal from start-up and returns having
+        // waited for nothing. And what it waits on is a property-change
+        // notification, not the data callback: ma_on_input__coreaudio (35171) checks
+        // no device state and takes no lock, so miniaudio offers no barrier here at
+        // all. ma_device_uninit then frees pAudioBufferList and MA_ZERO_OBJECTs the
+        // device (44119-44178) — and deliberately no longer stops it first, that
+        // block is #if 0'd — while our callback may still hold a pointer into that
+        // buffer and still be inside sink_().
+        //
+        // sinkMutex_ IS the barrier, because onData holds it across the entire
+        // sink_() call. Taking it here, before the device is touched, is what makes
+        // "no callback is in flight" true. Clearing the sink under the same lock
+        // means any callback that arrives afterwards finds nothing to call.
         running_ = false;
-        // Stop BEFORE uninit so no callback is in flight when the device dies, and
-        // clear the sink after, so a late callback cannot reach a destroyed capture.
+        {
+            std::lock_guard<std::mutex> lock(sinkMutex_);
+            sink_ = nullptr;
+        }
         ma_device_stop(&device_);
         ma_device_uninit(&device_);
         initialised_ = false;
-        std::lock_guard<std::mutex> lock(sinkMutex_);
-        sink_ = nullptr;
     }
 
     bool isRunning() const override { return running_.load(); }
@@ -107,7 +142,16 @@ class MiniaudioCapture final : public IAudioCapture {
         // match rather than reading past it (BUG-56).
         const std::size_t count =
             static_cast<std::size_t>(frames) * static_cast<std::size_t>(dev->capture.channels);
-        self->sink_(samples, count);
+        // The C-ABI boundary itself (BUG-83). VoicePipeline already catches, but this
+        // is the frame an exception would actually unwind out of, and the sink is an
+        // arbitrary std::function set by whoever owns us. Belt and braces, because the
+        // cost of being wrong here is the process dying mid-talk.
+        try {
+            self->sink_(samples, count);
+        } catch (...) {
+            // A dropped buffer is 20 ms nobody notices. Nothing is logged — what this
+            // callback carries is everything said in the room (TM-012/013).
+        }
     }
 
     ma_device device_{};

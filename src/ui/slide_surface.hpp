@@ -20,6 +20,19 @@ class SlideSurface : public QWidget {
     void setStatusText(const QString& text); // shown when there is no raster yet
     QRectF lastPaintedRect() const { return lastRect_; }
 
+    // What a screen reader says this surface currently IS (A11Y-1).
+    //
+    // A custom-painted QWidget is, to VoiceOver, an unnamed rectangle: the whole
+    // presentation was one silent black box, so a presenter using a screen reader
+    // could not tell which slide was showing, whether the projector was blanked, or
+    // whether a slide was still rendering. Nothing on this surface is text, so there
+    // is nothing for the platform to infer — it has to be stated.
+    //
+    // Deliberately NEVER the deck's own content: it says "Slide 3 of 10", not what is
+    // on slide 3. Slide text is Confidential (Bible section 8, TM-012/013) and the
+    // accessibility tree is readable by other processes.
+    void setAccessibleState(const QString& what);
+
   protected:
     void paintEvent(QPaintEvent* e) override;
 

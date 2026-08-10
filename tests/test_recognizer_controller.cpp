@@ -167,7 +167,7 @@ TEST_CASE("audit S2: a reentrant sink is dropped, dispatching once") {
 // UAT SESSION 2 REMEDIATION — 2026-08-04. BUG-11: the Paused->Active escape hatch
 // must accept natural resume words, so the presenter is never stuck mid-talk.
 // ===========================================================================
-TEST_CASE("UAT2 BUG-11/17: 'resume presentation' un-pauses; a bare word does not") {
+TEST_CASE("UAT2 BUG-11/17: 'resume presentation' un-pauses, a bare word does not") {
     Harness h;
     h.recognizer.speak(QStringLiteral("pause presentation"));
     REQUIRE(h.controller.state() == RecognizerController::State::Paused);
@@ -190,4 +190,89 @@ TEST_CASE("UAT2 BUG-11/17: 'resume presentation' un-pauses; a bare word does not
     h.recognizer.speak(QStringLiteral("next slide"));
     REQUIRE(h.emitted.size() == 1);
     CHECK(h.emitted[0].type == CommandType::NextSlide);
+}
+
+// ===========================================================================
+// F-2 (Phase 3) — the keyboard must reach the SAME pause state as the voice.
+//
+// The gate is the single owner of Paused. PresentationWindow used to keep a second
+// copy that nothing ever wrote, so the P key always translated to
+// PausePresentation, PresentationController treats pause and continue as no-ops,
+// and the key did nothing whatsoever — while looking to the presenter exactly like
+// the pause they were relying on before taking questions.
+// ===========================================================================
+
+TEST_CASE("F-2: setPaused gates navigation exactly as a spoken pause does") {
+    Harness h;
+    REQUIRE(h.controller.state() == RecognizerController::State::Active);
+
+    h.controller.setPaused(true);
+    CHECK(h.controller.state() == RecognizerController::State::Paused);
+
+    // The point of pausing: audience speech cannot move the deck.
+    h.recognizer.speak(QStringLiteral("next slide"));
+    CHECK(h.emitted.empty());
+
+    // ...but the presenter can still speak their way out, exactly as before.
+    h.recognizer.speak(QStringLiteral("continue presentation"));
+    REQUIRE(h.emitted.size() == 1);
+    CHECK(h.emitted[0].type == CommandType::ContinuePresentation);
+    CHECK(h.controller.state() == RecognizerController::State::Active);
+}
+
+TEST_CASE("F-2: setPaused emits NOTHING — the caller already has the command") {
+    Harness h;
+    h.controller.setPaused(true);
+    h.controller.setPaused(false);
+    h.controller.setPaused(true);
+    // The keyboard path dispatches its own Command to PresentationController. If
+    // this also emitted, one keypress would be acted on twice.
+    CHECK(h.emitted.empty());
+    CHECK(h.controller.state() == RecognizerController::State::Paused);
+}
+
+TEST_CASE("F-2: a keyboard pause and a spoken pause agree, in both directions") {
+    Harness h;
+    // Keyboard pauses, voice resumes.
+    h.controller.setPaused(true);
+    h.recognizer.speak(QStringLiteral("continue presentation"));
+    CHECK(h.controller.state() == RecognizerController::State::Active);
+    REQUIRE(h.emitted.size() == 1);
+    h.emitted.clear();
+
+    // Voice pauses, keyboard resumes.
+    h.recognizer.speak(QStringLiteral("pause presentation"));
+    REQUIRE(h.controller.state() == RecognizerController::State::Paused);
+    h.controller.setPaused(false);
+    CHECK(h.controller.state() == RecognizerController::State::Active);
+    h.emitted.clear();
+    h.recognizer.speak(QStringLiteral("next slide"));
+    REQUIRE(h.emitted.size() == 1);
+    CHECK(h.emitted[0].type == CommandType::NextSlide);
+}
+
+TEST_CASE("F-2: setPaused is refused from inside that controller's OWN dispatch") {
+    // The gate commits its state BEFORE calling the sink (audit S1/S5). A sink that
+    // reached back in here would leave the gate disagreeing with the command already
+    // on its way out — the same hazard the reentrancy backstop exists for. Not
+    // something the current wiring does; it is what a careless future one would do.
+    std::vector<Command> got;
+    RecognizerController* self = nullptr;
+    RecognizerController c([&](Command cmd) {
+        got.push_back(cmd);
+        if (self != nullptr) {
+            self->setPaused(false); // reentrant — must be ignored
+        }
+    });
+    self = &c;
+
+    c.onPhrase(QStringLiteral("pause presentation"));
+    REQUIRE(got.size() == 1);
+    CHECK(got[0].type == CommandType::PausePresentation);
+    CHECK(c.state() == RecognizerController::State::Paused); // NOT undone
+
+    // And the gate really is paused, not merely reporting so.
+    got.clear();
+    c.onPhrase(QStringLiteral("next slide"));
+    CHECK(got.empty());
 }

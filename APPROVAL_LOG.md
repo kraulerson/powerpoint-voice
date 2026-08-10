@@ -101,7 +101,22 @@ _When this gate is crossed, **append** a completed approval table directly below
 <!-- BL-170-APPEND-DESIGN -->
 _When this gate is crossed, **append** a completed approval table directly below (above this section's closing `---`) — use the shape at the top of this file (this gate is a self-review; the reviewer row carries: Orchestrator (personal) / Senior Technical Authority (organizational); artifacts to review: FEATURES.md, BUGS.md, CI status, PROJECT_BIBLE.md currency). Append-only: never edit a line once pushed._
 
+
+| Field | Value |
+|---|---|
+| **Gate** | Phase 2 → Phase 3 |
+| **Approver** | Karl Raulerson |
+| **Role** | Orchestrator / Senior Technical Authority (self-review, organizational solo deployment — ISSUE-006/008) |
+| **Date** | 2026-08-09 |
+| **Decision** | APPROVED |
+| **Method** | Interactive session approval (walk protocol; PR #28 + #29 review) |
+| **Reference** | PR #28 (walk/uat5), PR #29 (walk/phase2-exit); BUGS.md — 0 open SEV-1, 0 open SEV-2, 0 deferred SEV-2 per `test-gate.sh --check-phase-gate`; UAT sessions 1-5 archived under `tests/uat/sessions/` and `docs/test-results/`; UAT-5 human arm — projector 2026-08-05, voice + false triggers 2026-08-06; false-trigger measurement 60/102 vs 75/102 baseline (`tests/uat/sessions/2026-08-06-session-5/submissions/false-trigger-measurement.md`); `docs/security-audits/` (F1a, F1b, F2-F3, F4, F8a, F8b, F8c, F8d); PRODUCT_MANIFESTO.md §5 cutline amendment (F5/F6 scope cut, 2026-08-09); 264 tests green, ASan+UBSan clean, CI green both platforms |
+| **SEV-3 attestation** | Five open SEV-3 bugs accepted into Phase 3: **BUG-33** (render speed on the real deck never re-measured natively; pre-render itself measured ~200 ms for 10 slides), **BUG-39** (two EMF graphics on slide 1 of the original deck draw as grey placeholders per code reading, which Karl's observation contradicts — unexplained), **BUG-44** (a logout/restart event quits with no confirmation), **BUG-54** (a negative `<a:srcRect>` inset should PAD rather than clamp; the reference deck carries three), **BUG-55** (BUG-41 fixed one of three paths to a missing picture; the reviewer judged the cause misdiagnosed). None blocks the 2026-08-12 talk. |
+| **Scope cut recorded** | F5 (transcript overlay, listening glyph, pre-show check) and F6 (keybinding configuration surface) moved below the MVP cutline, PRODUCT_MANIFESTO.md §5, 2026-08-09. The keyboard itself is built and tested; Karl performs the pre-show check himself. |
+| **Notes** | Date corrected from the "8/9/2025" given in session to **2026-08-09**, on Karl's confirmation that it was a typo — every artefact this approval cites is dated 2026. Recorded because a governance row carrying a year-off date is exactly what an auditor stops on. Voice ships with a MEASURED, not asserted, property: closed vocabulary, open word order, 60/102 isolated near-miss fragments still matching a command, zero of six natural sentences matching. BUG-66's original "incapable of emitting anything but the five commands" claim was withdrawn as false. |
+
 ---
+
 
 ## Phase Gate: Phase 3 → Phase 4
 

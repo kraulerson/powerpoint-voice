@@ -1,5 +1,7 @@
 #include "ui/notice_strip.hpp"
 
+#include <QAccessible>
+#include <QAccessibleEvent>
 #include <QFontMetrics>
 #include <QPaintEvent>
 #include <QPainter>
@@ -9,6 +11,10 @@ namespace pptv {
 
 NoticeStrip::NoticeStrip(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents);
+    // A11Y-1. Every notice this strip shows is drawn text, which VoiceOver cannot
+    // see — so "Deck has 10 slides" and "Paused" were visible to everyone in the room
+    // except a presenter using a screen reader.
+    setAccessibleName(QStringLiteral("Notice"));
 }
 
 int NoticeStrip::heightFor(int hostHeight) {
@@ -21,7 +27,25 @@ int NoticeStrip::heightFor(int hostHeight) {
 }
 
 void NoticeStrip::setText(const QString& text) {
+    if (text_ == text) {
+        return;
+    }
     text_ = text;
+    setAccessibleDescription(text_);
+    // ANNOUNCE rather than expose. A notice is transient — it fades — so a property a
+    // screen reader has to be asked for is one the presenter will never hear. Every
+    // notice comes from the closed vocabulary in notice.hpp, so nothing from the deck
+    // can be spoken aloud (Bible section 8, TM-012/013).
+    //
+    // QAccessibleAnnouncementEvent, not QAccessible::Alert (BUG-80). Alert has no
+    // AppKit equivalent, so Qt's Cocoa plugin silently discards it and VoiceOver says
+    // nothing — the first version of this fix was a no-op on the only platform this
+    // ships on. Announcement is the one event type that reaches
+    // NSAccessibilityAnnouncementRequestedNotification.
+    if (!text_.isEmpty()) {
+        QAccessibleAnnouncementEvent ev(this, text_);
+        QAccessible::updateAccessibility(&ev);
+    }
     update();
 }
 

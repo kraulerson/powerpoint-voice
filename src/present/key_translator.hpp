@@ -39,6 +39,10 @@ struct KeyAction {
 struct KeyContext {
     Mode mode = Mode::Presenting;
     bool paused = false;
+    // True when the platform generated this event by HOLDING the key down, rather
+    // than by a fresh press. It matters because two keys here are toggles and a
+    // toggle repeated an even number of times is a toggle that did nothing (BUG-81).
+    bool autoRepeat = false;
 };
 
 // Translates key presses, holding the typed slide-number buffer between calls.

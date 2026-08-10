@@ -68,6 +68,11 @@ class DeckLoadWorker : public QObject {
     void finished();
 
   private:
+    // The part of start() that touches the untrusted file. Split out so start() is
+    // nothing but an exception boundary around it (F-CHAOS-3) — the signals must be
+    // emitted whether this returns or throws.
+    void runLoad(DeckLoadOutcome& out);
+
     LoadFn loadFn_;
     QString path_;
     std::atomic<bool> cancelled_{false};

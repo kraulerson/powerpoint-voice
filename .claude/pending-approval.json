@@ -1,0 +1,10 @@
+{
+  "question": "CI is red on PR #30 for a governance reason, not a code reason: entering Phase 3 makes check-phase-gate.sh evaluate the Phase 3→4 gate on every PR, and two of its conditions (a penetration test, and a Security + Red Team review manifest) cannot be met until Phase 3 is finished. How should CI treat the next gate's conditions during Phase 3?",
+  "options": [
+    "A1: scope the CI gate check to the gate actually in force (--gate phase_2_to_3) AND set SOIF_PHASE_GATES=warn for the residual attestation warnings",
+    "A2: scope only (--gate phase_2_to_3) — leaves CI red on 1 residual attestation warning",
+    "A3: change nothing; merge PR #30 with CI red and record the reason in WALK-UNBLOCK-AUDIT.md"
+  ],
+  "recommendation": "A1",
+  "offered_at": "2026-08-10T00:10:38Z"
+}

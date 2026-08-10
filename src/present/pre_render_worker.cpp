@@ -89,21 +89,44 @@ void PreRenderWorker::renderOne(int index) {
     QImage img;
     bool placeholder = false;
 
-    // PREVENT: over-cap slides never reach the renderer.
-    if (exceedsCaps(measureComplexity(slide), caps_)) {
-        placeholder = true;
-        if (placeholderFn_) {
-            img = placeholderFn_(index, target_);
+    // EXCEPTION BOUNDARY, per SLIDE (F-CHAOS-3). This is a slot on a QThread and Qt
+    // does not catch, so an exception leaving here unwinds through the worker's event
+    // loop and std::terminate()s the process — the talk ends, with no dialog and no
+    // fallback. Rasterising is exactly where that can happen: the caps bound the
+    // DECLARED complexity, not the allocator, and a 4K QImage plus painter state is a
+    // real bad_alloc candidate on a machine already holding the deck.
+    //
+    // Per slide rather than per run, deliberately: one unrenderable slide becomes one
+    // placeholder box and the other ninety-nine still appear. Aborting the whole
+    // pre-render on the first bad slide would turn a cosmetic failure into a lost
+    // deck, which is the trade this class exists to refuse (Manifesto: visible
+    // placeholder, never a silent wrong render).
+    try {
+        // PREVENT: over-cap slides never reach the renderer.
+        if (exceedsCaps(measureComplexity(slide), caps_)) {
+            placeholder = true;
+            if (placeholderFn_) {
+                img = placeholderFn_(index, target_);
+            }
+        } else if (renderFn_) {
+            img = renderFn_(slide, target_);
         }
-    } else if (renderFn_) {
-        img = renderFn_(slide, target_);
+    } catch (...) {
+        // Fall through to the placeholder path below, which already handles a null
+        // raster. Nothing is logged: an exception message can carry deck content.
+        img = QImage();
+        placeholder = true;
     }
 
     // A null raster would be a BLACK PROJECTOR. Never emit one: fall back to the
     // placeholder, and finally to a 1x1 so the surface always has something valid.
     if (img.isNull()) {
         if (placeholderFn_) {
-            img = placeholderFn_(index, target_);
+            try {
+                img = placeholderFn_(index, target_);
+            } catch (...) {
+                img = QImage(); // the 1x1 below is the floor, and it cannot throw
+            }
             placeholder = true;
         }
         if (img.isNull()) {
@@ -135,27 +158,38 @@ void PreRenderWorker::start() {
     // Re-plan after every slide rather than walking one fixed list: that is what
     // lets a mid-render jump take effect on the very next slide, and it keeps the
     // total bounded because a slide is only ever rendered once (done_).
-    int remaining = count;
-    while (remaining > 0) {
-        if (cancelled_.load(std::memory_order_relaxed)) {
-            break;
-        }
-        int next = -1;
-        for (int idx : renderOrder(current_.load(std::memory_order_relaxed), count)) {
-            if (!done_[static_cast<std::size_t>(idx)]) {
-                next = idx;
+    //
+    // The loop itself is inside a boundary as well (F-CHAOS-3). renderOne() catches
+    // its own, so this catches what is left: the planning, and processEvents(), which
+    // runs arbitrary queued slots. `finished()` must be emitted on EVERY path — the
+    // thread's quit() hangs off it, so swallowing it would leave a live thread that
+    // teardownWorkers() then has to abandon.
+    try {
+        int remaining = count;
+        while (remaining > 0) {
+            if (cancelled_.load(std::memory_order_relaxed)) {
                 break;
             }
-        }
-        if (next < 0) {
-            break;
-        }
-        done_[static_cast<std::size_t>(next)] = true;
-        --remaining;
-        renderOne(next);
+            int next = -1;
+            for (int idx : renderOrder(current_.load(std::memory_order_relaxed), count)) {
+                if (!done_[static_cast<std::size_t>(idx)]) {
+                    next = idx;
+                    break;
+                }
+            }
+            if (next < 0) {
+                break;
+            }
+            done_[static_cast<std::size_t>(next)] = true;
+            --remaining;
+            renderOne(next);
 
-        // Let queued setCurrentIndex() calls land between slides.
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            // Let queued setCurrentIndex() calls land between slides.
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        }
+    } catch (...) {
+        // Stop pre-rendering, but keep the deck: every slide already emitted stays
+        // usable, and showSlide() renders on demand for the rest.
     }
     running_ = false;
     emit finished();

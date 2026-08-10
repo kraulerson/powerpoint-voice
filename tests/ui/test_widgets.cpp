@@ -12,6 +12,16 @@
 #include <QTest>
 #include <QUrl>
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <thread>
+
+#include <QAccessible>
+#include <QAccessibleEvent>
+
+#include "audio/audio_capture.hpp"
+#include "command/vosk_engine.hpp"
 #include "present/presentation_controller.hpp"
 #include "ui/app_shell.hpp"
 #include "ui/notice_strip.hpp"
@@ -468,4 +478,392 @@ TEST_CASE("Q/BUG-42: an application quit is recognised as terminating, and stays
     CHECK(applicationIsTerminating());        // sticky: still true after the scope ended
     CHECK_FALSE(applicationQuitInProgress()); // scoped: already back down
     CHECK_FALSE(w.isVisible());
+}
+
+// ===========================================================================
+// F-2 (Phase 3) — the P key was DEAD, and the whole suite stayed green.
+//
+// PresentationWindow held a `paused_` flag with ZERO writers, so KeyContext::paused
+// was permanently false, P always translated to PausePresentation, and
+// PresentationController treats pause and continue as no-ops. Pressing P did
+// nothing at all — while looking, to the presenter, exactly like the pause they
+// were relying on before taking questions from a room of twenty people.
+//
+// It survived because the wiring that gives the key meaning lives in AppShell, and
+// AppShell could not be driven without a microphone and a real deck. The two seams
+// used here install exactly that wiring and nothing else.
+// ===========================================================================
+
+TEST_CASE("W/F-2: the P key actually pauses the voice gate, and toggles back") {
+    // The shell is heap-allocated so it can be destroyed BEFORE the window it holds,
+    // while the window is still built on the shell's OWN controller. The first
+    // version of this test used a separate local controller, which left one
+    // assertion unfalsifiable — the window read one object and the sink wrote another
+    // (BUG-85).
+    auto* shell = new AppShell();
+    shell->controllerForTest().setDeck(10);
+    PresentationWindow w(&shell->controllerForTest());
+    shell->installVoiceGateForTest();
+    shell->installWindowSinksForTest(&w);
+    w.resize(800, 600);
+    w.show();
+
+    REQUIRE_FALSE(shell->voiceGatePausedForTest());
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK(shell->voiceGatePausedForTest()); // P PAUSES — it used to do nothing
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK_FALSE(shell->voiceGatePausedForTest()); // ...and P resumes
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK(shell->voiceGatePausedForTest()); // a real toggle, not a one-shot
+
+    // P must never move the deck — now assertable, because this is the controller
+    // the sink dispatches into.
+    CHECK(shell->controllerForTest().currentSlide1Based() == 1);
+    delete shell;
+}
+
+TEST_CASE("W/F-2: pausing gates VOICE, never the keyboard") {
+    // The keyboard is the guaranteed control path and nothing may take it away
+    // mid-talk (F8b/F8c audits). Asserted at the window, with the shell's wiring out
+    // of the way, so it stays true regardless of what the gate is doing.
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    std::vector<Command> got;
+    w.setCommandSink([&](Command cmd) { got.push_back(cmd); });
+    w.resize(800, 600);
+    w.show();
+
+    w.setPaused(true);
+    QTest::keyClick(&w, Qt::Key_Right);
+    REQUIRE(got.size() == 1);
+    CHECK(got[0].type == CommandType::NextSlide); // still navigates while paused
+
+    // ...and while paused, P asks to CONTINUE rather than pausing a second time.
+    QTest::keyClick(&w, Qt::Key_P);
+    REQUIRE(got.size() == 2);
+    CHECK(got[1].type == CommandType::ContinuePresentation);
+
+    // The flag is what decides that, which is precisely why it needed a writer.
+    w.setPaused(false);
+    QTest::keyClick(&w, Qt::Key_P);
+    REQUIRE(got.size() == 3);
+    CHECK(got[2].type == CommandType::PausePresentation);
+}
+
+TEST_CASE("W/F-2: with no voice armed, P is inert rather than falsely reassuring") {
+    // Nothing to gate, so claiming "Resumed" would be a lie the presenter acts on.
+    auto* shell = new AppShell(); // deliberately NO installVoiceGateForTest()
+    shell->controllerForTest().setDeck(10);
+    PresentationWindow w(&shell->controllerForTest());
+    shell->installWindowSinksForTest(&w);
+    w.resize(800, 600);
+    w.show();
+
+    QTest::keyClick(&w, Qt::Key_P);
+    CHECK_FALSE(shell->voiceGatePausedForTest());
+    // Assertable now, on the controller the sink actually writes to (BUG-85). A
+    // right-arrow moves it, which is what proves the check has teeth.
+    CHECK(shell->controllerForTest().currentSlide1Based() == 1);
+    QTest::keyClick(&w, Qt::Key_Right);
+    CHECK(shell->controllerForTest().currentSlide1Based() == 2);
+    delete shell;
+}
+
+// ===========================================================================
+// F-CHAOS-2 (Phase 3) — an abandoned render worker painted the PREVIOUS deck.
+//
+// teardownWorkers() deliberately ABANDONS a worker whose wait expires rather than
+// terminating it (terminate() can strand allocator locks; destroying a running
+// QThread is a qFatal abort). An abandoned render worker keeps rasterising the old
+// deck — and its slideReady was still connected here, so those slides landed in
+// rasters_ AFTER openDeck() had resized it for the new deck. Every index is in
+// range, so nothing complained: the projector simply showed the old deck's content
+// under the new deck's slide numbers.
+// ===========================================================================
+
+TEST_CASE("W/F-CHAOS-2: a raster from a previous deck is dropped, not painted") {
+    AppShell shell;
+    shell.openDeckGenerationForTest(5);
+    const int stale = shell.deckGenerationForTest();
+
+    // The first deck's worker delivers a slide — accepted, it is the current deck.
+    shell.deliverSlideForTest(stale, 0, filled(QSize(64, 36), Qt::red));
+    REQUIRE(shell.hasRasterForTest(0));
+
+    // The presenter opens a different deck. The old worker was not stopped; it is
+    // still rendering, and it still has slides to hand over.
+    shell.openDeckGenerationForTest(5);
+    const int current = shell.deckGenerationForTest();
+    REQUIRE(current != stale);
+    REQUIRE_FALSE(shell.hasRasterForTest(0)); // fresh, empty raster set
+
+    shell.deliverSlideForTest(stale, 0, filled(QSize(64, 36), Qt::red));
+    shell.deliverSlideForTest(stale, 3, filled(QSize(64, 36), Qt::red));
+    CHECK_FALSE(shell.hasRasterForTest(0)); // the OLD deck's pixels never land
+    CHECK_FALSE(shell.hasRasterForTest(3));
+
+    // ...while the new deck's own worker is unaffected.
+    shell.deliverSlideForTest(current, 3, filled(QSize(64, 36), Qt::blue));
+    CHECK(shell.hasRasterForTest(3));
+}
+
+// ===========================================================================
+// A11Y-1 (Phase 3) — the presentation was silent to VoiceOver.
+//
+// Every surface here is a custom-painted QWidget. To a screen reader that is an
+// unnamed rectangle with no text in it, so the deck, the privacy blackout, the quit
+// prompt and a crashed app were all indistinguishable: silence. The window has no
+// menu bar and no on-screen controls either, so there was nothing to discover the
+// key map from.
+//
+// The constraint that shapes all of this: the accessibility tree is readable by
+// other processes, and the deck is Confidential. So the state is named — "Slide 3
+// of 10" — and its CONTENT never is (Bible section 8, TM-012/013).
+// ===========================================================================
+
+TEST_CASE("W/A11Y-1: the presentation window names itself and its key map") {
+    PresentationController c;
+    c.setDeck(10);
+    PresentationWindow w(&c);
+    CHECK_FALSE(w.accessibleName().isEmpty());
+    // The key map is the only way in: no menu, no toolbar, no visible control.
+    const QString desc = w.accessibleDescription();
+    CHECK(desc.contains(QStringLiteral("arrow")));
+    CHECK(desc.contains(QStringLiteral("Escape")));
+    CHECK(desc.contains(QStringLiteral("P ")));
+}
+
+TEST_CASE("W/A11Y-1: the slide surface says WHICH slide, and never what is on it") {
+    SlideSurface s;
+    CHECK_FALSE(s.accessibleName().isEmpty());
+
+    s.setAccessibleState(QStringLiteral("Slide 3 of 10."));
+    CHECK(s.accessibleDescription() == QStringLiteral("Slide 3 of 10."));
+
+    // A blanked projector must be distinguishable from a broken app.
+    s.setAccessibleState(QStringLiteral("Projector blanked. The deck is hidden."));
+    CHECK(s.accessibleDescription().contains(QStringLiteral("blanked")));
+}
+
+TEST_CASE("W/A11Y-1: a notice is announced, and repeats are not") {
+    NoticeStrip strip;
+    CHECK_FALSE(strip.accessibleName().isEmpty());
+
+    strip.setText(QStringLiteral("Deck has 10 slides"));
+    CHECK(strip.accessibleDescription() == QStringLiteral("Deck has 10 slides"));
+
+    // Clearing is reflected too, so a stale notice is not left in the tree for a
+    // screen reader to read back long after it faded from the screen.
+    strip.setText(QString());
+    CHECK(strip.accessibleDescription().isEmpty());
+}
+
+TEST_CASE("W/A11Y-1: the shell actually WIRES the spoken state to the presentation") {
+    // The naming above is worth nothing if nobody updates it — that is BUG-60's
+    // lesson, and this is the equivalent assertion for the accessibility tree.
+    PresentationController c;
+    PresentationWindow w(&c); // declared first: it must outlive the shell
+    AppShell shell;
+    shell.installWindowSinksForTest(&w);
+    shell.openDeckGenerationForTest(10);
+
+    shell.deliverSlideForTest(shell.deckGenerationForTest(), 0, filled(QSize(64, 36), Qt::red));
+    CHECK(w.surface()->accessibleDescription() == QStringLiteral("Slide 1 of 10."));
+    // ...and it does NOT leak what is on the slide.
+    CHECK_FALSE(w.surface()->accessibleDescription().contains(QStringLiteral("red")));
+}
+
+// ===========================================================================
+// BUG-72 / F-1, PROPERLY PINNED THIS TIME (BUG-79).
+//
+// The first attempt at this test asserted a property of VoicePipeline against a
+// fake capture that joins BY CONSTRUCTION — so it asserted a property of the fake.
+// An adversarial reviewer deleted the entire F-1 fix (the teardownVoice() call AND
+// the member declaration order) and all 279 tests stayed green.
+//
+// What BUG-72 is actually about is WHEN the VoskEngine dies relative to the audio
+// thread, and nothing outside AppShell could see that. VoskEngine now counts its own
+// destructions, which makes it visible without dereferencing anything that might
+// already be freed.
+// ===========================================================================
+
+namespace {
+// Behaves like a real capture device: drives the sink from its own thread, and its
+// stop() joins that thread. MiniaudioCapture's equivalent barrier is sinkMutex_.
+class ShellThreadedCapture : public IAudioCapture {
+  public:
+    ~ShellThreadedCapture() override { stop(); }
+    CaptureError start() override {
+        running_ = true;
+        thread_ = std::thread([this] {
+            const std::vector<std::int16_t> buf(960 * 2, 0);
+            while (!quit_.load()) {
+                if (sink_) {
+                    sink_(buf.data(), buf.size());
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
+        return CaptureError::None;
+    }
+    void stop() override {
+        quit_ = true;
+        if (thread_.joinable()) {
+            thread_.join();
+        }
+        running_ = false;
+    }
+    bool isRunning() const override { return running_.load(); }
+    AudioFormat deviceFormat() const override { return AudioFormat{48000, 2}; }
+    void setSink(CaptureSink s) override { sink_ = std::move(s); }
+
+  private:
+    CaptureSink sink_;
+    std::atomic<bool> running_{false};
+    std::atomic<bool> quit_{false};
+    std::thread thread_;
+};
+} // namespace
+
+TEST_CASE("W/F-1: the shell never frees the speech engine under a live decode") {
+    std::atomic<int> entries{0};
+    std::atomic<long> atEntry{-1};
+    std::atomic<long> atExit{-1};
+
+    auto* shell = new AppShell();
+    shell->installVoiceForTest(std::make_unique<ShellThreadedCapture>(), [&] {
+        ++entries;
+        atEntry = VoskEngine::destructionCountForTest();
+        // Stands in for VoskEngine::feed(), which is not instantaneous. This is the
+        // window in which the engine must not be freed.
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        atExit = VoskEngine::destructionCountForTest();
+    });
+
+    // Make sure a decode is genuinely in flight, so the destructor is racing
+    // something real rather than an idle thread.
+    for (int i = 0; i < 200 && entries.load() == 0; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE(entries.load() > 0);
+
+    delete shell;
+
+    // THE assertion. If any VoskEngine was destroyed between a decode starting and
+    // that same decode finishing, the shell freed the engine underneath the audio
+    // thread — which is BUG-72 exactly, and is what a Cmd+Q at the end of a talk
+    // does on a machine that has a microphone.
+    REQUIRE(atEntry.load() >= 0);
+    REQUIRE(atExit.load() >= 0);
+    CHECK(atEntry.load() == atExit.load());
+}
+
+// ===========================================================================
+// BUG-80 — the announcements were a NO-OP on the only platform this ships on.
+//
+// The first A11Y-1 fix raised QAccessible::Alert and QAccessible::DescriptionChanged.
+// Neither has an AppKit equivalent, so Qt's Cocoa plugin discards both and VoiceOver
+// says nothing. `nm -mu libqcocoa.dylib` lists the complete set it can post:
+// Focused / SelectedText / Title / ValueChanged notifications, plus
+// NSAccessibilityAnnouncementRequestedNotification with AnnouncementKey and
+// PriorityKey. Only the last carries a message.
+//
+// The four earlier A11Y tests asserted the accessible DESCRIPTION strings, which the
+// no-op version set perfectly well — so they passed while nothing was ever spoken.
+// These assert the event that actually reaches the platform.
+// ===========================================================================
+
+namespace {
+// QAccessible's update handler is a bare function pointer, so the capture has to be
+// file-scope. Reset before each use.
+std::vector<QAccessible::Event> g_a11yEvents;
+std::vector<QString> g_a11yMessages;
+
+void captureA11y(QAccessibleEvent* ev) {
+    if (ev == nullptr) {
+        return;
+    }
+    g_a11yEvents.push_back(ev->type());
+    if (ev->type() == QAccessible::Announcement) {
+        g_a11yMessages.push_back(static_cast<QAccessibleAnnouncementEvent*>(ev)->message());
+    }
+}
+
+// Turns the accessibility bridge on for the duration of a test and restores whatever
+// was there before, so one test cannot leak a handler into the next.
+struct A11yCapture {
+    bool wasActive;
+    QAccessible::UpdateHandler previous;
+    A11yCapture() : wasActive(QAccessible::isActive()) {
+        g_a11yEvents.clear();
+        g_a11yMessages.clear();
+        QAccessible::setActive(true);
+        previous = QAccessible::installUpdateHandler(&captureA11y);
+    }
+    ~A11yCapture() {
+        QAccessible::installUpdateHandler(previous);
+        QAccessible::setActive(wasActive);
+    }
+};
+} // namespace
+
+TEST_CASE("W/BUG-80: a notice reaches the platform as an ANNOUNCEMENT, with its text") {
+    A11yCapture capture;
+    NoticeStrip strip;
+    strip.setText(QStringLiteral("Deck has 10 slides"));
+
+    REQUIRE_FALSE(g_a11yEvents.empty());
+    // Alert and DescriptionChanged are both dropped by the macOS plugin. If either
+    // is what we raised, nothing is ever spoken.
+    CHECK(std::find(g_a11yEvents.begin(), g_a11yEvents.end(), QAccessible::Announcement) !=
+          g_a11yEvents.end());
+    CHECK(std::find(g_a11yEvents.begin(), g_a11yEvents.end(), QAccessible::Alert) ==
+          g_a11yEvents.end());
+    REQUIRE_FALSE(g_a11yMessages.empty());
+    CHECK(g_a11yMessages.front() == QStringLiteral("Deck has 10 slides"));
+}
+
+TEST_CASE("W/BUG-80: a slide change is announced, and an unchanged state is not") {
+    A11yCapture capture;
+    SlideSurface s;
+
+    s.setAccessibleState(QStringLiteral("Slide 4 of 10."));
+    REQUIRE(g_a11yMessages.size() == 1);
+    CHECK(g_a11yMessages.front() == QStringLiteral("Slide 4 of 10."));
+
+    // Repainting the same slide must not make a screen reader say it again.
+    s.setAccessibleState(QStringLiteral("Slide 4 of 10."));
+    CHECK(g_a11yMessages.size() == 1);
+
+    s.setAccessibleState(QStringLiteral("Projector blanked."));
+    CHECK(g_a11yMessages.size() == 2);
+}
+
+TEST_CASE("W/F-CHAOS-2: the REAL openDeck path bumps the generation every time") {
+    // The other F-CHAOS-2 test drives acceptSlide() directly, which a reviewer
+    // rightly called a near-tautology of the two-line guard. This one goes through
+    // AppShell::openDeck itself, so deleting `++deckGeneration_` — the line every
+    // stale-raster drop depends on — is caught.
+    //
+    // A nonexistent path is deliberate: the observable is the generation, which is
+    // bumped before any file is touched, and no deck on disk is needed to see it.
+    AppShell shell;
+    const int before = shell.deckGenerationForTest();
+    shell.openDeck(QStringLiteral("/nonexistent/one.pptx"));
+    const int afterFirst = shell.deckGenerationForTest();
+    shell.openDeck(QStringLiteral("/nonexistent/two.pptx"));
+    const int afterSecond = shell.deckGenerationForTest();
+
+    CHECK(afterFirst == before + 1);
+    CHECK(afterSecond == afterFirst + 1);
+
+    // And a raster carrying the FIRST deck's generation is refused by the shell that
+    // has moved on — the property the whole guard exists for.
+    shell.openDeckGenerationForTest(3); // sizes rasters_ for the current generation
+    shell.deliverSlideForTest(afterFirst, 0, filled(QSize(32, 18), Qt::red));
+    CHECK_FALSE(shell.hasRasterForTest(0));
 }

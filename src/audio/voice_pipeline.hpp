@@ -50,11 +50,26 @@ class VoicePipeline : public QObject {
     void phraseHeard(const QString& phrase);
 
   private:
+    // The capture sink. Nothing but an exception boundary around the line below —
+    // this is a real-time C callback frame and nothing may unwind out of it
+    // (BUG-83).
     void onSamples(const std::int16_t* samples, std::size_t count);
+    void decodeOneBuffer(const std::int16_t* samples, std::size_t count);
 
-    std::unique_ptr<IAudioCapture> capture_;
+    // DECLARATION ORDER IS LOAD-BEARING, and it used to be backwards (BUG-79).
+    //
+    // `capture_` is the only member that can stop the audio thread, so it must be
+    // destroyed FIRST — which means declared LAST, since members are destroyed in
+    // reverse declaration order. Declared first (as it was), it was destroyed last:
+    // `running_` and then `decode_` were torn down while the capture thread could
+    // still be inside `onSamples`, which reads `running_` and then INVOKES `decode_`
+    // — the std::function that owns the lambda calling into VoskEngine.
+    //
+    // AppShell's members carry the same rule for the same reason and say so. This is
+    // the one level down, where the rule was being preached and not practised.
     DecodeFn decode_;
     std::atomic<bool> running_{false};
+    std::unique_ptr<IAudioCapture> capture_;
 };
 
 } // namespace pptv

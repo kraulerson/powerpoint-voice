@@ -100,6 +100,19 @@ DispatchResult PresentationController::dispatch(const Command& cmd, CommandSourc
         // Pause state lives in RecognizerController (the single owner); here these
         // are simply not slide movements.
         r.outcome = Outcome::NoMove;
+        if (cmd.type == CommandType::PausePresentation) {
+            // SAY SO (BUG-82). Pausing used to produce no notice at all, so a pause
+            // that WORKED looked exactly like the dead P key of BUG-73 and exactly
+            // like the early return when voice was never armed. The presenter had no
+            // way to tell whether the microphone was actually gated before turning to
+            // twenty people for questions — and no way to notice the auto-repeat
+            // defect (BUG-81) putting them straight back to live.
+            //
+            // NoticeId::Paused already existed and was structurally UNREACHABLE:
+            // nothing ever emitted it, and noticeForRole suppresses it unless the
+            // caller passes paused=true, which AppShell hardcoded to false.
+            r.notice = Notice{NoticeId::Paused, 0, 0, NoticeClass::Sticky};
+        }
         if (cmd.type == CommandType::ContinuePresentation) {
             // Not gated on `paused`: RecognizerController clears its pause state
             // BEFORE calling the sink, so `paused` is already false here and the

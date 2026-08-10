@@ -45,6 +45,28 @@ bool VoicePipeline::isRunning() const {
 }
 
 void VoicePipeline::onSamples(const std::int16_t* samples, std::size_t count) {
+    // EXCEPTION BOUNDARY on the REAL-TIME AUDIO THREAD (BUG-83).
+    //
+    // This runs inside miniaudio's C data callback. An exception unwinding out of a
+    // C-ABI frame is undefined behaviour and in practice std::terminate — the process
+    // dies mid-sentence, with the deck on the projector. And the body below allocates
+    // on every single buffer: a std::vector for the downmix, then the decoder, which
+    // builds a std::string, a QByteArray, a QJsonDocument and a QString sized by the
+    // utterance, and finally a QMetaCallEvent for the queued hand-off.
+    //
+    // BUG-75 put boundaries on the two worker threads for exactly this reason and
+    // missed this one — the only thread that runs CONTINUOUSLY during the talk rather
+    // than at open time. A dropped buffer is 20 ms of audio nobody notices; an
+    // unhandled bad_alloc here ends the talk.
+    try {
+        decodeOneBuffer(samples, count);
+    } catch (...) {
+        // Nothing is logged: an exception message can carry heard speech, and this
+        // process never writes what it hears (Bible section 8, TM-012/013).
+    }
+}
+
+void VoicePipeline::decodeOneBuffer(const std::int16_t* samples, std::size_t count) {
     if (!running_.load() || samples == nullptr || count == 0) {
         return;
     }

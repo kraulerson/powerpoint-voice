@@ -648,3 +648,23 @@ TEST_CASE("BUG-47 review2: a hostile percentage cannot invoke UB in the parser")
         CHECK(els[1].image.srcRect.rightPerMille == 2147483647);
     }
 }
+
+// Phase 3 C-01 — placeholder identity is type+idx, and NOTHING else.
+//
+// BUG-58 namespaced the key by the containing non-visual-properties element to close
+// a pic/sp collision. That BROKE THE REAL DECK: its slide-1 picture sits under
+// <p:nvPicPr> while the layout entry positioning it sits under <p:sp>, so the two
+// stopped matching and the picture went to 0x0 and silently vanished — BUG-41
+// reintroduced by its own fix. The commit claimed it was "not triggered on Karl's
+// deck"; that verified the layout side only, and a key must match on BOTH.
+TEST_CASE("C-01: a picture placeholder matches a layout entry under a DIFFERENT holder") {
+    LoadResult r = DeckLoader::load(fixture("good_pic_placeholder.pptx"));
+    REQUIRE(r.ok);
+    const auto& els = r.presentation.slides[0].elements;
+    REQUIRE(els.size() == 1);
+    // The fixture's slide carries <p:nvPicPr><p:ph type="pic" idx="11">, and its
+    // layout entry is a <p:pic>. The real deck's layout entry is a <p:sp>; either
+    // must join, because the holder is not part of a placeholder's identity.
+    CHECK(els[0].image.rect.cx == 4174273);
+    CHECK(els[0].image.rect.cy == 6858000);
+}

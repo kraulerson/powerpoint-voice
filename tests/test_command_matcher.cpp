@@ -201,3 +201,41 @@ TEST_CASE("BUG-17: filler cannot reduce speech to a lone command word") {
     CHECK_FALSE(matchCommand(QStringLiteral("lets pause")).has_value());
     CHECK_FALSE(matchCommand(QStringLiteral("well resume")).has_value());
 }
+
+// Phase 3 C-02 — the decoder's [unk] escape hatch reaches the matcher.
+//
+// Vosk emits a literal "[unk]" wherever it heard something the grammar cannot
+// express, so a perfectly good command with ANY adjacent speech arrives as
+// "[unk] next slide". Phase 3 measured 36 of 60 naturally-phrased commands failing
+// for exactly this — a regression introduced by the BUG-67 [unk] fix itself.
+TEST_CASE("C-02: an [unk] on ONE edge is stripped, on BOTH edges it is not") {
+    SUBCASE("natural phrasing fires — this is what regressed") {
+        CHECK(matchCommand(QStringLiteral("[unk] next slide")).has_value());
+        CHECK(matchCommand(QStringLiteral("next slide [unk]")).has_value());
+        CHECK(matchCommand(QStringLiteral("[unk] pause the presentation")).has_value());
+        CHECK(matchCommand(QStringLiteral("[unk] continue the presentation")).has_value());
+        const auto jump = matchCommand(QStringLiteral("go to slide seven [unk]"));
+        REQUIRE(jump.has_value());
+        CHECK(jump->slideNumber == 7);
+    }
+
+    SUBCASE("[unk] on BOTH edges must NOT fire — that is narration, not a command") {
+        // A Phase 3 reviewer's counterexample, which kills the naive "strip [unk] as
+        // filler" fix: the sentence "the next slide shows our results for this
+        // quarter" decodes as "[unk] next slide [unk]". Stripping both edges turns a
+        // narrated sentence into a slide change — reopening TM-002/019.
+        CHECK_FALSE(matchCommand(QStringLiteral("[unk] next slide [unk]")).has_value());
+        CHECK_FALSE(matchCommand(QStringLiteral("[unk] the next slide [unk]")).has_value());
+        CHECK_FALSE(matchCommand(QStringLiteral("[unk] two the next slide [unk]")).has_value());
+    }
+
+    SUBCASE("an INTERIOR [unk] never fires — the command was not said whole") {
+        CHECK_FALSE(matchCommand(QStringLiteral("next [unk] slide")).has_value());
+        CHECK_FALSE(matchCommand(QStringLiteral("pause [unk] presentation")).has_value());
+    }
+
+    SUBCASE("[unk] alone is not a command") {
+        CHECK_FALSE(matchCommand(QStringLiteral("[unk]")).has_value());
+        CHECK_FALSE(matchCommand(QStringLiteral("[unk] [unk]")).has_value());
+    }
+}
