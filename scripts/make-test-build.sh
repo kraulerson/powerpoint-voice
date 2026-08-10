@@ -33,6 +33,31 @@ for lib in "$APP"/Contents/Frameworks/*.dylib; do
   install_name_tool -id "@rpath/$(basename "$lib")" "$lib" 2>/dev/null || true
 done
 
+# LICENCE COMPLIANCE. Every one of the seven components requires that its notice
+# accompany a BINARY distribution, and none of it shipped until 2026-08-10 — found
+# during the Phase 3 legal review. Qt is the binding one: LGPL-3.0-only, dynamically
+# linked, which obliges us to ship a copy of the LGPL and the GPL alongside the
+# combined work. The build FAILS below if any of it is missing, because a compliance
+# step that can be silently skipped is one that eventually is.
+#
+# BEFORE the signature, deliberately: adding anything to Contents/Resources AFTER
+# codesign invalidates the seal, and `codesign --verify --deep --strict` then fails
+# with "a sealed resource is missing or invalid". Measured, not guessed — that is
+# exactly what the first version of this step did.
+echo "==> stage third-party licences"
+mkdir -p "$APP/Contents/Resources/licenses"
+cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/licenses/"
+cp third_party/licenses/*.txt "$APP/Contents/Resources/licenses/"
+for required in LGPL-3.0.txt GPL-3.0.txt Apache-2.0.txt libzip-BSD-3-Clause.txt \
+                pugixml-MIT.txt miniaudio-MIT-0-or-public-domain.txt \
+                THIRD_PARTY_NOTICES.md; do
+  test -s "$APP/Contents/Resources/licenses/$required" || {
+    echo "FAILED: licence text '$required' is missing from the bundle." >&2
+    echo "        Distributing without it is a licence violation, not a cosmetic gap." >&2
+    exit 1
+  }
+done
+
 echo "==> re-sign (install_name_tool invalidates every signature it touches)"
 find "$APP" -name "*.dylib" -print0 | xargs -0 -I{} codesign -f -s - {} 2>/dev/null || true
 codesign -f -s - --deep "$APP"

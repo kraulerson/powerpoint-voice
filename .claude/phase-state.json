@@ -15,5 +15,24 @@
     "phase_0_to_1_by": "Karl Raulerson <kraulerson@gmail.com>",
     "phase_1_to_2_by": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>",
     "phase_2_to_3_by": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>"
+  },
+  "phase3": {
+    "attestations": {
+      "license": {
+        "reason": "Manual licence audit performed 2026-08-10 (no canonical license tool exists for C++). All 7 components identified and their licences confirmed against upstream: Qt 6.11.1 LGPL-3.0-only, libzip 1.11.4 BSD-3-Clause, pugixml 1.16 MIT, Vosk 0.3.44 Apache-2.0, vosk-model-small-en-us 0.15 Apache-2.0, miniaudio 0.11.25 MIT-0-or-public-domain, doctest 2.4.11 MIT (build-time only). The audit FOUND A REAL GAP: no licence text shipped with the binary at all, which is a violation for every one of the seven and specifically for Qt's LGPL-3.0 section 4. Remediated - full texts in third_party/licenses/, THIRD_PARTY_NOTICES.md written, and make-test-build.sh now stages them into the bundle and FAILS if any is missing. Project licence set to MIT (Karl Raulerson, 2026-08-10), compatible with dynamically linking LGPL-3.0. Approved by Karl Raulerson 2026-08-10.",
+        "signoff": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>",
+        "at": "2026-08-10T20:47:55Z"
+      },
+      "zap-dast": {
+        "reason": "Not applicable. OWASP ZAP is a web/API dynamic scanner and this is an offline desktop application: there is no network code anywhere in src/, no listening socket, no HTTP client, no URL handling except the drag-and-drop handler which explicitly REFUSES remote URLs (localDeckPathFrom, src/ui/start_view.cpp, test S/BUG-18). There is no surface for a DAST tool to address. Approved by Karl Raulerson 2026-08-10.",
+        "signoff": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>",
+        "at": "2026-08-10T20:47:55Z"
+      },
+      "snyk": {
+        "reason": "Snyk not authenticated on this machine; a MANUAL dependency vulnerability review was performed instead and is the evidence for this attestation: docs/test-results/2026-08-10_dependency-vulnerability-review.md. Method: NVD REST API queried per component on 2026-08-10. All 7 components are vendored or pinned by exact version with SHA-256 digests, so the version reviewed is the version that ships. RESULT: one CVE matches a pinned version - CVE-2026-32837 (MEDIUM), heap out-of-bounds read in miniaudio WAV BEXT metadata parsing, affecting 0.11.25 and earlier, and we pin exactly 0.11.25. NOT REACHABLE, verified three ways rather than argued: (1) MA_NO_DECODING compiles out the ma_dr_wav family containing the parser; (2) nm -a finds ZERO dr_wav symbols in the compiled object and in the shipped binary; (3) this application never decodes an audio FILE at all - it takes PCM frames from a capture device. Deliberately NOT upgraded: the upstream fix has no tagged release, and swapping a vendored audio library two days before a live talk is a worse risk than a CVE in code that is not compiled in. Recorded in third_party/PROVENANCE.md with the trigger named - removing MA_NO_DECODING makes it live in one line. Qt 6.11.1, libzip 1.11.4, pugixml 1.16, Vosk 0.3.44, doctest 2.4.11: no CVE matches any pinned version. LIMITS STATED IN THE REVIEW: point-in-time only, excludes Qt's transitive system libraries, and nothing in this project watches for newly published CVEs - wiring up Snyk or Dependabot is a Phase 4 item. Approved by Karl Raulerson 2026-08-10.",
+        "signoff": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>",
+        "at": "2026-08-10T20:53:27Z"
+      }
+    }
   }
 }
