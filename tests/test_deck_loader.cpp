@@ -668,3 +668,179 @@ TEST_CASE("C-01: a picture placeholder matches a layout entry under a DIFFERENT 
     CHECK(els[0].image.rect.cx == 4174273);
     CHECK(els[0].image.rect.cy == 6858000);
 }
+
+// ===========================================================================
+// PHASE 3 SECURITY HARDENING (3.2) — attack payloads, not malformed input.
+//
+// The persona for this step is Security Architect: "verify every mitigation
+// works, test with attack payloads, don't sign off unverified." Each fixture
+// below is a working exploit attempt for a specific threat in
+// docs/phase-1/threat-model.md, and each test states what an unmitigated
+// application would do with it.
+//
+// Several of these mitigations are STRUCTURAL — the attack surface does not
+// exist — which is a stronger answer than a guard, but only if it is actually
+// true. These tests are what makes it checkable, and what makes a future change
+// that reintroduces the surface fail loudly.
+// ===========================================================================
+
+TEST_CASE("SEC/TM-010: an external entity is NOT resolved — no file disclosure") {
+    // attack_xxe.pptx declares <!ENTITY xxe SYSTEM "file:///etc/passwd"> and puts
+    // &xxe; in slide text. An XXE-vulnerable parser would put the contents of
+    // /etc/passwd into a text run, and from there onto the projector.
+    LoadResult r = DeckLoader::load(fixture("attack_xxe.pptx"));
+
+    // The deck must actually LOAD and produce the text element, or this test passes
+    // vacuously — a rejected deck has no text to leak. Checked deliberately: a
+    // security test that can pass by doing nothing is worth nothing.
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    REQUIRE(r.presentation.slides[0].elements.size() == 1);
+
+    // What must NOT happen is the file's contents appearing anywhere in the model.
+    QString allText;
+    for (const Slide& s : r.presentation.slides) {
+        for (const ShapeElement& e : s.elements) {
+            if (e.kind != ElementKind::TextBox) {
+                continue;
+            }
+            for (const Paragraph& p : e.textBox.paragraphs) {
+                for (const TextRun& run : p.runs) {
+                    allText += run.text;
+                }
+            }
+        }
+    }
+    CHECK_FALSE(allText.contains(QStringLiteral("root:")));
+    CHECK_FALSE(allText.contains(QStringLiteral("/bin/")));
+    CHECK_FALSE(allText.contains(QStringLiteral("daemon")));
+}
+
+TEST_CASE("SEC/TM-010/017: a billion-laughs expansion does not blow up the parser") {
+    // Nine levels of ten-fold expansion — ~10^9 characters from a few hundred
+    // bytes. The blow-up would happen INSIDE the parser, before any part-size cap
+    // in the loader could see it, so a cap is not the mitigation here.
+    LoadResult r = DeckLoader::load(fixture("attack_billion_laughs.pptx"));
+
+    // Same guard against a vacuous pass: the deck loads, the element is there, and
+    // the text is simply not a billion characters long.
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+    REQUIRE(r.presentation.slides[0].elements.size() == 1);
+
+    long long chars = 0;
+    for (const Slide& s : r.presentation.slides) {
+        for (const ShapeElement& e : s.elements) {
+            if (e.kind != ElementKind::TextBox) {
+                continue;
+            }
+            for (const Paragraph& p : e.textBox.paragraphs) {
+                for (const TextRun& run : p.runs) {
+                    chars += run.text.size();
+                }
+            }
+        }
+    }
+    // A successful expansion is ~10^9 characters. Anything in that region means
+    // the entity was expanded and this test should fail long before the number is
+    // read — the cap here is deliberately generous, because the point is orders of
+    // magnitude, not an exact count.
+    CHECK(chars < 1000000);
+}
+
+TEST_CASE("SEC/TM-004: a traversing relationship Target cannot reach the filesystem") {
+    // attack_zip_slip.pptx has a picture relationship whose Target climbs out of
+    // the package (../../../../../../../../etc/passwd) AND a part whose NAME
+    // escapes to /tmp.
+    //
+    // The mitigation is structural: nothing is ever EXTRACTED. Parts are read by
+    // name from inside the archive with zip_fopen, so a name that escapes simply
+    // is not in the archive. That property is what this asserts.
+    const QString probe = QStringLiteral("/tmp/pptv-zip-slip-probe.txt");
+    QFile::remove(probe); // in case a previous run of a BROKEN build wrote it
+
+    LoadResult r = DeckLoader::load(fixture("attack_zip_slip.pptx"));
+
+    // Loads, and the picture element is present — so the traversal was resolved and
+    // came back with nothing, rather than the deck being rejected before it got
+    // there.
+    REQUIRE(r.ok);
+    REQUIRE(r.presentation.slides.size() == 1);
+
+    CHECK_FALSE(QFile::exists(probe)); // nothing was written outside the package
+
+    // And the traversing image reference resolved to nothing rather than to a file
+    // on disk: no image bytes came back for it.
+    for (const Slide& s : r.presentation.slides) {
+        for (const ShapeElement& e : s.elements) {
+            if (e.kind == ElementKind::Image) {
+                CHECK(e.image.imageData.isEmpty());
+            }
+        }
+    }
+}
+
+TEST_CASE("SEC/TM-016: an embedded font part is never fed to the font engine") {
+    // The mitigation is that the attack surface does not exist: this application
+    // resolves font FAMILIES against the system font database and never loads font
+    // data from a deck. The fixture carries a deliberately malformed .fntdata part
+    // — the kind of input that crashes a font engine — plus a run naming a font
+    // that is not installed.
+    LoadResult r = DeckLoader::load(fixture("attack_embedded_font.pptx"));
+    REQUIRE(r.ok);
+
+    // The run keeps the family NAME (a string, harmless; the renderer falls back
+    // to an installed family) and no font bytes are anywhere in the model.
+    bool sawRun = false;
+    for (const Slide& s : r.presentation.slides) {
+        for (const ShapeElement& e : s.elements) {
+            if (e.kind != ElementKind::TextBox) {
+                continue;
+            }
+            for (const Paragraph& p : e.textBox.paragraphs) {
+                for (const TextRun& run : p.runs) {
+                    sawRun = true;
+                    CHECK(run.fontFamily == QStringLiteral("EvilFont"));
+                }
+            }
+        }
+    }
+    CHECK(sawRun);
+}
+
+TEST_CASE("SEC/TM-007: duplicate part names resolve deterministically") {
+    // Two entries named ppt/slides/slide1.xml in one archive — one benign, one
+    // attacker-controlled. A reader that takes the first and a validator that
+    // takes the last disagree about what the deck says.
+    //
+    // The property asserted is DETERMINISM, not a particular winner: the loader
+    // resolves by NAME through libzip, which is documented to return the first
+    // match, and it must do so every time rather than varying by build or run.
+    QString first;
+    for (int i = 0; i < 3; ++i) {
+        LoadResult r = DeckLoader::load(fixture("attack_duplicate_parts.pptx"));
+        REQUIRE(r.ok);
+        QString text;
+        for (const Slide& s : r.presentation.slides) {
+            for (const ShapeElement& e : s.elements) {
+                if (e.kind != ElementKind::TextBox) {
+                    continue;
+                }
+                for (const Paragraph& p : e.textBox.paragraphs) {
+                    for (const TextRun& run : p.runs) {
+                        text += run.text;
+                    }
+                }
+            }
+        }
+        if (i == 0) {
+            first = text;
+        } else {
+            CHECK(text == first); // same answer every time
+        }
+    }
+    // Recorded rather than asserted as "correct": ECMA-376 does not permit
+    // duplicate part names at all, so either entry is a defensible reading. What
+    // matters for a talk is that it does not change between runs.
+    MESSAGE("duplicate-part resolution yields: " << first.toStdString());
+}

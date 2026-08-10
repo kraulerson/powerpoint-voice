@@ -1247,6 +1247,141 @@ def build_good_bg_unsupported():
     write_zip("good_bg_unsupported.pptx", parts)
 
 
+# ---------------------------------------------------------------------------
+# Phase 3 security hardening — ATTACK PAYLOADS, not malformed-input fixtures.
+#
+# Each of these is a working exploit attempt for a specific threat in
+# docs/phase-1/threat-model.md. They exist so the mitigations are VERIFIED
+# rather than asserted (Phase 3.2, Security Architect persona).
+# ---------------------------------------------------------------------------
+
+def build_attack_xxe():
+    """TM-010 — external entity file disclosure.
+
+    The classic XXE: a DOCTYPE declaring an entity that resolves to a local file,
+    referenced from slide text. If the parser resolves it, the contents of
+    /etc/passwd end up in a text run — and from there onto the projector.
+    """
+    evil = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<!DOCTYPE p:sld [\n'
+        '  <!ENTITY xxe SYSTEM "file:///etc/passwd">\n'
+        ']>\n'
+        f'<p:sld xmlns:p="{P}" xmlns:a="{A}" xmlns:r="{R}"><p:cSld><p:spTree>'
+        + text_sp("&xxe;", 838200, 365125, 10515600, 1325563)
+        + '</p:spTree></p:cSld></p:sld>'
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": evil,
+    }
+    write_zip("attack_xxe.pptx", parts)
+
+
+def build_attack_billion_laughs():
+    """TM-010/TM-017 — internal entity expansion (billion laughs).
+
+    Nine levels of ten-fold expansion: ~10^9 characters if expanded, from a few
+    hundred bytes of XML. Memory exhaustion before any cap in the loader can see
+    a part size, because the blow-up happens inside the parser.
+    """
+    ents = ['<!ENTITY a0 "AAAAAAAAAA">']
+    for i in range(1, 9):
+        prev = "&a%d;" % (i - 1)
+        ents.append('<!ENTITY a%d "%s">' % (i, prev * 10))
+    doctype = "<!DOCTYPE p:sld [\n" + "\n".join(ents) + "\n]>"
+    evil = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + doctype + "\n"
+        + f'<p:sld xmlns:p="{P}" xmlns:a="{A}" xmlns:r="{R}"><p:cSld><p:spTree>'
+        + text_sp("&a8;", 838200, 365125, 10515600, 1325563)
+        + '</p:spTree></p:cSld></p:sld>'
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": evil,
+    }
+    write_zip("attack_billion_laughs.pptx", parts)
+
+
+def build_attack_zip_slip():
+    """TM-004 — zip-slip / path traversal through a relationship Target.
+
+    A relationship whose Target climbs out of the package entirely. If any part of
+    the loader ever resolved that to a filesystem path and wrote or read it, this
+    is the payload that proves it.
+    """
+    rels = (
+        XML_DECL
+        + f'<Relationships xmlns="{PR}">'
+        + '<Relationship Id="rId9" '
+        + 'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+        + 'Target="../../../../../../../../etc/passwd"/>'
+        + '</Relationships>'
+    )
+    parts = {
+        "[Content_Types].xml": content_types(1, has_png=True),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml([pic_sp("rId9", 100, 100, 5000000, 3000000)]),
+        "ppt/slides/_rels/slide1.xml.rels": rels,
+        # A part whose NAME escapes, too — the other half of zip-slip.
+        "../../../../tmp/pptv-zip-slip-probe.txt": "if this file exists on disk, we extracted",
+    }
+    write_zip("attack_zip_slip.pptx", parts)
+
+
+def build_attack_embedded_font():
+    """TM-016 — malformed embedded font.
+
+    A deck may carry font data as a part. The mitigation is structural: this
+    application never loads a font from a deck, it resolves families against the
+    system font database. This fixture proves the part is ignored rather than fed
+    to the platform font engine.
+    """
+    parts = {
+        "[Content_Types].xml": content_types(1),
+        "_rels/.rels": root_rels(),
+        "ppt/presentation.xml": presentation_xml(1),
+        "ppt/_rels/presentation.xml.rels": presentation_rels(1),
+        "ppt/slides/slide1.xml": slide_xml(
+            [text_sp("Hello", 838200, 365125, 10515600, 1325563, face="EvilFont")]
+        ),
+        # Deliberately NOT a valid font: if anything tries to parse it, it is the
+        # kind of input that crashes a font engine.
+        "ppt/fonts/font1.fntdata": b"\x00\x01\x00\x00" + b"\xff" * 4096,
+    }
+    write_zip("attack_embedded_font.pptx", parts)
+
+
+def build_attack_duplicate_parts():
+    """TM-007 — OOXML part confusion via duplicate names.
+
+    Two entries with the SAME name in one archive. A reader that takes the first
+    and a validator that takes the last disagree about what the deck says.
+    """
+    import zipfile as _zf
+    path = HERE / "attack_duplicate_parts.pptx"
+    with _zf.ZipFile(path, "w", _zf.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", content_types(1))
+        z.writestr("_rels/.rels", root_rels())
+        z.writestr("ppt/presentation.xml", presentation_xml(1))
+        z.writestr("ppt/_rels/presentation.xml.rels", presentation_rels(1))
+        # FIRST slide1.xml — benign.
+        z.writestr("ppt/slides/slide1.xml",
+                   slide_xml([text_sp("BENIGN", 838200, 365125, 10515600, 1325563)]))
+        # SECOND slide1.xml, same name — what a last-wins reader would show.
+        z.writestr("ppt/slides/slide1.xml",
+                   slide_xml([text_sp("ATTACKER", 838200, 365125, 10515600, 1325563)]))
+
+
 if __name__ == "__main__":
     build_good_bg_inherit()
     build_good_bg_unsupported()
@@ -1285,4 +1420,10 @@ if __name__ == "__main__":
     build_good_longtext()
     build_good_inherit_size()
     build_good_wideimage()
+    # Phase 3 security-hardening attack payloads
+    build_attack_xxe()
+    build_attack_billion_laughs()
+    build_attack_zip_slip()
+    build_attack_embedded_font()
+    build_attack_duplicate_parts()
     print("fixtures written to", HERE)

@@ -121,6 +121,50 @@ Highest-severity live-presentation threats and their mitigations:
 Every TM-ID carries a mitigation in the matrix at the end of the threat-model doc, keyed for
 Phase 3.2 verification traceability.
 
+### 4.1 Risk / mitigation matrix — all 23 threats, with Phase 3.2 verdicts
+
+<!-- Last Updated: 2026-08-10 (Phase 3.2 security hardening) -->
+
+Verified against the code and the suite on 2026-08-10. Full validation evidence, including
+the attack payloads that were run, is in
+`docs/test-results/2026-08-10_threat-model-validation.md`. Status vocabulary is deliberately
+narrow, and **STRUCTURAL is stronger than MITIGATED** — it means the attack surface does not
+exist rather than that a guard stops it:
+
+| Status | Meaning |
+|---|---|
+| **VERIFIED** | A mitigation exists AND a test or measurement demonstrates it works |
+| **STRUCTURAL** | The surface does not exist; a test pins the absence so it cannot return |
+| **PARTIAL** | Mitigated in part; the residual is named |
+| **ACCEPTED** | Not mitigated, consciously, with the reason recorded |
+| **PHASE 4** | Deferred to release engineering; not reachable in a test build |
+
+| TM | Threat | Mitigation | Status |
+|---|---|---|---|
+| TM-001 | Audience voice injection — anyone in the room is an operator | Two-word grammar; "pause presentation" gates voice; keyboard always independent; measured 0/6 natural sentences trigger | PARTIAL — 60/102 isolated near-miss fragments still match. Accepted by Karl 2026-08-09 for a 20-person room |
+| TM-002 | Recorded/masked audio playback under acoustic cover | As TM-001, plus the Paused state; P key now reaches the same gate (BUG-73/81) | PARTIAL — same residual; verified on hardware 2026-08-06 and 2026-08-10 |
+| TM-003 | Trojaned build spoofing the product | Ad-hoc signature only on test builds | PHASE 4 — Developer-ID signing and notarisation |
+| TM-004 | Zip-slip / symlink escape through part names | **Nothing is ever extracted.** Parts are read by name from inside the archive (`zip_fopen`) | STRUCTURAL — `SEC/TM-004` runs a traversing Target and a `../../../../tmp/` part name and asserts no file appears on disk |
+| TM-005 | Settings tampering to disarm the keyboard fallback | **There is no settings file.** Nothing is written to disk at run time (TM-011) | STRUCTURAL |
+| TM-006 | Bundled Vosk model / grammar tampering | SHA-256 pinned in `third_party/PROVENANCE.md` and `sbom.json`; model extracted at BUILD time; grammar words round-tripped through the model vocabulary (BUG-65); dynamic graph required or voice refuses to arm | PARTIAL — an attacker with write access to the installed bundle is out of scope (TM-022/023, Phase 4) |
+| TM-007 | OOXML part confusion — duplicate/ambiguous part names | Resolution is by name through libzip, first match | VERIFIED — `SEC/TM-007` asserts the answer is deterministic across runs |
+| TM-008 | Unattributable slide changes after an incident | None. TM-011 forbids the log that would provide attribution | ACCEPTED — the confidentiality requirement and the attribution requirement are in direct conflict; confidentiality won (Manifesto Q7/Q8) |
+| TM-009 | No record of which deck was rendered | Short content hash computed (`sha256Short`) but never persisted, for the same reason | ACCEPTED — same conflict as TM-008 |
+| TM-010 | XML entity expansion / external entity file disclosure | pugixml does not resolve external entities and skips DTDs | STRUCTURAL — `SEC/TM-010` feeds a real `file:///etc/passwd` XXE and asserts no file content reaches the model; `SEC/TM-010/017` feeds a nine-level billion-laughs |
+| TM-011 | Deck and room audio exfiltrated through crash artifacts | Nothing is written to disk at run time; no file is opened for writing anywhere in `src/`; the model is extracted at build time | VERIFIED — asserted by inspection each audit; heard text never leaves the decode → gate path |
+| TM-012 | The transcript overlay discloses room audio to the room | There is no transcript overlay. Recognised text goes decoder → gate and nowhere else; Vosk's own stderr logging is silenced before any model loads | STRUCTURAL |
+| TM-013 | Deck subject leaked by filenames on the holding screen / window titles | Error strings come from a closed vocabulary keyed by `LoadErrorKind`; `LoadError::message` (which carries the path) never reaches a widget | VERIFIED — `describeLoadError` is the only path to a dialog |
+| TM-014 | Decompression bomb, incl. compression-method confusion | Caps enforced from the central directory BEFORE any part is read; sizes compared unsigned so a ZIP64 value cannot wrap negative | VERIFIED — hostile-input suite |
+| TM-015 | Image pixel bomb via QImage | PNG/JPEG magic-byte allow-list before any decoder is constructed; declared-pixel cap (TM-018.3-A) rejects before painting | VERIFIED |
+| TM-016 | Malformed embedded font → crash or code exec in the font engine | **Font data is never loaded from a deck.** Families are resolved against the system font database | STRUCTURAL — `SEC/TM-016` carries a malformed `.fntdata` part and asserts it is ignored |
+| TM-017 | XML amplification and recursive-descent stack exhaustion | XML descent is ITERATIVE, not recursive; group nesting capped at 32; per-part size caps | VERIFIED — a 5.7 KB nested file previously killed the process and is now a fixture |
+| TM-018 | The mid-deck render bomb | Four caps (shapes, text runs, characters, declared image pixels) measured from the MODEL and applied BEFORE painting; rasterising is off-thread; raster window bounded at 2 GB | VERIFIED — caps measured against real timings (2000 pictures ≈ 309 s, 5000×300k runs ≈ 657 s) |
+| TM-019 | Audio pipeline wedge kills voice mid-talk | Every capture failure is recoverable by construction; the keyboard is independent of the speech engine and cannot be gated | VERIFIED — `AC:` group; and BUG-83 now contains an exception on the audio thread rather than terminating |
+| TM-020 | Acoustic denial of the recogniser, and hostile "pause presentation" | Keyboard fallback; P key toggles the same gate so the presenter can always regain control without speaking | PARTIAL — a determined heckler can deny voice; they cannot deny the keyboard |
+| TM-021 | Memory-safety exploitation in the parser → code execution | ASan + UBSan + TSan clean; the parse is iterative; four memory-safety defects found and fixed under sanitizers (BUG-52/56/57/79) | PARTIAL — no fuzzing campaign; sanitizers over a fixed corpus is not a proof |
+| TM-022 | Dylib hijacking of the dynamic Qt frameworks | Bundle is self-contained and re-signed; `make-test-build.sh` FAILS if anything references Homebrew | PARTIAL — hardened runtime + library validation are PHASE 4 |
+| TM-023 | Qt plugin-path hijacking (`qt.conf`, `QT_PLUGIN_PATH`) | Plugins are staged inside the bundle by `macdeployqt` | PHASE 4 — hardened runtime is what actually closes this |
+
 ## 5. Data Model
 
 Full spec: `docs/phase-1/data-model.md`. Standalone app — no database. Two layers:

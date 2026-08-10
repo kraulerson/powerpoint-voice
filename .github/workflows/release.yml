@@ -29,9 +29,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 (v7.0.1)
 
-      - uses: # TODO: Add setup action for your language
-        with:
-          version: 'latest'
+      # NO language-setup action. C++ needs a toolchain and system libraries, not a
+      # `setup-<language>` action, so the template's placeholder was not merely
+      # unconfigured — it was inapplicable. Left as `uses:` with an empty value it
+      # tripped Semgrep's mutable-action-tag rule (an empty ref is not a pinned SHA)
+      # and, being invalid, guaranteed this workflow failed on every run.
+      # Removed rather than filled in. The rest of this file is still Phase 4 work
+      # (ISSUE-003/010): the build, signing and notarisation steps below are all
+      # unconfigured TODOs, and `scripts/make-test-build.sh` is what actually
+      # produces a working bundle today.
 
       - name: Install dependencies
         run: # TODO: Add install command
