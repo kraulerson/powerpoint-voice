@@ -110,71 +110,69 @@ Priorities under this schedule:
    TWO-word phrases: **"next slide" / "previous slide" / "pause presentation" /
    "continue presentation" / "go to slide N"** (Karl's Q1 change; supersedes intake single words).
 
-## 4. Current position (end of session 2, 2026-08-05)
+## 4. Current position (end of session 6, 2026-08-10 — PHASE 3 COMPLETE)
 
-- **Phase 2 (Construction), current_phase=2.** Phases 0 & 1 gate-approved by Karl.
-- **THE PRODUCT PRESENTS.** This is the milestone of session 2. Run it:
-  `./build/powerpoint_voice.app/Contents/MacOS/powerpoint_voice <deck.pptx>` — it opens the deck
-  off-thread, pre-renders every slide off-thread, and shows it fullscreen with keyboard control.
-- **Features complete (each through the full Build Loop, tests-first, security-audited):**
-  F1a deck loader · F1b slide renderer · F4 number parser · F2/F3 command grammar + dispatch ·
-  **F7a presentation funnel** · **F7b usable presenter**.
-- **183 tests green** (macOS + Ubuntu CI), in TWO binaries: `pptv_tests` (core, QGuiApplication) and
-  `pptv_ui_tests` (widgets, QApplication). ASan+UBSan clean; ThreadSanitizer clean; Semgrep 0.
-- **UAT sessions 1, 2 and 3 all complete and ARCHIVED** to `docs/test-results/` (session 3 same-day).
-  Counter reset — clear to start the next feature.
-- **Karl's real deck is 10 slides** (~316 MB of rasters) — so BUG-22 (unbounded raster cache) is
-  **not a risk for the 2026-08-10 talk**. He has NOT yet run the UAT-3 human scenarios
-  (`tests/uat/sessions/2026-08-05-session-3/test-session-3-v1.md`) against it; that is still open
-  and is the best remaining fidelity check.
-- **PR #17 (UAT-3 remediation) is OPEN** at session end. On resume: `git checkout main && git pull`;
-  if not merged it is on branch `walk/uat-3`.
-- Voice is NOT wired yet. The deps (libvosk 0.3.44 + the 40MB model + miniaudio) are vendored via
-  git-LFS, pinned + SHA-256 verified (`third_party/PROVENANCE.md`).
+- **Phase 3 (Validation) is CLOSED: 9/9 checklist steps.** `current_phase = 3`. Phases 0, 1, 2
+  and 3 all gate-approved by Karl.
+- **main @ 4530a03. 297 tests green — all of which actually RUN** (see BUG-76; for weeks they did
+  not, and `scripts/lint-test-names.sh` is what makes that claim checkable now).
+- **THE PRODUCT WORKS, ON THE MACHINE IT WILL BE USED ON.** Karl ran the full pre-talk check on his
+  MacBook Pro M3 Max on 2026-08-10 and all five checks passed: the P key (tap AND hold), all five
+  voice commands, natural phrasing, slide 1's photograph, and ⌘Q after voice had been running.
+  Recorded in `docs/test-results/2026-08-10_pre-talk-check_pass.md`.
+- **Delivered:** `~/Desktop/powerpoint-voice-test-build.zip` + `PRE-TALK-CHECK.md`. The bundle is
+  self-contained (0 Homebrew references), carries the mic usage string, the grammar-capable model,
+  and — since 2026-08-10 — the third-party licence texts, without which `make-test-build.sh` now
+  refuses to package.
+- **Talk: Wednesday 2026-08-12.** Nothing further is needed from the agent arm before it.
 
-## 5. NEXT (in order) — resume here
+### What Phase 3 actually found
 
-0. **Sync:** `git checkout main && git pull`; delete merged branches; `bash scripts/check-versions.sh`.
-   Current: **main @ cd11cf8, 224 tests green, no open SEV-1.**
-1. **UAT SESSION 4 IS OPEN** (`--start-uat 4` done, `agents_dispatched` marked). The agent arm is a
-   5-tester + 5-skeptic workflow. **Per ISSUE-022 do NOT mark `gate_passed` on the agent arm alone** —
-   every SEV-1 that reached a merged PR in this walk came from Karl, not the agents. Karl has asked
-   NOT to be handed a build until voice works, so the plan agreed: run the agent arm now, hold the
-   gate open, and fold his results in when F8c gives him something worth testing.
-2. **F8c — the Vosk recogniser.** The last piece before voice actually works. Everything around it is
-   already built and audited: `IRecognizer` + `RecognizerController` (the Active/Paused gate),
-   `matchCommand` (the closed five-command grammar), `PresentationController` (the single slide-index
-   funnel), F8a (format conversion), F8b (capture). **F8c is the join.**
-   - use `vosk_recognizer_new_grm` — VERIFIED exported on both arm64 and x86_64; `set_grm` is NOT
-     exported and must not be used
-   - the model at `build/vosk/model/vosk-model-small-en-us-0.15` carries `Gr.fst`+`HCLr.fst`, so the
-     grammar really constrains. A model with only `HCLG.fst` would degrade SILENTLY to a ~200k-word
-     decoder — the audience-triggers-your-slides failure. Assert the layout at load.
-   - invalid grammar JSON SEGFAULTS vosk; build the JSON, never interpolate
-   - `docs/design-notes/voice-engine-design.md` holds the design AND three critics' NEEDS_CHANGES
-     findings, which must be folded in first
-   - link against `build/vosk/libvosk.dylib` (the PREPARED copy — the vendored one cannot load)
-3. **F6 keyboard parity** · 4. **F5 transcript overlay + listening glyph + pre-show check**
-5. **F7c render hardening** — BUG-21/22/23/29/33/34/42/44/54/55, and **BUG-40 (SEV-2, flaky
-   worker-thread tests) which has now blocked or failed three commits.**
-6. **Phase 2 exit -> Phase 3**, then Phase 4 (release.yml still invalid for C++ — ISSUE-003/010).
+Phase 3 was not a formality. In order of how much it changed:
 
-### The two open risks to the talk
-- **The projector path has never been verified on real hardware** (section 2c). Highest talk-risk
-  reduction available. Must be in the one build handed over after voice lands.
-- **Voice cannot be verified here at all** — no microphone. Karl's MacBook Pro is the only instrument.
+1. **BUG-76 — tests that had never once run**, behind a suite reporting 100% green. A `;` in a
+   TEST_CASE name is a CMake list separator, so ctest invoked a fragment, doctest matched nothing
+   and exited 0, and ctest printed "Passed". Five had been dead since Phase 2; a sixth was
+   committed dead the same day — the regression test for BUG-71. Every "N tests green" claim in
+   this walk before 2026-08-10 was inflated.
+2. **Five defects inside my own Phase 3 fixes**, found by three adversarial reviewers — including
+   **BUG-81 (SEV-1)**, where holding the P key toggled the mic gate once per auto-repeat and landed
+   back on LIVE. That is BUG-73's own failure mode, re-created by BUG-73's fix. A reviewer also
+   deleted my entire BUG-72 fix and left all 279 tests green, proving my "mutation killed" claim
+   for it was hollow.
+3. **A licence-compliance violation in the shipped binary** — no notice text of any kind, for any
+   of the seven components, found by the legal-review step nobody expects a finding from.
+4. **A real CVE in a pinned dependency** (CVE-2026-32837, miniaudio 0.11.25), proven unreachable
+   three ways rather than argued.
+5. **BUG-87 — CI caught a portability break** that three adversarial reviewers and a green macOS
+   suite all missed: the accessibility fix used a Qt 6.8+ API and did not compile on Linux.
 
-### Rules earned this session — keep applying
-- **Do not record a root cause you have not reproduced or read from an instrument** (OBS-023). Look
-  for the artefact FIRST: a macOS crash writes a full backtrace to `~/Library/Logs/DiagnosticReports/`.
-- **A regression test that passes with the fix reverted is a finding**, not an inconvenience. It has
-  caught four worthless tests this session. Mutate every new test before trusting it.
-- **Every element of an evidence list must trace to output already read** (OBS-024). A check still
-  running is written as "still running", never as its expected value.
-- **`fix:` commits bypass the Build Loop and its audit** (ISSUE-025). Review every change, not just
-  features — two rounds of adversarial review found TEN defects in my own work.
-- **Every build handed to Karl carries a specific question it exists to answer** (section 2c).
-- Use a `/tmp` backup for scratch edits, never `git checkout --` on a file with unstaged real work.
+## 5. NEXT — resume here (all of it is POST-TALK)
+
+**Nothing below blocks Wednesday.** The build is delivered, human-verified, and untouched since.
+
+0. **Sync:** `git checkout main && git pull`. Current: **main @ 4530a03, 297 tests green.**
+1. **Phase 3→4 gate.** It is BLOCKED, legitimately: `[FAIL] Full Track requires penetration test —
+   no exemption path available`. Karl accepted TM-021 (no fuzzing campaign) as a risk for the talk
+   on 2026-08-10, but the gate wants a pen-test artifact in `docs/test-results/`, and Full Track
+   offers no exemption. **This needs a real decision, not a workaround** — either run a fuzzing /
+   pen-test pass, or take the track question to Karl.
+2. **Phase 4 (Release).** `scripts/process-checklist.sh --start-phase4` — run it while
+   `current_phase` is still 3. Six steps: production_build, rollback_tested, go_live_verified,
+   monitoring_configured, handoff_written, handoff_tested. Needs `docs/INCIDENT_RESPONSE.md`,
+   `RELEASE_NOTES.md`, `HANDOFF.md`.
+3. **`release.yml` is still not valid for C++** (ISSUE-003/010). Its build, signing and
+   notarisation steps are unconfigured TODOs; `scripts/make-test-build.sh` is what actually
+   produces a working bundle. Developer-ID signing + notarisation close TM-003/022/023.
+4. **The four accessibility findings** (A11Y-3/4/5/6) — deliberately not fixed before the talk
+   because the shipped build was already human-verified. A11Y-6 needs a human with VoiceOver.
+5. **miniaudio** — upgrade past 0.11.25 once upstream tags a release carrying the CVE-2026-32837
+   fix. **Do not remove `MA_NO_DECODING` before then**; that one line makes the CVE live.
+6. **BUG-40's residual** is still undiagnosed. A test in `test_deck_load_worker.cpp` failed once in
+   a full-suite run on 2026-08-10, then passed 12/12 isolated, 10/10 under load and 5/5 full-suite.
+   Recorded rather than re-run past.
+7. **F5/F6** remain below the MVP cutline by Karl's decision of 2026-08-09 (a deliberate scope cut,
+   not an unmet gate condition).
 
 ## 6. Build / run recipe (macOS local — REQUIRED env)
 
@@ -215,8 +213,35 @@ every entry into **A. FRAMEWORK** (the only candidate fixes for solo-orchestrato
 (ours), and **C. smooth notes**, and is the source for WALK-REPORT.md. Keep appending there; the log
 is append-only, so corrections go in as new entries rather than edits.
 
-**21 numbered findings** — ~16 FRAMEWORK (2 Blocker, 8 Major, 3 Moderate, 4 Minor) + PROJECT ones —
-plus ~23 smooth notes. Newest and highest-value:
+**33 numbered findings** as of 2026-08-10 (ISSUE/OBSERVATION-001 … 033) plus ~29 smooth notes.
+
+**The four added during Phase 3, and they are among the strongest of the walk:**
+- **ISSUE-030** (Major): entering Phase 3 makes CI red on EVERY pull request, because
+  `check-phase-gate.sh` evaluates the NEXT gate unconditionally — including a penetration test and
+  a review manifest, which are the *output* of Phase 3, not its entry ticket. The script's own
+  `--gate` scoping is the fix and the CI template does not use it. Resolved for this project by
+  Karl's decision (option A1); the framework half stands.
+- **OBSERVATION-029** (PROJECT, mine): "100% tests passed" was false for seven tests, and nothing
+  in the toolchain said so. A count cannot distinguish "all passed" from "none ran" — and the
+  framework's own `test-gate.sh` consumes exactly such a count.
+- **ISSUE-032** (Minor): two Phase 3 checklist steps accept completion with NO artifact check while
+  four of their neighbours refuse. I marked both and both were accepted with nothing behind them —
+  the *synthetic step completion* this project's rules name as refuse-to-recommend. The asymmetry
+  is the defect; `legal_review` shows the mechanism works well when it is used.
+- **ISSUE-033** (Major, and the sharpest of the walk): an `APPROVAL_LOG.md` entry appended EXACTLY
+  as the template instructs is structurally undetectable — the detector reads the first 15 lines
+  after the header and the section's own prose plus its template shape consume all fifteen.
+  **The control and the instruction are in the same file, and following the instruction fails the
+  control.**
+
+**And one finding about my own work that outranks all of them:**
+- **OBSERVATION-031** (PROJECT, mine): three adversarial reviewers found EIGHT defects in one PR of
+  fixes, five of them in the fixes themselves — including a SEV-1. The most useful result was not a
+  defect: a reviewer deleted my entire BUG-72 fix and all 279 tests stayed green, proving the
+  "mutation killed" claim I had recorded for it was hollow. **Mutation-testing my own fix was not
+  enough, because I chose the mutations, and I chose ones my tests already caught.**
+
+Earlier, still highest-value:
 - **ISSUE-017** (Major): the Build Loop never asks whether the PRODUCT is demonstrable end-to-end.
   Four features shipped at full rigor while the app was still a dark window.
 - **ISSUE-018** (Major): UAT remediation gets no re-audit — the BUG-11 fix introduced the SEV-2
@@ -231,9 +256,11 @@ plus ~23 smooth notes. Newest and highest-value:
 - **OBSERVATION-021** (PROJECT, mine): three times "fixed" meant *edited and the suite still passes*
   rather than *verified*. New rule: re-run the instrument that FOUND the defect.
 
-**The recurring shape across ISSUE-016/017/019/020: the enforced control and the documented
-procedure disagree, and enforcement is what gets followed.** That is the single most useful thing
-this walk has produced for the framework.
+**The recurring shape across ISSUE-016/017/018/019/020/022/025/027/028/030/032/033 — TWELVE of the
+thirty-three — is one sentence: the enforced control and the documented procedure disagree, and
+enforcement is what gets followed.** That is the single most useful thing this walk has produced
+for the framework, and Phase 3 supplied its clearest instance (ISSUE-033), where the control and
+the instruction it contradicts live in the same file.
 
 **The framework's strongest evidence FOR itself** (belongs in the report beside the defects): the
 per-feature security audit has caught real ship-blocking bugs in EVERY feature — F1a 3 Critical +
@@ -242,3 +269,11 @@ F7a 2 HIGH gate-bypasses; F7b **5 Criticals** including a use-after-free that SE
 key press. UAT has caught what audits missed: UAT-1 seven real-deck bugs (2 SEV-1, invisible text);
 UAT-3 the privacy blackout un-blanking itself and a double-letterbox that would have shown 75% of
 the deck on the projector for the whole talk. Neither control is redundant.
+
+**Phase 3 added a third piece of evidence FOR the framework, and it is the one I would put in the
+report first.** Every phase-3 step that FAILED CLOSED found something real: `security_hardening`
+demanded a SAST artifact and its scan found an invalid, unpinned action reference; `legal_review`
+demanded a privacy policy and then an approver row, and the review it forced found a licence
+violation in the binary already in the presenter's hands. Every step that did NOT gate
+(`contract_testing`, `pre_launch_preparation`) was marked by me in one command with nothing behind
+it. **The gates that fail closed are the ones that earn their cost.**

@@ -1,7 +1,14 @@
 {
-  "session_id": null,
+  "session_id": "2026-08-10T21:50:18Z",
   "calls": [],
   "commits_since_last_context7": 0,
   "qdrant_find_called": false,
-  "qdrant_store_called": false
+  "qdrant_store_called": false,
+  "context7_called": false,
+  "mcp_gate_satisfied": false,
+  "mcp_requirements": {
+    "qdrant_required": true,
+    "context7_required": true,
+    "additional_required": []
+  }
 }
