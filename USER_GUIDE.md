@@ -87,8 +87,10 @@ The keyboard works whether or not voice is running. If anything at all goes wron
 microphone, keep presenting — nothing about a voice failure can stop the deck.
 
 **P does exactly what "pause presentation" does**, so you never have to speak to silence the
-microphone. Arrow keys keep working while paused — pausing stops the *voice*, never the keyboard.
-With voice not running, P does nothing (there is nothing to pause).
+microphone. **"Paused — voice control is off" appears on screen and stays there** until you resume,
+so you can check at a glance before taking questions. Arrow keys keep working while paused — pausing
+stops the *voice*, never the keyboard. With voice not running, P does nothing (there is nothing to
+pause), and no message appears.
 
 ### With a screen reader
 

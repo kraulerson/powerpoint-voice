@@ -1,5 +1,6 @@
 #include "command/vosk_engine.hpp"
 
+#include <atomic>
 #include <limits>
 
 #include <QJsonDocument>
@@ -59,8 +60,20 @@ VoskEngine::VoskEngine() : d_(std::make_unique<Impl>()) {
     vosk_set_log_level(-1);
 }
 
+namespace {
+// See VoskEngine::destructionCountForTest(). Process-wide and monotonic; a decoder
+// that samples it either side of a call can tell whether the engine it was calling
+// into was freed underneath it (BUG-79).
+std::atomic<long> g_engineDestructions{0};
+} // namespace
+
 VoskEngine::~VoskEngine() {
     stop();
+    g_engineDestructions.fetch_add(1, std::memory_order_release);
+}
+
+long VoskEngine::destructionCountForTest() {
+    return g_engineDestructions.load(std::memory_order_acquire);
 }
 
 RecognizerInitError VoskEngine::start(const RecognizerSetup& setup) {

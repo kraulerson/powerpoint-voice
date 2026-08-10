@@ -42,13 +42,28 @@ class AppShell : public QObject {
     // halves of that wiring against a caller-owned window, and expose the one bit of
     // state the key is supposed to move. Nothing else.
     void installVoiceGateForTest() { installVoiceGate(); }
+    // The controller the command sinks actually dispatch into. A widget test that
+    // builds its own PresentationWindow MUST pass this one: wiring the window to a
+    // separate controller makes every assertion about deck position unfalsifiable,
+    // because the window reads one object and the sink writes another (BUG-85).
+    PresentationController& controllerForTest() { return controller_; }
     // Adopts a caller-owned window as THE window and wires it exactly as openDeck
     // would. The caller must outlive the shell.
     void installWindowSinksForTest(PresentationWindow* w) {
         window_ = w;
         installWindowSinks(w);
     }
-    bool voiceGatePausedForTest() const;
+    bool voiceGatePausedForTest() const { return voiceGatePaused(); }
+
+    // Test seam for BUG-72/BUG-79. The destructor ORDER relative to the audio thread
+    // is the entire content of BUG-72, and it was not observable from outside this
+    // class — which is how a reviewer was able to delete the whole fix and leave 279
+    // tests green. This installs the real ownership shape (engine, gate, pipeline)
+    // with an INJECTED capture and a decoder hook, so the order can be driven on a
+    // machine with neither a microphone nor a model. `insideDecode` runs on the
+    // capture thread, in the window where the engine must not be freed.
+    void installVoiceForTest(std::unique_ptr<IAudioCapture> capture,
+                             std::function<void()> insideDecode);
 
     // Test seams for F-CHAOS-2. A raster arriving from an ABANDONED worker is not
     // reachable from outside — abandoning one requires a render that outruns the
@@ -103,6 +118,9 @@ class AppShell : public QObject {
     void installVoiceGate();
     // Installs the command and UI-request sinks on a presentation window.
     void installWindowSinks(PresentationWindow* w);
+    // Whether the recogniser gate is currently gating voice. The gate is the single
+    // owner of that state; this is the one place anything else asks it (BUG-82).
+    bool voiceGatePaused() const;
     void teardownWorkers();
     // Stops the microphone and releases the voice trio, in the ONE order that is
     // safe. See the definition and the member declarations below for why.

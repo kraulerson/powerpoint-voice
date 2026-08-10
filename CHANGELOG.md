@@ -20,6 +20,23 @@ for handoff clarity. Categories are ordered by impact severity.
 ## [Unreleased]
 
 ### Security
+- **BUG-81 — holding the P key left the microphone LIVE.** P toggles the voice gate and nothing
+  checked for auto-repeat, so a held key (one press, ~5 repeats on macOS defaults) flipped it an even
+  number of times and landed back on. The presenter believes voice is gated, turns to the room for
+  questions, and the audience can drive the deck — **the exact failure the P key exists to prevent,
+  re-created by the fix that made P work.** Auto-repeat is now swallowed for P and Esc, the two keys
+  that are state machines rather than movements; arrows and digits still repeat.
+- **BUG-83 — the real-time audio thread had no exception boundary.** The worker-thread boundaries
+  below missed the one thread that runs *during* the whole talk. `onSamples` executes inside
+  miniaudio's C data callback and allocates on every buffer — an exception unwinding out of a C-ABI
+  frame is `std::terminate`, mid-sentence, with the deck on the projector. A dropped buffer is 20 ms
+  nobody notices; nothing is logged, because that callback carries everything said in the room.
+- **BUG-79 — the shutdown fix below rested on a guarantee the audio library does not provide.**
+  `ma_device_stop()` does not join the callback on CoreAudio: the event it waits on is signalled on
+  device **start** as well as stop and is latching, so the wait consumes a stale signal and returns
+  immediately. The real barrier is the sink mutex — and it was taken *after* the device was
+  uninitialised. It now runs first. The evidence chain is quoted, with line numbers, in
+  `miniaudio_capture.cpp`.
 - **BUG-75 (F-CHAOS-3) — an exception on either worker thread killed the process.** Both worker
   `start()` methods are slots invoked on a `QThread`, and Qt does not catch: an exception leaving one
   unwinds through that thread's event loop and `std::terminate()`s the app — no dialog, no fallback,
@@ -36,7 +53,9 @@ for handoff clarity. Categories are ordered by impact severity.
   machine, which has no microphone; live on the presenter's laptop, on every Cmd+Q at the end of a
   talk. Voice is now torn down first — the pipeline stops (which joins the audio thread), then the
   engine, then the gate — and the member declaration order enforces the same thing independently.
-  Measured: **7/7 heap-use-after-free in the old order, 0/7 in the new.**
+  Measured: **7/7 heap-use-after-free in the old order, 0/7 in the new.** Two things about this fix
+  were wrong when first written and are corrected above: the mechanism it named (BUG-79) and its
+  regression test, which pinned a property of a test double and survived deleting the entire fix.
 - **BUG-73 (F-2) — the P key did nothing.** `PresentationWindow::setPaused()` had zero callers, so
   the key always translated to "pause presentation", which the presentation controller treats as a
   no-op. A presenter pressing P before taking questions would have believed voice was gated while it
@@ -53,11 +72,28 @@ for handoff clarity. Categories are ordered by impact severity.
   says which slide is showing, and a notice is announced rather than left to be polled. **The state
   is named and the deck's content never is** — the accessibility tree is readable by other processes
   (TM-012/013). A11Y-2 is closed by the P-key fix above.
-- **BUG-76 — seven tests had never once run, while the suite reported 100% green.** A TEST_CASE name
+- **BUG-82 — a pause that worked looked exactly like a pause that did nothing.** Pausing showed no
+  message at all (resuming did), so the presenter had no way to confirm the microphone was gated
+  before taking questions. The "Paused — voice control is off" notice already existed in the code and
+  was unreachable: nothing emitted it, and the one caller that could display it passed a hardcoded
+  "not paused".
+- **BUG-80 — the screen-reader announcements were a no-op on macOS.** They used two Qt event types
+  that Apple's side of Qt discards, so VoiceOver said nothing; the tests asserted the stored text,
+  which was set correctly either way. Now uses the one event type that reaches the platform.
+- **BUG-84 — the test-registration lint had three holes**, all found with a deliberately broken probe
+  project: it failed **open** if no file matched `*tests`, it was blind to a newline in a test name
+  (the same class of bug it was written for), and it wrongly blocked the build on any ordinary
+  non-doctest check. It now discovers binaries from ctest's own command lines and compares **counts**,
+  which no separator can disguise.
+- **BUG-76 — tests that had never once run, while the suite reported 100% green.** Counted precisely:
+  **five** had been dead since Phase 2 and UAT remediation, a **sixth** was committed dead the same
+  day (the C-02 regression test below), and a **seventh** was caught in the working tree before it
+  could be committed. A TEST_CASE name
   containing `;` is split by CMake's list separator, so ctest invokes a fragment that matches no test
   case: doctest runs 0 cases, exits 0, and ctest prints "Passed". One of the seven was the C-02
   regression test committed the same day. `scripts/lint-test-names.sh` now compares the ctest
-  registration against the binaries' own list in both directions and fails on any mismatch.
+  registration against the binaries' own list and fails on any mismatch (see BUG-84 for what that
+  check had to become before it was trustworthy).
 - **C-01 — a picture on slide 1 of the reference deck vanished again, and my own BUG-58 fix is what
   did it.** That fix namespaced a placeholder key by the non-visual-properties element containing
   it. The deck's slide-1 picture sits under `<p:nvPicPr>` while the layout entry that positions it

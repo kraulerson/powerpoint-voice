@@ -62,7 +62,8 @@ void PresentationWindow::keyPressEvent(QKeyEvent* e) {
         translator_.onModeChanged(mode);
         lastMode_ = mode;
     }
-    const KeyContext ctx{mode, paused_};
+    // isAutoRepeat matters for the toggle keys — see KeyCommandTranslator (BUG-81).
+    const KeyContext ctx{mode, paused_, e->isAutoRepeat()};
     const KeyAction a = translator_.onKey(e->key(), e->modifiers(), ctx, nowMs());
 
     if (a.command && sink_) {

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -55,9 +56,10 @@ class FakeCapture : public IAudioCapture {
 };
 
 // A capture that behaves like a REAL device rather than a passive stub: it drives
-// the sink from its own thread, and its stop() does not return until that thread
-// has left the sink. That is the contract miniaudio's ma_device_stop() provides and
-// the contract VoicePipeline::stop() is built on (F-1) — modelling it is the only
+// the sink from its own thread, and its stop() does not return until that thread has
+// left the sink. That is the contract MiniaudioCapture::stop() provides — via the
+// sink mutex the audio callback holds across its whole call, NOT via
+// ma_device_stop(), which does not join anything (BUG-79). Modelling it is the only
 // way to test the shutdown ordering without a microphone.
 class ThreadedFakeCapture : public IAudioCapture {
   public:
@@ -335,4 +337,74 @@ TEST_CASE("VP/F-1: destroying the pipeline joins too — the destructor is a sto
     const int settled = entries.load();
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
     CHECK(entries.load() == settled);
+}
+
+// ===========================================================================
+// BUG-83 — the real-time audio thread had no exception boundary.
+//
+// BUG-75 put boundaries on the deck-load and render threads and missed this one:
+// the thread that runs CONTINUOUSLY during the talk. onSamples executes inside
+// miniaudio's C data callback, and every buffer allocates — a vector for the
+// downmix, then a std::string, QByteArray, QJsonDocument and QString inside the
+// decoder, then a QMetaCallEvent for the queued hand-off. An exception unwinding out
+// of a C-ABI frame is std::terminate: the process dies mid-sentence with the deck on
+// the projector.
+// ===========================================================================
+
+TEST_CASE("VP/BUG-83: a throwing decoder never escapes the audio callback") {
+    VoicePipeline p;
+    auto cap = std::make_unique<FakeCapture>();
+    FakeCapture* raw = cap.get();
+    p.setCapture(std::move(cap));
+
+    std::atomic<int> calls{0};
+    p.setDecoder([&](const std::int16_t*, std::size_t) -> QString {
+        ++calls;
+        throw std::bad_alloc(); // what an allocation on a loaded machine looks like
+    });
+
+    QSignalSpy heard(&p, &VoicePipeline::phraseHeard);
+    REQUIRE(p.start() == CaptureError::None);
+    // deliverOffThread joins the delivering thread, so an escape here would take the
+    // test process with it — which is precisely the production failure.
+    CHECK_NOTHROW(raw->deliverOffThread(std::vector<std::int16_t>(960 * 2, 0)));
+    CHECK(calls.load() == 1);
+    CHECK(heard.count() == 0);
+}
+
+TEST_CASE("VP/BUG-83: a dropped buffer does not stop the pipeline — the next one decodes") {
+    // The talk must survive one bad buffer. Stopping on the first exception would
+    // turn a transient allocation failure into voice being dead for the rest of the
+    // presentation.
+    VoicePipeline p;
+    auto cap = std::make_unique<FakeCapture>();
+    FakeCapture* raw = cap.get();
+    p.setCapture(std::move(cap));
+
+    std::atomic<int> calls{0};
+    p.setDecoder([&](const std::int16_t*, std::size_t) -> QString {
+        if (++calls == 1) {
+            throw std::runtime_error("transient");
+        }
+        return QStringLiteral("next slide");
+    });
+
+    QSignalSpy heard(&p, &VoicePipeline::phraseHeard);
+    REQUIRE(p.start() == CaptureError::None);
+    raw->deliverOffThread(std::vector<std::int16_t>(960 * 2, 0)); // throws, swallowed
+    raw->deliverOffThread(std::vector<std::int16_t>(960 * 2, 0)); // must still work
+    pump();
+    CHECK(calls.load() == 2);
+    CHECK(heard.count() == 1);
+    CHECK(p.isRunning());
+}
+
+TEST_CASE("VP/BUG-83: a non-standard exception type is contained too") {
+    VoicePipeline p;
+    auto cap = std::make_unique<FakeCapture>();
+    FakeCapture* raw = cap.get();
+    p.setCapture(std::move(cap));
+    p.setDecoder([](const std::int16_t*, std::size_t) -> QString { throw 42; });
+    REQUIRE(p.start() == CaptureError::None);
+    CHECK_NOTHROW(raw->deliverOffThread(std::vector<std::int16_t>(960 * 2, 0)));
 }

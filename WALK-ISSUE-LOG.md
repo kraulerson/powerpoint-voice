@@ -936,3 +936,108 @@ to be. Verified by reintroducing a semicolon into an unrelated test name.
 doctest + `doctest_discover_tests`. Recorded here because the *reasoning* generalises: a gate that
 consumes a count rather than a comparison cannot tell "all passed" from "none ran". The framework's
 own `test-gate.sh` consumes exactly such a count.
+
+---
+
+## ISSUE-030 — Entering Phase 3 makes CI red on EVERY pull request, because the gate check evaluates the NEXT gate unconditionally (MAJOR, FRAMEWORK)
+
+**Found:** 2026-08-09, on the first PR raised after `current_phase` became 3.
+
+`.github/workflows/ci.yml` (framework template) runs the gate check unscoped:
+
+```yaml
+- name: Governance - Phase gate check
+  run: bash scripts/check-phase-gate.sh
+```
+
+At `current_phase=3` a bare run evaluates the **Phase 3→4 readiness region** and counts its unmet
+conditions as blocking inconsistencies. On this project that is 7:
+
+| # | item | gate it belongs to |
+|---|---|---|
+| 1 | `[FAIL]` Full Track requires penetration test — **no exemption path available** | 3→4 |
+| 2 | `[FAIL]` no review manifest (Security AND Red Team reviews) | 3→4 |
+| 3 | `[WARN]` HANDOFF.md not found | 3→4 |
+| 4 | `[WARN]` docs/INCIDENT_RESPONSE.md not found | 3→4 |
+| 5 | `[WARN]` release pipeline has 9 unconfigured TODOs | 3→4 |
+| 6 | `[WARN]` Phase 3 process checklist not started: 0/9 | 3→4 |
+| 7 | attestation-warning count (5 open SEV-3, feature count 10 > cutline 7) | 2→3 |
+
+Items 1–6 are **Phase 4 entry conditions**. They are unmeetable by definition while Phase 3 is being
+*done* — a pen test and a completed 9-step validation checklist are the *output* of Phase 3, not its
+entry ticket. So from the moment a project enters Phase 3, every pull request is red until Phase 3 is
+finished, and the CI signal is dead for exactly the phase whose entire purpose is validation.
+
+**The script already knows this.** Run scoped, it says so itself:
+
+```
+$ bash scripts/check-phase-gate.sh --gate phase_2_to_3
+[NEXT] Phase 3→4 readiness (... penetration test, review manifest, Phase-3 process checklist ...)
+       is NOT evaluated under --gate phase_2_to_3 — these belong to the phase_3_to_4 gate and are
+       not counted against it.
+1 inconsistency(ies) found — blocking.
+```
+
+7 → 1. The scoping mechanism (BL-166-GATE-SCOPE) is present, documented, and correct; the CI template
+simply does not use it.
+
+**The residual 1 has no attestation path.** It is the pair of `User attestation required` warnings —
+5 open SEV-3 bugs and feature count above the MVP cutline. Karl attested to both at the 2026-08-09
+Phase 2→3 gate, in `APPROVAL_LOG.md`. The script re-raises them anyway and counts them, because
+nothing it reads records that an attestation happened. `SOLO_REVIEWERS_ATTESTED`, `zdr_attested` and
+the BL-070 scanner attestations all exist; the bug-gate and cutline warnings have no equivalent. So
+scoping alone still exits 1 — measured.
+
+**Suggested fix (framework):**
+1. `ci.yml` should scope to the gate in force: `--gate phase_$((current_phase - 1))_to_$current_phase`
+   (or simply not count a region the run itself labels `[NEXT]`).
+2. Give the bug-gate and cutline warnings the same attestation path the ZDR and reviewer gates have,
+   so a recorded `APPROVAL_LOG.md` attestation clears them instead of re-raising them forever.
+
+**Eighth instance of the walk's dominant pattern** (ISSUE-016/017/018/019/020/022/025/027/028): the
+enforced control and the documented intent disagree. Here the control contradicts *the same script's
+own scoped mode*, in the same run.
+
+**Escalated to Karl** rather than fixed unilaterally — it changes what CI enforces, and the standing
+rule on this walk is that enforcement changes are his call, not mine.
+
+---
+
+## OBSERVATION-031 — Three adversarial reviewers found eight defects in one PR of fixes, five of them in the fixes themselves (PROJECT finding, mine)
+
+**When:** 2026-08-09, on PR #30 — the Phase 3 remediation branch.
+
+I dispatched three adversarial reviewers over a PR I had already mutation-tested, and considered ready.
+They returned **eight confirmed defects**, of which **five were in the remediation itself**:
+
+| # | In | What |
+|---|---|---|
+| BUG-81 | the BUG-73 fix | **SEV-1.** Holding P toggled the mic gate once per auto-repeat, landing back on LIVE. BUG-73's own failure mode, re-created by BUG-73's fix. |
+| BUG-79 | the BUG-72 fix | The stated mechanism (`ma_device_stop()` joins the callback) is not implemented by the vendored library; the real barrier was on the wrong side of the device teardown. |
+| BUG-80 | the BUG-77 fix | The screen-reader announcements are discarded by Qt's macOS plugin. The fix did nothing on the only platform this ships on. |
+| BUG-84 | the BUG-76 fix | The lint written to stop silently-dead tests failed OPEN on a filename convention, and was blind to the newline form of the very bug it was written for. |
+| BUG-85 | the BUG-73 tests | Two widget tests wired the window to a different controller than the sink wrote to, making one assertion unfalsifiable. |
+
+And the single most useful finding was not a defect at all but a **measurement**: a reviewer deleted my
+entire BUG-72 fix — the `teardownVoice()` call *and* the member declaration order — rebuilt, and **all
+279 tests stayed green**. My regression test asserted a property of a test double that joins by
+construction. I had mutation-tested that fix and recorded "mutation killed"; what I had actually killed
+was one line of `VoicePipeline::stop()`, not the fix.
+
+**The pattern, stated plainly.** Every one of these is the same shape as
+[OBSERVATION-021](#observation-021) — *"fixed" meaning "edited", not "verified"* — and I produced five
+more instances of it in a single session **while explicitly trying not to**. Mutation-testing each fix
+was not enough, because I chose the mutations, and I chose ones my tests already caught. An
+adversarial reader chose different ones.
+
+**What actually worked.** Not any process step. Three readers with (a) no stake in the fix being
+correct, (b) an explicit instruction to refute rather than confirm, and (c) permission to go read the
+vendored third-party source and disassemble the linked Qt plugin. Two of the eight findings required
+exactly that: nobody finds the `ma_device_stop` defect by reading our code, and nobody finds the
+VoiceOver defect without `nm`-ing the Cocoa plugin.
+
+**Framework consequence, and it is ISSUE-025 again.** `fix:` commits bypass the Build Loop, so none
+of this remediation faced the adversarial security audit a *feature* would have. The audit that caught
+these was one I chose to run, off-process, because Karl asked for it in session 4. It is not in the
+framework anywhere. **A remediation is a code change and needs the same adversary the feature got** —
+already filed as ISSUE-018 and ISSUE-025; this is the strongest evidence either has.

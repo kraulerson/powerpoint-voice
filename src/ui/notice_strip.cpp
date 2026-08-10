@@ -33,12 +33,17 @@ void NoticeStrip::setText(const QString& text) {
     text_ = text;
     setAccessibleDescription(text_);
     // ANNOUNCE rather than expose. A notice is transient — it fades — so a property a
-    // screen reader has to be asked for is one the presenter will never hear. Alert
-    // is the role for "say this now", and every notice is drawn from the closed
-    // vocabulary in notice.hpp, so nothing from the deck can be spoken aloud
-    // (Bible section 8, TM-012/013).
+    // screen reader has to be asked for is one the presenter will never hear. Every
+    // notice comes from the closed vocabulary in notice.hpp, so nothing from the deck
+    // can be spoken aloud (Bible section 8, TM-012/013).
+    //
+    // QAccessibleAnnouncementEvent, not QAccessible::Alert (BUG-80). Alert has no
+    // AppKit equivalent, so Qt's Cocoa plugin silently discards it and VoiceOver says
+    // nothing — the first version of this fix was a no-op on the only platform this
+    // ships on. Announcement is the one event type that reaches
+    // NSAccessibilityAnnouncementRequestedNotification.
     if (!text_.isEmpty()) {
-        QAccessibleEvent ev(this, QAccessible::Alert);
+        QAccessibleAnnouncementEvent ev(this, text_);
         QAccessible::updateAccessibility(&ev);
     }
     update();

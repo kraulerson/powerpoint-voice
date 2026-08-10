@@ -10,9 +10,10 @@
   "gates": {
     "phase_0_to_1": "2026-08-03",
     "phase_1_to_2": "2026-08-03",
-    "phase_2_to_3": null,
+    "phase_2_to_3": "2026-08-09",
     "phase_3_to_4": null,
     "phase_0_to_1_by": "Karl Raulerson <kraulerson@gmail.com>",
-    "phase_1_to_2_by": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>"
+    "phase_1_to_2_by": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>",
+    "phase_2_to_3_by": "kraulerson-reviewer <kraulerson-reviewer@users.noreply.github.com>"
   }
 }

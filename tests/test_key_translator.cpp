@@ -156,3 +156,71 @@ TEST_CASE("G: typed slide numbers work from the holding screen too") {
     CHECK(t.pendingDigits() == QStringLiteral("5"));
     checkCmd(t.onKey(Qt::Key_Return, Qt::NoModifier, kHolding, 100), CommandType::GoToSlide, 5);
 }
+
+// ===========================================================================
+// BUG-81 — auto-repeat turned the microphone gate back ON.
+//
+// P is a toggle. macOS starts repeating a held key after ~500 ms at ~11/s, so
+// HOLDING P for a second — which is exactly what someone does when they want to be
+// sure something took — produces one press and about five repeats. Six flips lands
+// back where it started: the presenter believes the microphone is gated and turns to
+// twenty people for questions with voice fully live.
+//
+// Measured by a Phase 3 reviewer against the real sink: "after ONE held press of P
+// the gate is ACTIVE". This is BUG-73's own failure mode, re-created by BUG-73's fix.
+// ===========================================================================
+
+TEST_CASE("BUG-81: a HELD P produces exactly one toggle, not one per repeat") {
+    KeyCommandTranslator t;
+    const KeyContext firstPress{Mode::Presenting, false, false};
+    const KeyContext repeat{Mode::Presenting, false, true};
+
+    // The real press acts.
+    const KeyAction a = t.onKey(Qt::Key_P, Qt::NoModifier, firstPress, 0);
+    REQUIRE(a.command.has_value());
+    CHECK(a.command->type == CommandType::PausePresentation);
+
+    // Every repeat that follows is swallowed — consumed, so it cannot fall through
+    // to Qt's default handling, but producing no command.
+    for (int i = 0; i < 5; ++i) {
+        const KeyAction r = t.onKey(Qt::Key_P, Qt::NoModifier, repeat, 0);
+        CHECK_FALSE(r.command.has_value());
+        CHECK_FALSE(r.uiRequest.has_value());
+        CHECK(r.consumed);
+    }
+}
+
+TEST_CASE("BUG-81: a HELD Esc cannot walk the deck into the quit prompt") {
+    KeyCommandTranslator t;
+    const KeyAction real =
+        t.onKey(Qt::Key_Escape, Qt::NoModifier, {Mode::Presenting, false, false}, 0);
+    REQUIRE(real.uiRequest.has_value());
+
+    const KeyAction repeated =
+        t.onKey(Qt::Key_Escape, Qt::NoModifier, {Mode::Holding, false, true}, 0);
+    CHECK_FALSE(repeated.uiRequest.has_value());
+    CHECK(repeated.consumed);
+}
+
+TEST_CASE("BUG-81: navigation and digits still repeat — holding an arrow must work") {
+    KeyCommandTranslator t;
+    const KeyContext repeat{Mode::Presenting, false, true};
+
+    const KeyAction right = t.onKey(Qt::Key_Right, Qt::NoModifier, repeat, 0);
+    REQUIRE(right.command.has_value());
+    CHECK(right.command->type == CommandType::NextSlide);
+
+    const KeyAction left = t.onKey(Qt::Key_Left, Qt::NoModifier, repeat, 0);
+    REQUIRE(left.command.has_value());
+    CHECK(left.command->type == CommandType::PreviousSlide);
+}
+
+TEST_CASE("BUG-81: while PAUSED, a held P cannot silently un-pause") {
+    // The direction that matters most: the presenter is paused, taking questions,
+    // and rests a finger on P. Un-pausing by accident puts the audience back in
+    // control of the deck (TM-002/019).
+    KeyCommandTranslator t;
+    const KeyAction repeated =
+        t.onKey(Qt::Key_P, Qt::NoModifier, {Mode::Presenting, true, true}, 0);
+    CHECK_FALSE(repeated.command.has_value());
+}

@@ -24,10 +24,20 @@ void SlideSurface::setAccessibleState(const QString& what) {
     if (accessibleDescription() == what) {
         return; // do not make a screen reader repeat itself on every repaint
     }
+    // Set the property, so it is there when the user navigates to this element...
     setAccessibleDescription(what);
-    // Push it rather than wait to be polled: the slide changing is an event the
-    // presenter needs told, not a property they will think to go and read.
-    QAccessibleEvent ev(this, QAccessible::DescriptionChanged);
+    // ...and ANNOUNCE it, because a slide change is an event the presenter needs
+    // told, not a property they will think to go and read.
+    //
+    // It must be QAccessibleAnnouncementEvent specifically (BUG-80). The first
+    // version of this raised QAccessible::DescriptionChanged, which does NOTHING on
+    // macOS: there is no such AppKit notification, so Qt's Cocoa plugin drops the
+    // event on the floor. `nm -mu libqcocoa.dylib` shows the complete set it can
+    // post — Focused/SelectedText/Title/ValueChanged, plus
+    // NSAccessibilityAnnouncementRequestedNotification with AnnouncementKey and
+    // PriorityKey. Announcement is the only one of those that carries a message,
+    // and macOS is the platform this ships on.
+    QAccessibleAnnouncementEvent ev(this, what);
     QAccessible::updateAccessibility(&ev);
 }
 

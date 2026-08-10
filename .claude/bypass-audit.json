@@ -204,5 +204,24 @@
     },
     "user_response": "n/a",
     "final_outcome": "abandoned"
+  },
+  {
+    "timestamp": "2026-08-10T00:10:38Z",
+    "session_id": null,
+    "type": "escalation",
+    "actor": "framework",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "question": "CI is red on PR #30 for a governance reason, not a code reason: entering Phase 3 makes check-phase-gate.sh evaluate the Phase 3→4 gate on every PR, and two of its conditions (a penetration test, and a Security + Red Team review manifest) cannot be met until Phase 3 is finished. How should CI treat the next gate's conditions during Phase 3?",
+      "options": [
+        "A1: scope the CI gate check to the gate actually in force (--gate phase_2_to_3) AND set SOIF_PHASE_GATES=warn for the residual attestation warnings",
+        "A2: scope only (--gate phase_2_to_3) — leaves CI red on 1 residual attestation warning",
+        "A3: change nothing; merge PR #30 with CI red and record the reason in WALK-UNBLOCK-AUDIT.md"
+      ],
+      "recommendation": "A1",
+      "rationale": "The 7 blocking items break down as 6 Phase 3→4 readiness conditions (pen test, review manifest, HANDOFF.md, INCIDENT_RESPONSE.md, release-pipeline TODOs, Phase 3 checklist) plus 1 attestation-warning count (5 open SEV-3s, feature count 10 > cutline 7 — both of which you attested at the 2026-08-09 gate). The script itself provides --gate scoping and prints '[NEXT] ... these belong to the phase_3_to_4 gate and are not counted against it', so scoping is the script's own documented answer, not a bypass. The residual 1 has no attestation path in the script, which is why A2 alone still exits 1. A1 changes only .github/workflows/ci.yml in THIS project — no framework file is touched. Cost of A3: every Phase 3 PR merges against red CI, which destroys the signal for the rest of the walk."
+    },
+    "user_response": "PENDING",
+    "final_outcome": "escalated"
   }
 ]

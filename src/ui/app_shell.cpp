@@ -63,7 +63,7 @@ AppShell::~AppShell() {
     teardownWorkers();
 }
 
-bool AppShell::voiceGatePausedForTest() const {
+bool AppShell::voiceGatePaused() const {
     return voiceGate_ && voiceGate_->state() == RecognizerController::State::Paused;
 }
 
@@ -89,12 +89,18 @@ bool AppShell::hasRasterForTest(int index) const {
 }
 
 void AppShell::teardownVoice() {
-    // One order, and only one. VoicePipeline::stop() stops the DEVICE, and
-    // ma_device_stop() does not return until the audio callback has finished — so
-    // once the pipeline is gone, nothing can be inside the decoder, and only then
-    // is the engine the decoder calls into safe to free.
+    // One order, and only one. VoicePipeline::stop() stops the capture, and
+    // MiniaudioCapture::stop() takes the lock the audio callback holds across its
+    // whole call — so once the pipeline is gone, nothing can be inside the decoder,
+    // and only then is the engine the decoder calls into safe to free.
     //
-    // Doing it the other way round frees VoskEngine underneath a live `feed()`.
+    // That sentence used to say "ma_device_stop() does not return until the audio
+    // callback has finished". It was WRONG (BUG-79): the vendored miniaudio does not
+    // implement that on CoreAudio, and a reviewer produced the chain from its source.
+    // The lock is the real barrier and it now runs before the device is touched — see
+    // miniaudio_capture.cpp, which carries the evidence.
+    //
+    // Doing this the other way round frees VoskEngine underneath a live `feed()`.
     // That is not theoretical: a Phase 3 reviewer caught it under AddressSanitizer
     // with both stacks, 7 reproductions out of 7. It is invisible on a machine with
     // no microphone, which is exactly why it survived to Phase 3 here.
@@ -174,6 +180,34 @@ QString AppShell::armVoice() {
         return QString::fromUtf8(describeCaptureError(cerr));
     }
     return QString();
+}
+
+void AppShell::installVoiceForTest(std::unique_ptr<IAudioCapture> capture,
+                                   std::function<void()> insideDecode) {
+    // Mirrors armVoice() exactly, minus the two steps that need real hardware: the
+    // model is never loaded and the engine is never started. The OWNERSHIP is the
+    // point, and it is identical — engine, then gate, then pipeline, all held by
+    // this object and all torn down by its destructor.
+    engine_ = std::make_unique<VoskEngine>();
+    installVoiceGate();
+    voice_ = std::make_unique<VoicePipeline>(this);
+    voice_->setCapture(std::move(capture));
+    // Deliberately does NOT dereference engine_. The property under test is whether
+    // the engine is FREED while a decode is in flight, and the destruction counter
+    // answers that without reading a pointer that may by then be dangling — adding
+    // undefined behaviour to a test would make it non-deterministic, not stronger.
+    voice_->setDecoder([insideDecode](const std::int16_t*, std::size_t) {
+        if (insideDecode) {
+            insideDecode();
+        }
+        return QString();
+    });
+    connect(voice_.get(), &VoicePipeline::phraseHeard, this, [this](const QString& phrase) {
+        if (voiceGate_) {
+            voiceGate_->onPhrase(phrase);
+        }
+    });
+    voice_->start();
 }
 
 void AppShell::installWindowSinks(PresentationWindow* w) {
@@ -316,6 +350,14 @@ void AppShell::teardownWorkers() {
 
 void AppShell::openDeck(const QString& path) {
     emit deckOpenAttempted(path);
+    // Voice too, not just the workers (BUG-86). armVoice() assigns engine_ before it
+    // creates the new pipeline, so re-arming over a LIVE pipeline frees the engine
+    // the audio thread is inside — BUG-72 exactly, inverted, on the path the BUG-72
+    // fix did not touch. Not reachable today (the start screen is hidden after the
+    // first successful open, and Cmd+O is window-scoped to it), but openDeck and
+    // browseForDeck are both public and "open another deck" is one feature away.
+    // Cheaper to close now than to rediscover from a crash report.
+    teardownVoice();
     teardownWorkers();
     // A new deck is a new generation. Everything an abandoned worker of a previous
     // generation still emits is now stale by definition (F-CHAOS-2).
@@ -592,7 +634,12 @@ void AppShell::applyResult(const DispatchResult& r) {
     }
     // AUDIENCE role: this window is the one on the projector. The operator-only
     // surface arrives with F5 (audit M2).
-    lastNotice_ = noticeForRole(r.notice, NoticeRole::Audience, false);
+    //
+    // The pause flag is the REAL one, read from the gate (BUG-82). It was hardcoded
+    // false, which made NoticeId::Paused — "Paused — voice control is off" —
+    // impossible to display anywhere in the product, because noticeForRole suppresses
+    // it unless the session is actually paused.
+    lastNotice_ = noticeForRole(r.notice, NoticeRole::Audience, voiceGatePaused());
     refresh();
     if (controller_.quitConfirmed()) {
         window_->close();
