@@ -1053,3 +1053,50 @@ of this remediation faced the adversarial security audit a *feature* would have.
 these was one I chose to run, off-process, because Karl asked for it in session 4. It is not in the
 framework anywhere. **A remediation is a code change and needs the same adversary the feature got** —
 already filed as ISSUE-018 and ISSUE-025; this is the strongest evidence either has.
+
+---
+
+## ISSUE-032 — Two Phase 3 checklist steps accept completion with NO artifact check, while their neighbours refuse (MINOR, FRAMEWORK)
+
+**Found:** 2026-08-10, working the Phase 3 validation checklist.
+
+The 9-step checklist enforces artifacts unevenly:
+
+| Step | Artifact gate | Behaviour |
+|---|---|---|
+| `integration_testing` | none | accepted immediately |
+| `security_hardening` | **yes** | refused until `docs/test-results/*_semgrep_*.json` existed |
+| `chaos_testing` | none | accepted immediately |
+| `accessibility_audit` | **yes** | refused until an accessibility audit existed |
+| `performance_audit` | **yes** | refused until a performance audit existed |
+| **`contract_testing`** | **none** | **accepted immediately** |
+| `results_archived` | weak | accepted once `docs/test-results/` had files |
+| **`pre_launch_preparation`** | **none** | **accepted immediately** |
+| `legal_review` | **yes, and strong** | refused twice — first for a missing `PRIVACY_POLICY.md`, then for a missing attorney-review row |
+
+`legal_review` is the model: it fails **closed**, it explains what is missing, and its message
+anticipates the obvious dodge — *"Collects and transmits NOTHING? That is still satisfied by a
+Privacy Policy that SAYS so… Classification describes the data you HANDLE, not a claim that you
+collect it."* That is a well-built gate.
+
+`contract_testing` and `pre_launch_preparation` have nothing. I marked both, and both were
+accepted with not one byte of evidence in the repository.
+
+**Why that is worth filing rather than shrugging at.** Marking a step with nothing behind it is
+exactly the *synthetic step completion* this project's own rules name as a
+refuse-to-recommend failure mode — and here the framework did not merely permit it, it made it
+the path of least resistance. I wrote the evidence for both steps immediately afterwards
+(`docs/test-results/2026-08-10_contract-testing.md`,
+`2026-08-10_pre-launch-preparation.md`) and said so at the top of each document, because the
+alternative is a checklist that reads 9/9 with two steps that never happened.
+
+The asymmetry is the defect, not the strictness. Four steps prove the mechanism exists and
+works well. Two do not use it.
+
+**Suggested fix.** Give `contract_testing` and `pre_launch_preparation` the same
+artifact-or-escalate treatment: an expected filename under `docs/test-results/`, a message
+saying what belongs in it, and a fail-closed default.
+
+**Ninth instance of the walk's dominant pattern** (ISSUE-016/017/018/019/020/022/025/027/028/030):
+the enforced control and the documented intent disagree. Here the same checklist disagrees with
+itself, step to step.

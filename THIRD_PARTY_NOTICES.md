@@ -73,15 +73,14 @@ Licence and copyright notice: `third_party/licenses/doctest-MIT.txt`
 
 ## What this project is licensed under
 
-**Not yet decided.** The repository is public and carries no `LICENSE` file, which means no
-licence is granted to anyone reading it — all rights reserved by default. That is a decision
-for the Orchestrator, not a defect to fix silently, and it is recorded here rather than
-resolved.
+**MIT** — see `LICENSE`. Chosen by Karl Raulerson, 2026-08-10, during the Phase 3 legal review,
+which is what surfaced the fact that a public repository carried no licence at all (and so
+granted nothing to anyone reading it).
 
-It matters for one concrete reason beyond the obvious: Qt is LGPL-3.0-only, so whatever
-licence is chosen must be compatible with dynamically linking LGPL-3.0 code. Permissive
-choices (MIT, Apache-2.0, BSD) are; a proprietary/all-rights-reserved choice is also fine for
-a dynamically-linked combined work, provided the LGPL obligations above continue to be met.
+MIT is compatible with dynamically linking Qt's LGPL-3.0-only code, which was the binding
+constraint on the choice: the combined work may be distributed under MIT provided the LGPL
+obligations above continue to be met — which is what the `make-test-build.sh` licence-staging
+step now enforces on every build.
 
 ## Compliance status
 
@@ -91,4 +90,4 @@ a dynamically-linked combined work, provided the LGPL obligations above continue
 | Licence texts shipped inside the app bundle | Met — `Contents/Resources/licenses/`, verified by `scripts/make-test-build.sh` |
 | Qt dynamically linked and relinkable | Met |
 | Attribution notices preserved | Met — this file |
-| Project's own licence declared | **NOT met — Orchestrator decision outstanding** |
+| Project's own licence declared | Met — MIT (`LICENSE`), Karl Raulerson 2026-08-10 |

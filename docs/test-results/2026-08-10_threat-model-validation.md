@@ -64,22 +64,30 @@ the absence.
 Every row below is a risk that is **not fully closed**. Each needs a recorded acceptance from
 the Orchestrator before the Phase 3→4 gate.
 
-**The Approved By column is deliberately left blank.** It is not mine to fill in: the standing
-rule on this project is that the AI arm never self-attests and never authors an approver row
-as Karl. These are presented for his decision.
+**ACCEPTED IN FULL — Karl Raulerson, 2026-08-10.** Presented as three options (accept all
+eight, accept seven and hold TM-021 open pending a fuzzing campaign, or walk through them
+individually); he chose to accept all eight for this talk. The AI arm did not self-attest and
+did not decide any of these — it recorded them.
+
+His reasoning, and mine in recommending it: for a talk on his own machine with his own deck,
+the only untrusted input is a file he authored himself. The residuals that matter in the wild
+— an untrusted .pptx from a stranger, a tampered installed bundle — are not present in that
+setting. **This acceptance is scoped to that setting and does not carry into any wider
+distribution**; TM-021 in particular should be reopened before this application ever opens a
+deck someone else supplied.
 
 | Threat ID | Risk Level | Rationale | Approved By | Date |
 |---|---|---|---|---|
-| TM-001 | Medium | 60/102 isolated near-miss fragments match a command; 0/6 natural sentences do. Mitigation in practice is pausing during discussion, which the presenter controls by voice or by the P key | *(already accepted 2026-08-09 — re-confirm)* | |
-| TM-002 | Medium | Same residual as TM-001; verified twice on target hardware including under background speech | *(already accepted 2026-08-09 — re-confirm)* | |
-| TM-003 | Medium | Test builds are ad-hoc signed, not Developer-ID signed or notarised. Gatekeeper requires right-click → Open. Distribution signing is Phase 4 | | |
-| TM-006 | Low | Shipped-artifact integrity is verified; the residual is an attacker who can already write to the installed bundle, which is TM-022/023 | | |
-| TM-008 | Medium | No attribution record exists after an incident, because TM-011 forbids the log that would provide one. The two requirements are in direct conflict and confidentiality was chosen | | |
-| TM-009 | Low | Same conflict as TM-008 | | |
-| TM-020 | Low | A heckler can deny voice control; the keyboard remains and is independent by construction | | |
-| TM-021 | **High** | No fuzzing campaign has been run against the OOXML parser. Sanitizers over a fixed corpus found four real defects, which is evidence the surface is live rather than evidence it is now clean | | |
-| TM-022 | Medium | Hardened runtime and library validation are not enabled on a test build | | |
-| TM-023 | Medium | Same as TM-022 | | |
+| TM-001 | Medium | 60/102 isolated near-miss fragments match a command; 0/6 natural sentences do. Mitigation in practice is pausing during discussion, which the presenter controls by voice or by the P key | Karl Raulerson | 2026-08-10 |
+| TM-002 | Medium | Same residual as TM-001; verified twice on target hardware including under background speech | Karl Raulerson | 2026-08-10 |
+| TM-003 | Medium | Test builds are ad-hoc signed, not Developer-ID signed or notarised. Gatekeeper requires right-click → Open. Distribution signing is Phase 4 | Karl Raulerson | 2026-08-10 |
+| TM-006 | Low | Shipped-artifact integrity is verified; the residual is an attacker who can already write to the installed bundle, which is TM-022/023 | Karl Raulerson | 2026-08-10 |
+| TM-008 | Medium | No attribution record exists after an incident, because TM-011 forbids the log that would provide one. The two requirements are in direct conflict and confidentiality was chosen | Karl Raulerson | 2026-08-10 |
+| TM-009 | Low | Same conflict as TM-008 | Karl Raulerson | 2026-08-10 |
+| TM-020 | Low | A heckler can deny voice control; the keyboard remains and is independent by construction | Karl Raulerson | 2026-08-10 |
+| TM-021 | **High** | No fuzzing campaign has been run against the OOXML parser. Sanitizers over a fixed corpus found four real defects, which is evidence the surface is live rather than evidence it is now clean | Karl Raulerson | 2026-08-10 |
+| TM-022 | Medium | Hardened runtime and library validation are not enabled on a test build | Karl Raulerson | 2026-08-10 |
+| TM-023 | Medium | Same as TM-022 | Karl Raulerson | 2026-08-10 |
 
 ---
 

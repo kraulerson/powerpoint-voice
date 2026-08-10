@@ -35,6 +35,20 @@ required for the Apple-Silicon showtime machine. Recorded as a walk deviation; A
 
 Single-header, committed as plain text (source, diffable).
 
+## Known CVE in a pinned version — miniaudio 0.11.25
+
+**CVE-2026-32837 (MEDIUM)** — heap out-of-bounds read in WAV **BEXT metadata** parsing, in
+"0.11.25 and earlier". We pin 0.11.25, so a version-matching scanner will flag this build.
+
+**Not reachable here, verified:** `src/audio/miniaudio_capture.cpp` defines `MA_NO_DECODING`
+(and friends) before including the header, which compiles out the whole `ma_dr_wav` family;
+`nm -a` finds **zero** `dr_wav` symbols in the compiled object or in the shipped binary; and
+this application never decodes an audio *file* at all — it takes PCM frames from a capture
+device.
+
+**If anyone ever removes `MA_NO_DECODING`, this CVE becomes live in one line.** Full analysis:
+`docs/test-results/2026-08-10_dependency-vulnerability-review.md`.
+
 ## Re-verify
 
 ```
