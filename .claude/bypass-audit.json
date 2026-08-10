@@ -223,5 +223,1391 @@
     },
     "user_response": "PENDING",
     "final_outcome": "escalated"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "13fd6711c1e037c3407971d3dd16f20d9adb7021",
+      "commit_subject": "docs: start walk logs; repair ci.yml to authored cpp template (ISSUE-002 workaround)",
+      "author_timestamp": "2026-08-03T07:30:33-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "ecea92c5f84078cca72f5c1ec5afb53011363d4c",
+      "commit_subject": "docs: record 6 org pre-conditions + protection resolution (Karl, 2026-08-03)",
+      "author_timestamp": "2026-08-03T07:36:28-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "f1ffec5fbda124d1c285a7523f987670511b4dff",
+      "commit_subject": "docs: log ISSUE-006 blocker (solo org-mode unmergeable main)",
+      "author_timestamp": "2026-08-03T07:39:09-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "d43bcf6040dc5cef6737f942bb0ec828de029aae",
+      "commit_subject": "docs: standing un-block audit protocol per Karl (ISSUE-006 resolution)",
+      "author_timestamp": "2026-08-03T07:41:41-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "99d7bfe87437fa81b980a12510892f7b971a2a22",
+      "commit_subject": "docs: complete PROJECT_INTAKE (manual mode, interview-seeded); walk log updates",
+      "author_timestamp": "2026-08-03T08:05:14-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "985f11e0805674bb4090dc9c05e6cda34ace7897",
+      "commit_subject": "docs: update WALK-STATE (intake complete, pre-Phase-0)",
+      "author_timestamp": "2026-08-03T08:06:11-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "8fc6d4edf1ecae74b0f3609e38291a3a692046e7",
+      "commit_subject": "docs: Phase 0 artifacts — FRD, user journey, data contract, Product Manifesto (draft)",
+      "author_timestamp": "2026-08-03T09:38:22-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "956a9f271f5444d2cb06356a7f0811eeb1dd7124",
+      "commit_subject": "docs: Phase 0->1 Sponsor approval + walk logs (re-landed under recorder identity per ISSUE-008 resolution)",
+      "author_timestamp": "2026-08-03T10:47:31-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "31830ff0c2f62fc804fcb943c146ed8f8874d3a9",
+      "commit_subject": "docs: phase 0->1 snapshot; WALK-STATE at Phase 1 entry",
+      "author_timestamp": "2026-08-03T10:49:02-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "351f7535918229543889ad4c4597057adff1a9f4",
+      "commit_subject": "docs: log OBSERVATION-009 (early PR4 merge, benign split)",
+      "author_timestamp": "2026-08-03T10:51:32-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "4fbaa02e18251e0093ce8c0ccccf1f3d297099b6",
+      "commit_subject": "docs: Phase 1 artifacts — ADR-0001 (Qt6+Vosk), threat model, data model, UI scaffold, Project Bible",
+      "author_timestamp": "2026-08-03T11:23:19-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "d3a1b5a2f275dffbbe3c6363526c66ba9072008f",
+      "commit_subject": "docs: record Phase 1->2 Senior Technical Authority approval (Karl, 2026-08-03)",
+      "author_timestamp": "2026-08-03T11:47:02-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "e058e52325395ba4d6ef8211b8350ac611a126af",
+      "commit_subject": "chore: Phase 2 scaffold — Qt6 app shell (StartView), core lib, doctest harness, CMake build",
+      "author_timestamp": "2026-08-03T11:57:08-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "49b9ca311654a0d3ff75e6d6e92f34d711b77888",
+      "commit_subject": "docs: WALK-STATE at Phase 2 entry; phase-1-to-2 snapshot",
+      "author_timestamp": "2026-08-03T11:58:03-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "38052bf3a1b8ee3f1e8cb983235580e31352f4c1",
+      "commit_subject": "docs: record PR #6 merge (audit row 5) + strict-mode block-and-comply demonstration (S-12)",
+      "author_timestamp": "2026-08-03T12:05:02-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "80820a5bd5fb75dc38be79448201734105fee381",
+      "commit_subject": "docs: pin exact resume state at session-1 checkpoint (Phase 2, walk/audit-s12 base for F1)",
+      "author_timestamp": "2026-08-03T12:06:24-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "caa34abe9b745ae565aa3b435987f21d7473baa4",
+      "commit_subject": "feat: F1a deck loader — parse untrusted .pptx into the slide model",
+      "author_timestamp": "2026-08-03T12:37:15-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "561c2eb1f59b0c250a8998cf88bd160e6a6d269c",
+      "commit_subject": "docs: F1a Build Loop complete — security-audit smooth notes (S-13/S-14), ISSUE-012",
+      "author_timestamp": "2026-08-03T12:37:51-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:18Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "d18bcbb749bce201a3ca29f08ff3eb0e3f4e2d0c",
+      "commit_subject": "ci: add libzip-tools for ubuntu (libzip CMake targets assert zipcmp exists)",
+      "author_timestamp": "2026-08-03T12:39:59-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "6ce0f4d646d6d2c8e5a627ff5ae690adcc5f2234",
+      "commit_subject": "ci: locate libzip+pugixml via pkg-config (Ubuntu libzip CMake config asserts missing CLI tools)",
+      "author_timestamp": "2026-08-03T12:42:23-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "424ff48b3c727b4e3c7091b7d58709e36446342a",
+      "commit_subject": "docs: WALK-STATE at F1a-complete (PR #7 open, F1b next)",
+      "author_timestamp": "2026-08-03T12:45:46-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "2c30e47a5c6219498ee81ca1688ffe77d343b2a4",
+      "commit_subject": "docs: audit row 6 (PR #7 merged — F1a complete)",
+      "author_timestamp": "2026-08-03T15:13:45-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "9193d18bb00c47dd832439a544866c1747fb537b",
+      "commit_subject": "feat: F1b slide renderer — paint the slide model to a QImage",
+      "author_timestamp": "2026-08-03T15:56:06-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "8ef4184bf9ad89c313caf161ede92f61f1e129d5",
+      "commit_subject": "docs: F1b complete — security-audit + fidelity smooth notes (S-16/S-17)",
+      "author_timestamp": "2026-08-03T15:57:23-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "d36b77ffe7fddde6892c0c14705f440e7edc2541",
+      "commit_subject": "test: fix font-dependent pixel sample in placeholder-slide test (CI cross-platform)",
+      "author_timestamp": "2026-08-03T15:59:54-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "4e8e49d2fb25b839d79913f5867e1d2afe5a399e",
+      "commit_subject": "chore: wire up .claude/test-command -> scripts/run-tests.sh (BL-125 gate); log S-18/S-19",
+      "author_timestamp": "2026-08-03T16:00:59-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "b28e10e421bd2a2bfc3154571c7ca36c68f12086",
+      "commit_subject": "docs: WALK-STATE at F1 complete (PR #8 open, first UAT session next)",
+      "author_timestamp": "2026-08-03T16:03:25-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "75e32554a48be15d0fd81b7dcc2f5af3895b31e2",
+      "commit_subject": "docs: audit row 7 (PR #8 merged); F1b build-loop-closed state",
+      "author_timestamp": "2026-08-03T16:06:39-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "a715c37d5098e7b790899e79c271a3592b3a1301",
+      "commit_subject": "fix: UAT session 1 — real-deck rendering (BUG-1..7) + render-preview tool",
+      "author_timestamp": "2026-08-03T16:58:18-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "768c5b88610ab244e94c7a6ccb54515a0513695a",
+      "commit_subject": "docs: UAT session 1 smooth notes (S-20/S-21) — UAT caught 7 real-deck bugs",
+      "author_timestamp": "2026-08-03T16:58:53-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "683b7191758b461bf2871092aac731b8eb158bdf",
+      "commit_subject": "docs: WALK-STATE at UAT-1 complete (renderer now handles real decks; F4 next)",
+      "author_timestamp": "2026-08-03T16:59:44-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "222c07cbbf5fc60b1896b49dc97df274fe0c3db6",
+      "commit_subject": "fix: font-size inheritance from master txStyles (BUG-8) + log BUG-9/10 from real deck",
+      "author_timestamp": "2026-08-03T18:41:49-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "4cb87d1c695109c56fa1ed049d324292a060882d",
+      "commit_subject": "fix: preserve image aspect ratio (BUG-10) — no squish on mismatched frames",
+      "author_timestamp": "2026-08-03T18:49:03-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "ac0d6cec4d728cd73912932442ffdbbc493a86c4",
+      "commit_subject": "chore: add convert-deck-emf tool (EMF->PNG repackage) + WALK-STATE (UAT round 2)",
+      "author_timestamp": "2026-08-03T19:04:33-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "78d17a40badff987ecf2cc52455807fc513bb5f2",
+      "commit_subject": "docs: audit row 8 (PR #10 merged — real-deck remediation)",
+      "author_timestamp": "2026-08-03T19:56:45-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "8d319664962762d5a0984c6d3796f2fc7876710a",
+      "commit_subject": "feat: F4 slide-number parser (go to slide N)",
+      "author_timestamp": "2026-08-03T20:11:34-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "9269ee1178a610c5bf70c09b6205698586a3e477",
+      "commit_subject": "docs: WALK-STATE at F4 complete",
+      "author_timestamp": "2026-08-03T20:12:07-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "a39c22a97e85742cf8492b746bb77648089da3a6",
+      "commit_subject": "docs: rewrite WALK-STATE as complete cold-resume doc (post-compaction ready)",
+      "author_timestamp": "2026-08-03T20:33:25-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "21c3405fe6ecc3ab7b77c942d1173c062057121b",
+      "commit_subject": "chore: record F4 completion in build-loop state (feature_recorded step)",
+      "author_timestamp": "2026-08-03T20:56:03-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "618181d3105444ec8add5e3f41c04573e5d6024a",
+      "commit_subject": "docs: audit row 9 (PR #11 F4 merged)",
+      "author_timestamp": "2026-08-03T21:29:53-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "859f6afb83ec189877bd5f4d22d5de321ff40996",
+      "commit_subject": "feat: F2/F3 voice-command grammar & dispatch (matcher + Active/Paused controller)",
+      "author_timestamp": "2026-08-04T04:27:36-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "721baa8d9349899544800b2c3e562595f54c7557",
+      "commit_subject": "build: command_probe UAT utility + walk records (audit row 10, WALK-STATE refresh)",
+      "author_timestamp": "2026-08-04T05:47:25-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "d2f4fc4c4c584c94dab3389198078b4fcda98a82",
+      "commit_subject": "fix: UAT-2 remediation — resume synonyms + natural filler tolerance (BUG-11/12)",
+      "author_timestamp": "2026-08-04T07:39:11-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "b23f18a61336336df58618e6d398fd2898b53325",
+      "commit_subject": "chore: clang-format the UAT-2 test files + add format check to local gate",
+      "author_timestamp": "2026-08-04T07:43:00-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "ec7f26cedc57de4e4e1e2b2255a8425fa772fcc9",
+      "commit_subject": "docs: audit row 11 (PR #13 merged) + WALK-STATE refresh (UAT-2 done, voice-engine next)",
+      "author_timestamp": "2026-08-04T08:01:22-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "721126e57d8ca928d445b24cd58c86ed84435ee6",
+      "commit_subject": "build: vendor Vosk 0.3.44 (libvosk + model) + miniaudio 0.11.25 via git-LFS",
+      "author_timestamp": "2026-08-04T12:08:21-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "18c576c9198e1b9c25b5b44316f5509d2db503a2",
+      "commit_subject": "docs: record Vosk 0.3.44 pin (0.3.45 has no macOS build) — Bible §3 + OBSERVATION-014, S-26",
+      "author_timestamp": "2026-08-04T12:09:48-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "945e8edb23db09cfebf50efb7542a4c74accbb71",
+      "commit_subject": "fix: BUG-17 — require the object on every command (closes a one-word Q&A un-pause)",
+      "author_timestamp": "2026-08-04T13:25:12-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "c31fb30c5fc970743ebbf702b54dba5600b5af15",
+      "commit_subject": "docs: audit row 12 (PR #14 merged — voice deps, BUG-17 fix, resequencing)",
+      "author_timestamp": "2026-08-04T13:57:03-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "17f9827164422291a0e7c53fe7046d1ea49aa617",
+      "commit_subject": "docs: ratify F7 spec amendments (A3-1, TM-018.3-A, B1-A) + log clang-tidy gap",
+      "author_timestamp": "2026-08-04T14:08:11-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "eb287fcc64722187ff13bff9515ffda29dc17f37",
+      "commit_subject": "docs: add FRAMEWORK vs PROJECT findings index; promote two misfiled framework findings",
+      "author_timestamp": "2026-08-04T14:14:10-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "11d583a539def947e04baef00cd1049120cc649c",
+      "commit_subject": "feat: F7a presentation funnel — the single slide-index decision core",
+      "author_timestamp": "2026-08-04T15:49:33-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "1da5eb4555e0e58c8b6b6be92ac6c33c28c21dba",
+      "commit_subject": "docs: audit row 13 (PR #15 merged) + WALK-STATE F7 sub-feature plan",
+      "author_timestamp": "2026-08-04T15:54:04-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "1f8cca2e5f25844026f1439d7cc0b4c1e0528d10",
+      "commit_subject": "docs: checkpoint F7b module plan and progress in WALK-STATE",
+      "author_timestamp": "2026-08-04T15:58:09-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "03b92c5211b7f065d079805d0c189e76434e5c54",
+      "commit_subject": "feat: F7b usable presenter — the app now actually presents",
+      "author_timestamp": "2026-08-04T16:59:26-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "a1e7069385b8cad567f229d8bc79d234de69bbb5",
+      "commit_subject": "docs: archive UAT sessions 1-2 + log ISSUE-020 (checklist omits the archive step)",
+      "author_timestamp": "2026-08-04T17:16:32-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "41ef9b1860bff40dc2295c4eaa15c622f697f9ac",
+      "commit_subject": "docs: UAT-3 session doc + BUG-22 annotated with the real deck size",
+      "author_timestamp": "2026-08-04T17:54:00-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "ef260701a1aabacdaaa4d33ac886f1c8f20e4f5c",
+      "commit_subject": "fix: UAT-3 remediation — 1 SEV-1 + 4 SEV-2, incl. the blackout un-blanking itself",
+      "author_timestamp": "2026-08-04T18:55:50-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:19Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "b21e07d9cbda076dd67d5a22931f04670a503125",
+      "commit_subject": "docs: WALK-STATE rewritten as the cold-resume continuation doc",
+      "author_timestamp": "2026-08-04T18:57:21-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "aab544842c96a5e2426450448a01a0dd4b345b12",
+      "commit_subject": "fix: SEV-1 crash on Karl's real deck + SEV-1 unquittable app (human UAT-3)",
+      "author_timestamp": "2026-08-04T19:14:30-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "a2b19ef2217510ed75fd74a5e85defb81481a1b0",
+      "commit_subject": "fix: BUG-32 background inheritance + BUG-30 root cause CORRECTED (font/theme race)",
+      "author_timestamp": "2026-08-04T20:57:55-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "66157be99e1aeac5ee510b8c7834c1f5d659c70f",
+      "commit_subject": "docs: WALK-STATE — corrected BUG-30, new BUG-34, and the rule earned this session",
+      "author_timestamp": "2026-08-04T21:01:16-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "6c2b1d6fc490f44dde13905341af5ab211818dea",
+      "commit_subject": "fix: BUG-31 for real this time — the app was structurally unquittable",
+      "author_timestamp": "2026-08-05T07:25:47-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "f0ef77a46e72bd2d9a91f91e54af1bd89d0e078f",
+      "commit_subject": "fix: BUG-37/38 — honour <a:srcRect> cropping and <a:alphaModFix> opacity",
+      "author_timestamp": "2026-08-05T07:50:09-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "5c2f3b8e265b186d6cea271bdef1474581566fd8",
+      "commit_subject": "fix: BUG-41 — a picture placeholder was silently dropped from the slide",
+      "author_timestamp": "2026-08-05T08:00:30-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "456392e1396e76e7c78859f0d4e1b48f65d87f6f",
+      "commit_subject": "fix: BUG-43 — the quit prompt was advertising the macOS Log Out shortcut",
+      "author_timestamp": "2026-08-05T08:09:55-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "217934ba8c2131ec83794f5634270c1f427a5ea8",
+      "commit_subject": "fix: BUG-45 — macOS would have KILLED the app the first time voice was armed",
+      "author_timestamp": "2026-08-05T08:18:19-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "fc721019b5df0fae88398fd9c4b7af358916ff9b",
+      "commit_subject": "feat(F8a-audio-capture-format): convert whatever the mic gives us to what Vosk needs",
+      "author_timestamp": "2026-08-05T08:22:39-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "7d90451f428de94642cc324a4449a94146cd7ac9",
+      "commit_subject": "docs: ISSUE-025 — fix: commits bypass the Build Loop, so bug fixes get no audit and no review",
+      "author_timestamp": "2026-08-05T10:51:27-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "507bd62dda48bc546cfc6f9cb7375fc66de5a6d7",
+      "commit_subject": "fix: BUG-47/48 — the adversarial review Karl asked for found two real defects",
+      "author_timestamp": "2026-08-05T11:11:04-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "a988c40a38b20a2f41996fa1a9fb6f258b2e0104",
+      "commit_subject": "docs: WALK-UNBLOCK-AUDIT rows 16-18 (PRs #18, #20, and #19's no-op merge)",
+      "author_timestamp": "2026-08-05T11:23:19-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "460f3909afcd74a430d32cedbe298e59053249f9",
+      "commit_subject": "fix: BUG-52 — my own BUG-47/48 fixes contained undefined behaviour",
+      "author_timestamp": "2026-08-05T11:27:01-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "571ccce4a210c8d532d4dafea104d685aa2a837d",
+      "commit_subject": "fix: BUG-57/58 — the review's full report found silent picture loss again, mine",
+      "author_timestamp": "2026-08-05T11:40:23-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "3047462351e5608760f55329c63e346229d2919a",
+      "commit_subject": "docs: WALK-UNBLOCK-AUDIT row 19 (PR #21)",
+      "author_timestamp": "2026-08-05T11:46:49-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "ad1ea6bb9d0ff54088e5634e313a92a9dd86f610",
+      "commit_subject": "fix: BUG-53 — <a:stretch> was never honoured, so every picture was the wrong shape",
+      "author_timestamp": "2026-08-05T11:50:54-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "2693e558b0a555d00997761470ba46a597aa0c49",
+      "commit_subject": "fix: BUG-18 — the app could not open a deck at all through its own UI",
+      "author_timestamp": "2026-08-05T12:39:01-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "2b256cb542d59644a015c16ef36b942cd9283071",
+      "commit_subject": "build: scripts/make-test-build.sh — a bundle that runs on a machine without Homebrew",
+      "author_timestamp": "2026-08-05T12:25:30-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "64de87fd8e46b0ebe3ce7552838203f7842459ae",
+      "commit_subject": "fix: BUG-56 heap over-read + BUG-49 unloadable Vosk — the two things blocking F8b",
+      "author_timestamp": "2026-08-05T12:57:48-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "e2af1e358865864d4dfe427fb1c62bbe879a3e75",
+      "commit_subject": "feat(F8b-audio-capture): the microphone, bound to the API and not to any machine",
+      "author_timestamp": "2026-08-05T13:06:54-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "48473e265af04b7a6c937399cd6bd865f9e60ea6",
+      "commit_subject": "docs: WALK-STATE refreshed for session 4 — UAT-4 open, F8c next, rules earned",
+      "author_timestamp": "2026-08-05T13:38:28-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "6558faf6b957cb8f0c91454bfe3d94211b10081c",
+      "commit_subject": "fix: UAT-4 remediation — BUG-60/61/62/63, all verified by re-running the mutation",
+      "author_timestamp": "2026-08-05T15:41:05-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "ced33c3267ebcc284eaafcb8101910387ac28a6c",
+      "commit_subject": "feat(F8c-vosk-recognizer): voice will not run unless the grammar can be enforced",
+      "author_timestamp": "2026-08-05T16:01:04-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "93137c361d7fd2442c94a4e785dbe4e1aa347b75",
+      "commit_subject": "feat(F8d-voice-decode): the application now listens and acts",
+      "author_timestamp": "2026-08-05T16:13:07-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "8112d72e5572e292c951ebb77787005b2f43ec44",
+      "commit_subject": "ci: link Vosk on Linux too, and fetch LFS — the Ubuntu build could not have worked",
+      "author_timestamp": "2026-08-05T16:39:55-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "9189f6677b9c79fc5e5bd9ff4dce6907e13eefc4",
+      "commit_subject": "fix: UAT-5 closed — false-trigger rate MEASURED, not asserted",
+      "author_timestamp": "2026-08-09T10:04:37-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "bb139f532a8b1fadc45ad5b7489ae377ea8ae5fe",
+      "commit_subject": "fix: BUG-42 and BUG-34 — the last two SEV-2s before the Phase 2->3 gate",
+      "author_timestamp": "2026-08-09T10:09:53-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "66a8d7661d16ff79e72010198cc78b6769f05656",
+      "commit_subject": "fix: BUG-21/22 — the last two deferred SEV-2s; Phase 2->3 bug gate now clear",
+      "author_timestamp": "2026-08-09T10:54:43-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "e5eb29ae95aef3a912638a418ba3ab9523c61dec",
+      "commit_subject": "docs: Phase 2 -> 3 gate APPROVED (Karl Raulerson, 2026-08-09); Phase 3 opened",
+      "author_timestamp": "2026-08-09T12:09:08-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "dd77cd3d55a32141bd76f694f1b735485386642d",
+      "commit_subject": "docs: Phase 3 deliverables — SBOM, SECURITY.md, USER_GUIDE.md",
+      "author_timestamp": "2026-08-09T14:00:20-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "aa5b2f3486f9039b0dfbfed9f4974be6389ed4ca",
+      "commit_subject": "fix: BUG-70/71 — two Phase 3 regressions I introduced myself",
+      "author_timestamp": "2026-08-09T17:28:33-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "0b966e61694c001d265461ef630d788ee18e434b",
+      "commit_subject": "fix: BUG-72..76 — Phase 3 remediation, and seven tests that never ran",
+      "author_timestamp": "2026-08-09T17:53:15-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "af191d1b799e53131bdbf4be42b938d3b5eee5f6",
+      "commit_subject": "fix: BUG-77/78 — the presentation was silent to VoiceOver",
+      "author_timestamp": "2026-08-09T17:58:42-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "fa27a5f42028f462db6de15eccb482d18114b06d",
+      "commit_subject": "fix: BUG-79..86 — eight defects the adversarial reviewers found in my fixes",
+      "author_timestamp": "2026-08-09T18:33:07-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "23d4e217630cd4b9713372530c4108f76b4e10df",
+      "commit_subject": "ci: scope the phase gate to the gate in force (ISSUE-030, Karl's call)",
+      "author_timestamp": "2026-08-10T12:55:12-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:20Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "9795d61c7a80745a077437e5680108a46a4aca20",
+      "commit_subject": "fix: BUG-87 — the accessibility fix did not compile on Linux",
+      "author_timestamp": "2026-08-10T12:59:24-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:21Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "8e33f07b5aebfdbe1a34bd9bca4be29798cff01b",
+      "commit_subject": "fix: BUG-87 (second half) — compile-time guard the announcement TESTS too",
+      "author_timestamp": "2026-08-10T13:04:24-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:21Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "63fa39837d0fd82b394dd9dc8b4392555aabca14",
+      "commit_subject": "security: Phase 3.2 hardening — five attack payloads, the threat matrix, and a licence gap",
+      "author_timestamp": "2026-08-10T14:34:50-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:21Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "578f29b9023d91eb918ec16ec5f130d4800cd45b",
+      "commit_subject": "docs: Phase 3 validation — 8 of 9 steps closed, with the evidence behind each",
+      "author_timestamp": "2026-08-10T15:01:14-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
+  },
+  {
+    "timestamp": "2026-08-10T21:50:21Z",
+    "session_id": null,
+    "type": "out_of_band_commit",
+    "actor": "user_terminal_inferred",
+    "enforcement_level_at_event": "strict",
+    "details": {
+      "commit_sha": "21f5ef361171d55706c92aba03189c5c069bf653",
+      "commit_subject": "docs: Phase 3 validation COMPLETE — 9/9, and an APPROVAL_LOG gate that fails on its own instruction",
+      "author_timestamp": "2026-08-10T15:05:51-06:00"
+    },
+    "user_response": "n/a",
+    "final_outcome": "recorded_only"
   }
 ]
