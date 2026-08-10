@@ -1001,6 +1001,18 @@ own scoped mode*, in the same run.
 **Escalated to Karl** rather than fixed unilaterally — it changes what CI enforces, and the standing
 rule on this walk is that enforcement changes are his call, not mine.
 
+**RESOLVED — Karl's decision, 2026-08-10: option A1.** CI now scopes the check to the gate in force
+(derived from `current_phase`, so it follows the project rather than needing an edit per phase) and
+sets `SOIF_PHASE_GATES=warn` for the one residual item, which is not a gate condition at all but the
+pair of attestation warnings he signed off at the Phase 2→3 gate. **The Phase 3→4 conditions are not
+waived — they are enforced at the Phase 3→4 gate, which is where `--start-phase4` consults them.**
+Only `.github/workflows/ci.yml` in this project changed; no framework file was touched. Verified
+locally: scoped + warn exits 0, scoped alone exits 1, bare exits 1 with two `[FAIL]`s.
+
+The framework half of this issue stands unfixed and is the part worth carrying forward: the CI
+template runs the gate check unscoped, and the bug-gate / cutline warnings have no attestation path
+of the kind the ZDR and reviewer gates already have.
+
 ---
 
 ## OBSERVATION-031 — Three adversarial reviewers found eight defects in one PR of fixes, five of them in the fixes themselves (PROJECT finding, mine)

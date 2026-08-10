@@ -1,11 +1,11 @@
 #include "ui/notice_strip.hpp"
 
-#include <QAccessible>
-#include <QAccessibleEvent>
 #include <QFontMetrics>
 #include <QPaintEvent>
 #include <QPainter>
 #include <algorithm>
+
+#include "ui/a11y_announce.hpp"
 
 namespace pptv {
 
@@ -37,15 +37,11 @@ void NoticeStrip::setText(const QString& text) {
     // notice comes from the closed vocabulary in notice.hpp, so nothing from the deck
     // can be spoken aloud (Bible section 8, TM-012/013).
     //
-    // QAccessibleAnnouncementEvent, not QAccessible::Alert (BUG-80). Alert has no
-    // AppKit equivalent, so Qt's Cocoa plugin silently discards it and VoiceOver says
+    // announceToScreenReader, not QAccessible::Alert (BUG-80/87). Alert has no AppKit
+    // equivalent, so Qt's Cocoa plugin silently discards it and VoiceOver says
     // nothing — the first version of this fix was a no-op on the only platform this
-    // ships on. Announcement is the one event type that reaches
-    // NSAccessibilityAnnouncementRequestedNotification.
-    if (!text_.isEmpty()) {
-        QAccessibleAnnouncementEvent ev(this, text_);
-        QAccessible::updateAccessibility(&ev);
-    }
+    // ships on, and the second did not build on CI's older Qt.
+    announceToScreenReader(this, text_);
     update();
 }
 

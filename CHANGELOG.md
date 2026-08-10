@@ -77,6 +77,11 @@ for handoff clarity. Categories are ordered by impact severity.
   before taking questions. The "Paused — voice control is off" notice already existed in the code and
   was unreachable: nothing emitted it, and the one caller that could display it passed a hardcoded
   "not paused".
+- **BUG-87 — that fix then did not compile on Linux.** The announcement API is Qt 6.8+; this project
+  develops and ships on macOS with Qt 6.11, and CI builds against Ubuntu's older packaged Qt. Now one
+  shared version-guarded helper (`src/ui/a11y_announce.*`), which below 6.8 is a deliberate no-op —
+  the alternatives there are events the macOS bridge discards, and raising one would restore the "we
+  announce" claim while changing nothing anyone can hear, which is precisely what BUG-80 was.
 - **BUG-80 — the screen-reader announcements were a no-op on macOS.** They used two Qt event types
   that Apple's side of Qt discards, so VoiceOver said nothing; the tests asserted the stored text,
   which was set correctly either way. Now uses the one event type that reaches the platform.
