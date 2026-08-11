@@ -23,6 +23,12 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  # Also on PRs, so the artifacts and — more importantly — the Windows compiler
+  # diagnostics are available BEFORE merging rather than after. `workflow_dispatch`
+  # cannot reach a workflow that is not yet on the default branch, which is exactly
+  # the situation the first time this file exists.
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
