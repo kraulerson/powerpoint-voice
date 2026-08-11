@@ -27,8 +27,13 @@ xattr -dr com.apple.quarantine powerpoint_voice.app
 The first time you open a deck, macOS asks for microphone access. **Allow it** — that is what voice
 control needs.
 
-**If you decline, the app keeps working.** Voice turns off, a message says so, and the keyboard
-drives everything. Nothing is lost except the voice commands.
+**If you decline, the app keeps working.** Voice turns off and the keyboard drives everything.
+Nothing is lost except the voice commands.
+
+**You will not be told.** There is no on-screen message when voice fails to start — the app is
+simply silent, and looks exactly as it does when voice is working but nobody is speaking. That is a
+known defect (BUG-89), not a subtlety. **The way to tell is the 60-second check below:** say "next
+slide". If the deck does not move and the arrow keys do, voice is not running.
 
 ### 3. Check it works — 60 seconds, worth doing
 
@@ -37,7 +42,9 @@ drives everything. Nothing is lost except the voice commands.
 3. Read a sentence aloud that is *not* a command. The slide should **not** change.
 4. Press the **right arrow** and **left arrow**. Both should work.
 
-If step 2 fails, voice is not running — check the message on screen. If step 4 fails, stop and
+If step 2 fails, voice is not running. There is no on-screen explanation (BUG-89), so the usual
+causes, in order of likelihood: microphone permission was declined (System Settings → Privacy &
+Security → Microphone), or another application has the microphone. If step 4 fails, stop and
 investigate; the keyboard is the path that must always work.
 
 ---
@@ -61,7 +68,7 @@ screen.
 |---|---|
 | **"next slide"** | forward one |
 | **"previous slide"** | back one |
-| **"pause presentation"** | stops listening — use this for discussion |
+| **"pause presentation"** | stops the deck responding — use this for discussion (the mic stays on; see below) |
 | **"continue presentation"** | starts listening again |
 | **"go to slide five"** | jumps to slide 5 |
 
@@ -86,11 +93,15 @@ single word in conversation cannot move your deck.
 The keyboard works whether or not voice is running. If anything at all goes wrong with the
 microphone, keep presenting — nothing about a voice failure can stop the deck.
 
-**P does exactly what "pause presentation" does**, so you never have to speak to silence the
-microphone. **"Paused — voice control is off" appears on screen and stays there** until you resume,
-so you can check at a glance before taking questions. Arrow keys keep working while paused — pausing
-stops the *voice*, never the keyboard. With voice not running, P does nothing (there is nothing to
-pause), and no message appears.
+**P toggles pause.** Pressing it once pauses; pressing it again resumes. **Because it is a toggle,
+do not press P "to be safe" — if you are already paused, P un-pauses you.** With voice not running,
+P does nothing at all.
+
+Arrow keys keep working while paused — pausing stops the *voice*, never the keyboard.
+
+**What pausing does NOT do: it does not switch the microphone off.** The app keeps listening, because
+it has to hear you say "continue presentation". While paused it ignores every command except that
+one. See *Known limits* — this matters.
 
 ### With a screen reader
 
@@ -103,11 +114,20 @@ applications, and your slides are not something to publish there.
 
 ### During discussion
 
-Say **"pause presentation"** — or press **P** — before you take questions. Voice stops responding
-until you say **"continue presentation"** or press **P** again.
+Say **"pause presentation"** — or press **P** — before you take questions. The deck stops
+responding to voice until you say **"continue presentation"** or press **P** again.
 
-This matters: with a room talking, an isolated phrase that sounds like a command can occasionally be
-misheard. Pausing removes that entirely. See *Known limits* below.
+**Pausing reduces this risk. It does not remove it.** The microphone stays on while paused — it has
+to, so it can hear you resume. While paused, every command is ignored *except* "continue
+presentation" — and phrases that sound like that one are the app's **weakest** case. See *Known
+limits*.
+
+**To be certain you are paused, SAY "pause presentation".** Saying it again when you are already
+paused does nothing at all — it is safe to repeat as often as you like. **Do not press P for this**:
+P is a toggle, so if you are already paused it will make you live.
+
+**If a slide moves that you did not ask for, you are live again** — someone's phrase un-paused you.
+Say "pause presentation" (safe either way), and press **←** to undo the slide.
 
 ### Blanking the projector
 
@@ -141,8 +161,37 @@ phrase spoken **alone**, with a pause either side, that sounds like a command �
 In practice: normal conversation and background chatter do not move your slides. Someone answering a
 question with a two-word fragment occasionally might.
 
-**If it happens:** say "previous slide", or press ←. And say **"pause presentation"** (or press
-**P**) during discussion, which removes the risk entirely.
+**If it happens:** say "previous slide", or press ←. Pausing during discussion (say **"pause
+presentation"** or press **P**) blocks all of these except one — the un-pause phrase itself.
+
+### While paused, one phrase family still gets through
+
+This is the honest limit of pausing, and it is worth knowing before you rely on it.
+
+The microphone stays on while paused, because the app has to hear you say "continue presentation".
+So while paused it ignores everything **except** that one command — and that command is the app's
+**worst-performing** phrase. Measured across three voices: *"continue presenting"*, *"consume the
+presentation"*, *"presume the presentation"* and *"resume presenting"* each fired for **2 or 3 of 3
+voices**.
+
+In practice: if someone in the room says something that rhymes with "resume the presentation", you
+come off pause, and the deck is live again without you noticing.
+
+**How you can tell — and what NOT to rely on.**
+
+**Do not use the on-screen banner as your indicator.** "Paused — voice control is off" appears when
+you pause, but it is replaced by the next message the app shows — including "Slide 4" from your own
+arrow key. So the banner disappearing means *something happened*, not *you were un-paused*
+(BUG-92).
+
+**The reliable signal is the deck itself: if a slide moves that you did not ask for, you are live.**
+
+**The safe response is to SAY "pause presentation".** It cannot un-pause you — pausing while already
+paused does nothing — so it is correct whichever state you are actually in. Press **←** to undo any
+slide that moved.
+
+**Do not press P as the "re-pause" action.** P is a toggle. If you are still paused, P makes you
+live — the precise outcome you were trying to avoid.
 
 ### Pictures the app cannot draw
 
@@ -166,8 +215,9 @@ transitions are not run — slides change instantly.
 
 | What you see | What it means | What to do |
 |---|---|---|
-| A message saying voice is off | Microphone denied, or the speech model is missing | Keep presenting with the keyboard. Check System Settings → Privacy → Microphone |
-| Slides do not respond to your voice | Voice is not running, or you are paused | Say "continue presentation"; check for a message on screen; use the keyboard |
+| Slides do not respond to your voice, but the arrow keys work | Voice is not running (mic denied, model missing, or device busy) — **there is no on-screen message, BUG-89** | Keep presenting with the keyboard. Check System Settings → Privacy & Security → Microphone |
+| Slides do not respond to your voice, and you paused earlier | You are still paused | Say "continue presentation", or press **P** |
+| The deck responds again during discussion | Someone's phrase un-paused it | Press **P** to pause again; **←** to undo any slide that moved |
 | "Could not open the deck" | The file is not a readable `.pptx` | Try re-saving it from PowerPoint |
 | A grey box with a cross | An EMF/WMF image | Expected — see above |
 | The deck is on the wrong screen | Two displays, wrong guess | **Ctrl+Shift+D** moves it |

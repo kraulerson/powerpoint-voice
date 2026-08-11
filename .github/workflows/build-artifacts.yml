@@ -1,0 +1,174 @@
+# Test-build artifacts for all three target platforms.
+#
+# WHAT THIS IS, AND IS NOT. These are TEST builds for UAT — the same thing
+# `scripts/make-test-build.sh` has produced by hand all along, moved into CI so the
+# Orchestrator can download one without a machine of that platform. It is NOT the
+# release pipeline: no Developer-ID signing, no notarisation, no code-signing
+# certificates, no versioned GitHub Release. That is Phase 4 (`release.yml`, still
+# unconfigured — ISSUE-003/010), and the Phase 3→4 gate is currently BLOCKED.
+#
+# PLATFORM REALITY at the time this was written (2026-08-11), stated so a green
+# checkmark is not mistaken for "it works there":
+#
+#   macOS    the only platform ever RUN. Human-verified on an M3 Max 2026-08-10.
+#   Linux    compiles and passes 301 tests on every PR, and has NEVER BEEN LAUNCHED.
+#            An artifact here means "it built", nothing more.
+#   Windows  has never been compiled, not once. This workflow is the first attempt.
+#            It is `continue-on-error` deliberately — the point is to get real
+#            compiler output instead of speculation, without blocking the two
+#            platforms that do build.
+name: Build artifacts (test builds)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # macOS — the platform that actually ships. Reuses make-test-build.sh verbatim
+  # so CI produces the SAME artifact shape the presenter has been testing, rather
+  # than a second, subtly different one.
+  # ---------------------------------------------------------------------------
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 (v7.0.1)
+        with:
+          lfs: true # libvosk + the 40 MB model live in git-LFS
+
+      - name: Install dependencies
+        run: brew install qt libzip pugixml ninja
+
+      - name: Build the app bundle
+        run: bash scripts/make-test-build.sh "$RUNNER_TEMP"
+
+      - name: Report what was produced
+        run: |
+          ls -lh "$RUNNER_TEMP/powerpoint-voice-test-build.zip"
+          shasum -a 256 "$RUNNER_TEMP/powerpoint-voice-test-build.zip"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7 (v7.0.1)
+        with:
+          name: powerpoint-voice-macos-arm64
+          path: ${{ runner.temp }}/powerpoint-voice-test-build.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Linux — builds and tests today; has never been launched by a human. There is
+  # no packaging script, so this produces a plain tarball of the binary plus the
+  # speech model and library, with a README stating exactly what is missing.
+  # ---------------------------------------------------------------------------
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 (v7.0.1)
+        with:
+          lfs: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build \
+            $(grep -v '^#' .github/ci-deps-apt.txt | xargs)
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Run the suite (this platform is verified ONLY by these tests)
+        run: |
+          bash scripts/lint-test-names.sh build
+          ctest --test-dir build --output-on-failure
+
+      - name: Stage a tarball
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/powerpoint-voice-linux"
+          mkdir -p "$stage/lib" "$stage/licenses"
+          cp build/powerpoint_voice "$stage/"
+          cp build/vosk/libvosk.so "$stage/lib/"
+          cp -r build/vosk/model/vosk-model-small-en-us-0.15 "$stage/vosk-model"
+          cp THIRD_PARTY_NOTICES.md LICENSE "$stage/licenses/"
+          cp third_party/licenses/*.txt "$stage/licenses/"
+          cat > "$stage/README-LINUX.txt" <<'EOT'
+          powerpoint-voice — Linux test build
+
+          READ THIS FIRST. This build has COMPILED and PASSED ITS TESTS. It has
+          never been launched by a human on Linux, by anyone, at any point. You are
+          the first. Treat anything it does as unverified.
+
+          What is NOT bundled: Qt. Unlike the macOS build, which carries its own
+          copy of every library, this tarball expects Qt 6 Widgets, libzip and
+          pugixml already installed:
+
+              sudo apt install qt6-base-dev libzip4 libpugixml1v5
+
+          Run it with the speech engine and model beside the binary:
+
+              LD_LIBRARY_PATH=./lib ./powerpoint_voice yourdeck.pptx
+
+          Microphone: Linux has no per-application permission prompt. If PipeWire
+          or PulseAudio denies or has no input device, voice stays off and the
+          keyboard drives everything — the same guaranteed fallback as on macOS.
+
+          Licences for every bundled component are in licenses/.
+          EOT
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/powerpoint-voice-linux-x86_64.tar.gz" powerpoint-voice-linux
+          ls -lh "$RUNNER_TEMP/powerpoint-voice-linux-x86_64.tar.gz"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7 (v7.0.1)
+        with:
+          name: powerpoint-voice-linux-x86_64
+          path: ${{ runner.temp }}/powerpoint-voice-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows — FIRST ATTEMPT EVER. Expected to fail; the failure is the deliverable
+  # for now. Known blockers before this runs at all:
+  #
+  #   1. NO libvosk.dll is vendored. `third_party/vosk/lib/` holds only
+  #      linux-x86_64 and macos-universal2. Vosk 0.3.44 (pinned for its macOS
+  #      universal2 build) has no Windows wheel; 0.3.45 does — so Windows would run
+  #      a DIFFERENT engine version from macOS, which needs its own decision.
+  #   2. `src/ui/app_shell.cpp` includes <unistd.h> and calls ::_exit(0) — POSIX.
+  #      MSVC needs <process.h> and _exit.
+  #   3. No packaging: windeployqt, no installer, no signing.
+  #
+  # continue-on-error so the two platforms that DO build still publish.
+  # ---------------------------------------------------------------------------
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 (v7.0.1)
+        with:
+          lfs: true
+
+      - name: Install Qt
+        run: |
+          python -m pip install "aqtinstall==3.1.*"
+          python -m aqt install-qt windows desktop 6.8.1 win64_msvc2022_64 -O ${{ runner.temp }}\Qt
+        shell: pwsh
+
+      - name: Install libzip and pugixml (vcpkg)
+        run: vcpkg install libzip:x64-windows pugixml:x64-windows
+        shell: pwsh
+
+      - name: Configure and build — EXPECTED TO FAIL, capturing real output
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="${{ runner.temp }}\Qt\6.8.1\msvc2022_64" `
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: What the compiler actually said
+        if: always()
+        run: echo "See the step above. This job exists to replace speculation about the Windows port with real diagnostics."
+        shell: pwsh
