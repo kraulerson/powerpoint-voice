@@ -213,10 +213,24 @@ TEST_CASE("C-02: an [unk] on ONE edge is stripped, on BOTH edges it is not") {
         CHECK(matchCommand(QStringLiteral("[unk] next slide")).has_value());
         CHECK(matchCommand(QStringLiteral("next slide [unk]")).has_value());
         CHECK(matchCommand(QStringLiteral("[unk] pause the presentation")).has_value());
-        CHECK(matchCommand(QStringLiteral("[unk] continue the presentation")).has_value());
         const auto jump = matchCommand(QStringLiteral("go to slide seven [unk]"));
         REQUIRE(jump.has_value());
         CHECK(jump->slideNumber == 7);
+    }
+
+    SUBCASE("...EXCEPT continue/resume — REVERSED by RT-01, deliberately") {
+        // This line previously read:
+        //     CHECK(matchCommand("[unk] continue the presentation").has_value());
+        // and it was pinning a VULNERABILITY, not a feature. A red-team reviewer
+        // measured that exact shape resuming a paused talk from 46 of 48 realistic
+        // end-of-Q&A sentences spoken by the audience — because "one more thing
+        // before you continue the presentation" decodes to precisely this.
+        //
+        // The assertion is inverted rather than deleted: the record should show that
+        // a green test was asserting the wrong thing, not quietly lose it. See the
+        // RT-01 group below for the full rule and its measured cost.
+        CHECK_FALSE(matchCommand(QStringLiteral("[unk] continue the presentation")).has_value());
+        CHECK(matchCommand(QStringLiteral("continue the presentation")).has_value());
     }
 
     SUBCASE("[unk] on BOTH edges must NOT fire — that is narration, not a command") {
@@ -238,4 +252,83 @@ TEST_CASE("C-02: an [unk] on ONE edge is stripped, on BOTH edges it is not") {
         CHECK_FALSE(matchCommand(QStringLiteral("[unk]")).has_value());
         CHECK_FALSE(matchCommand(QStringLiteral("[unk] [unk]")).has_value());
     }
+}
+
+// ===========================================================================
+// RT-01 — the one-edge [unk] rule handed the AUDIENCE the un-pause.
+//
+// The C-02 fix stripped an [unk] from one edge, reasoning that [unk] on BOTH
+// sides means a sentence containing the command words. That is true, and it
+// missed the case where the command words sit at a sentence BOUNDARY: "one more
+// thing before you continue the presentation" decodes as
+// "[unk] continue the presentation" — structurally identical to the legitimate
+// "okay, continue the presentation", and meaning the opposite.
+//
+// A red-team reviewer measured it against the real engine across three voices:
+// 46 of 48 realistic end-of-Q&A sentences fired ContinuePresentation, and 9 of 9
+// narration sentences opening with a command fired a navigation. The both-edges
+// defence held at 0 of 12, so the defect is asymmetric.
+//
+// Resolved by CONSEQUENCE, since structure cannot separate them: the one command
+// that removes a protection requires a clean utterance; the four that merely move
+// a slide keep the lenient behaviour BUG-71 exists to preserve.
+// ===========================================================================
+
+TEST_CASE("RT-01: an audience sentence can no longer un-pause the talk") {
+    // Every one of these decodes with an [unk] carrying the rest of the sentence.
+    const char* audience[] = {
+        "[unk] continue the presentation", // "...before you continue the presentation"
+        "[unk] resume the presentation",   // "...shall we resume the presentation"
+        "[unk] continue presentation",     //
+        "continue the presentation [unk]", // "continue the presentation after lunch"
+        "resume the presentation [unk]",   //
+    };
+    for (const char* p : audience) {
+        CAPTURE(p);
+        CHECK_FALSE(matchCommand(QString::fromUtf8(p)).has_value());
+    }
+}
+
+TEST_CASE("RT-01: the PRESENTER's own clean resume still works") {
+    // The cost of the strictness, and its bound: said with a beat either side —
+    // which is how anyone issues a command — there is no [unk] and it resumes.
+    const char* clean[] = {"continue presentation", "continue the presentation",
+                           "resume presentation", "resume the presentation"};
+    for (const char* p : clean) {
+        CAPTURE(p);
+        const auto c = matchCommand(QString::fromUtf8(p));
+        REQUIRE(c.has_value());
+        CHECK(c->type == CommandType::ContinuePresentation);
+    }
+}
+
+TEST_CASE("RT-01: the other four commands keep their natural phrasing (BUG-71)") {
+    // The strictness is deliberately NOT general. These move a slide, which the
+    // presenter undoes with one key; rejecting them would re-open BUG-71, where 36
+    // of 60 natural phrasings failed.
+    struct Case {
+        const char* phrase;
+        CommandType type;
+    };
+    const Case cases[] = {
+        {"[unk] next slide", CommandType::NextSlide},
+        {"next slide [unk]", CommandType::NextSlide},
+        {"[unk] previous slide", CommandType::PreviousSlide},
+        {"[unk] pause presentation", CommandType::PausePresentation},
+        {"[unk] go to slide seven", CommandType::GoToSlide},
+    };
+    for (const Case& c : cases) {
+        CAPTURE(c.phrase);
+        const auto got = matchCommand(QString::fromUtf8(c.phrase));
+        REQUIRE(got.has_value());
+        CHECK(got->type == c.type);
+    }
+}
+
+TEST_CASE("RT-01: pausing stays lenient — the SAFE direction of the toggle") {
+    // Asymmetry on purpose. A false PAUSE costs the presenter one repeated command;
+    // a false RESUME costs them the gate, during the window it exists for.
+    const auto c = matchCommand(QStringLiteral("[unk] pause the presentation"));
+    REQUIRE(c.has_value());
+    CHECK(c->type == CommandType::PausePresentation);
 }

@@ -1157,3 +1157,200 @@ byte-identical to the template.
 the enforced control and the documented intent disagree. This is the sharpest one yet, because
 here **the control and the instruction are in the same file**, and following the instruction is
 what fails the control.
+
+---
+
+## ISSUE-034 — The review panel has no FINANCIAL reviewer, while the Bible mandates a financial section (MAJOR, FRAMEWORK)
+
+**Found:** 2026-08-10 by **Karl**, reading the Phase 3 outputs and asking why the reviewer set
+looked incomplete. Not found by me, and not found by any of the six reviewers — none of whom is
+scoped to notice their own absence.
+
+**The framework ships six reviewer personas** (`evaluation-prompts/Projects/bases/`):
+
+| # | Persona | Remit |
+|---|---|---|
+| 01 | Senior Engineer | code, architecture, maintainability |
+| 02 | CIO | strategy, operations, governance, **total cost of ownership** |
+| 03 | VP IT Security | threat surface, data handling, compliance |
+| 04 | Corporate Legal | licensing, IP, data protection, liability |
+| 05 | Technical User (non-coder) | adoption, operation, documentation |
+| 06 | Red Team | active attack |
+
+**There is no CFO / Financial Controller / FP&A reviewer.** And the gap is not academic, because
+the framework *demands financial artifacts elsewhere*:
+
+- `PROJECT_BIBLE.md` **§2 is titled "Revenue Model & Cost Constraints"** and is mandatory on the
+  full track.
+- `PRODUCT_MANIFESTO.md` carries an Appendix A on the business model.
+- The Phase 0 intake asks for revenue model, cost ceiling and unit economics.
+
+**So the framework requires a project to state its economics, and provides nobody to check them.**
+Every other mandatory artifact class has a reviewer whose job is to disbelieve it: the threat model
+has Security and Red Team, the licensing has Legal, the architecture has Senior Engineer, the
+documentation has Technical User. The financial section has the CIO's *Total Cost of Ownership*
+subsection — five bullets inside a ten-part strategic review, written from an adoption-decision
+seat rather than a financial-controls one.
+
+**What a financial reviewer would look at that nobody currently does:**
+
+- Is the stated cost model *true*, or asserted? (This project says "$0 runtime, no hosting, no
+  APIs." That happens to be verifiable — but nothing in the process verified it.)
+- Build and maintenance cost vs. the alternative — here, the cost of the engineering time against a
+  $0–$150 presentation remote.
+- Cost trajectory: what does this cost in year two, when Qt needs upgrading, the speech model is
+  stale, and macOS has moved two versions?
+- Dependency licensing that becomes a *bill* rather than an obligation — Qt's LGPL is free only
+  while the linking stays dynamic; a commercial Qt licence is a five-figure annual line item, and
+  **the decision that keeps this project on the free side of that line is an engineering detail
+  buried in a build script.** Nobody's job is to notice that.
+- Whether the capitalisation/expense treatment and the audit trail satisfy anyone who has to
+  account for the work.
+
+**On THIS project the finding is nearly free** — it is an internal tool with genuinely zero
+marginal cost, and §2 says so honestly. That is precisely why it is worth filing now: the gap is
+invisible when the answer is zero, and expensive when it is not.
+
+**Suggested fix (framework):** add `07-financial.md` — a CFO / Financial Controller persona scoped
+to cost model verification, TCO over a realistic horizon, build-vs-buy, licensing cost exposure
+(especially copyleft-to-commercial transitions), and the economics of the maintenance tail. Add it
+to `compose.sh`'s reviewer list and `run-reviews.sh`'s dispatch, with the artifact of record
+`financial-review-v1.md`. Whether it becomes a Phase 3→4 *gate* condition alongside Security and
+Red Team is a separate call — on a zero-revenue internal tool it would be noise; on anything with a
+cost line it would not.
+
+**A second-order observation, and the reason this one stings.** The review panel is the framework's
+mechanism for independent challenge, and **no member of it is scoped to ask "who is missing from
+this panel?"** Karl asked. Six reviewers, a nine-step validation checklist, a five-scanner
+validation driver and a thirty-three-entry findings log did not.
+
+---
+
+## ISSUE-035 — The six framework reviews are announced at the GATE, never assigned as work in the phase. Phase 3 closed 9/9 with none of them run (MAJOR, FRAMEWORK)
+
+**Found:** 2026-08-10 by **Karl**, asking why Phase 3 had no Senior Engineer / Security / Technical
+User / Red Team reports. **Raised only after I reported Phase 3 complete at 9/9.**
+
+His framing is the important part, and it is not about this project: *"A regular user wouldn't have
+known to ask for them. If the phase 4 gate would prevent moving forward without them, that's a good
+start, but it shouldn't have been missed to start with."*
+
+### What was missed
+
+All six reviews (`evaluation-prompts/Projects/bases/`) — Senior Engineer, CIO, Security, Legal,
+Technical User, Red Team. `docs/eval-results/` was **empty**. Two of them (Security, Red Team) are
+hard Phase 3→4 gate conditions on `track=full`.
+
+### Root cause — measured, not surmised
+
+The requirement is **stated in exactly the wrong place**. Counting mentions of the review system
+(`evaluation-prompts` / `run-reviews.sh` / `review-manifest` / "Red Team"):
+
+| Location | What it is | Mentions |
+|---|---|---|
+| Builder's Guide **Steps 3.1 – 3.6** | the actual Phase 3 work | **0** |
+| `CLAUDE.md` Phase 3 enforcement block | the AGENT'S BINDING INSTRUCTIONS, which list all nine steps by name | **0** |
+| Builder's Guide **"Phase 3 → Phase 4 Gate"** | the check that runs *after* Phase 3 | **10** |
+| Builder's Guide **"Phase 3 Remediation"** | the section you reach *after being refused* | present |
+
+So the framework describes the reviews **only to someone who has already finished Phase 3 and been
+turned away.** There is no step that says *run them*. The nine-step checklist that governs the phase
+does not contain them, and `process-checklist.sh` therefore reports **9/9 — "All steps complete for
+phase3_validation!"** with a mandatory verification untouched.
+
+**That message is the defect.** A completion signal that is true of the checklist and false of the
+phase is precisely the class this walk keeps hitting (ISSUE-016/017/020/028/030/032/033), and here
+it produced a clean 9/9 on a phase missing its independent review entirely.
+
+### Why the gate is a backstop, not a plan — Karl's point, and he is right
+
+The Phase 3→4 gate *would* have caught this. That is worth something, and it is not enough:
+
+1. **It fires after the work is declared done.** Everything downstream of "Phase 3 complete" —
+   the report to the Orchestrator, the sign-offs, the build handed over — was produced against a
+   9/9 that was not true.
+2. **It fires at a phase boundary that a real project may not cross for weeks.** This project
+   reached the gate the same day only because I ran the gate check for an unrelated reason.
+3. **It arrives as a failure, not as a task.** The operator's first contact with a mandatory
+   deliverable is a red `[FAIL]` — which trains exactly the wrong instinct, because the cheapest
+   response to a blocking gate is to look for the exemption rather than the work.
+4. **It cannot catch what it does not gate.** Only Security and Red Team are gate conditions.
+   Senior Engineer, CIO, Legal and Technical User are never enforced anywhere, by anything. Had
+   Karl not asked, those four would never have been run on this project at any point.
+
+### Why I missed it, stated plainly
+
+`CLAUDE.md` is binding on me and lists the nine steps by name. I did the nine, the checklist
+enforced the nine, and it congratulated me. I read the Phase 3→4 gate output on 2026-08-09 —
+`[FAIL] no review manifest found` was in it — and **classified it as a Phase 4 entry condition
+rather than as Phase 3 work I had skipped.** That classification is defensible from the document
+structure and it was still wrong, and it is the sort of wrong that a well-placed instruction would
+have made impossible.
+
+### Suggested fix — FRAMEWORK
+
+1. **Make the reviews a numbered Phase 3 step with a checklist entry.** Add
+   `independent_reviews` to `phase3_validation` between `contract_testing` and `results_archived`,
+   with an artifact gate on `docs/eval-results/review-manifest.json` — the same fail-closed
+   treatment `legal_review` already has, which is the step in this phase that works best precisely
+   because it refuses.
+2. **Put it in `CLAUDE.md`'s Phase 3 block.** That file is what an agent actually follows. A
+   requirement absent from it does not exist operationally.
+3. **Announce the reviews at the START of Phase 3**, in `--start-phase3`'s output: "this phase
+   requires N independent reviews; run them with `run-reviews.sh <module> --compose-only`."
+   Requirements should be issued as work, not discovered as refusals.
+4. **Gate the non-gated four.** If Senior Engineer / CIO / Legal / Technical User are genuinely
+   optional, say so; if they are not, enforce them. Right now they are neither.
+
+### Suggested fix — PROJECT (done, since I can only change this repo)
+
+`CLAUDE.md`'s Phase 3 section now names the six reviews and their artifacts of record, so the next
+session cannot repeat the omission by following its own instructions. **This protects one project.
+The framework fix is the one that matters**, and it is the one Karl's sentence is about: a regular
+user, following the documented steps exactly, would have shipped without an independent review and
+been told they were done.
+
+**Eleventh instance of the walk's dominant pattern**, and the most consequential: the enforced
+control and the documented intent disagree — and here the disagreement removed the framework's
+entire independent-review mechanism from a completed phase without a single warning.
+
+---
+
+## ISSUE-036 — A UAT finding reported by two agents was never consolidated, and `bugs_consolidated` was marked anyway (MAJOR, FRAMEWORK + PROJECT)
+
+**Found:** 2026-08-10, by the Phase 3 independent Technical User review — which re-discovered a
+defect that two UAT-5 reviewers had already reported on **2026-08-06**.
+
+**The defect:** `voiceUnavailableReason_` is written but never rendered; its getter has zero call
+sites. A presenter whose microphone permission is denied gets silence and no diagnosis. Now BUG-89.
+
+**The process failure around it, which is the finding:**
+
+| Date | What happened |
+|---|---|
+| 2026-08-06 | Two UAT-5 agent reviewers report it independently (`04-presenter-reality.md`, `08-verify-presenter.md`) |
+| 2026-08-06 | The UAT checklist's **`bugs_consolidated` step is marked complete** |
+| — | **It never enters `BUGS.md`.** The ledger runs 1…87 with no entry for it |
+| 2026-08-10 | `USER_GUIDE.md` is written telling the presenter four times to "check the message on screen" — a message that does not exist |
+| 2026-08-10 | An independent reviewer finds it again, from scratch |
+
+`bugs_consolidated` is a **self-attested** step. There is no artifact check, no diff between what
+the agents reported and what reached the tracker, and no count to reconcile. The step means *"I say
+I did it"*, and I said it while a reported finding fell on the floor.
+
+**Why this one is expensive rather than embarrassing.** The finding did not merely go unfixed — it
+went unrecorded, and four days later the user-facing documentation was written **on the assumption
+it had never existed.** An unfixed bug in a ledger is a decision. An unrecorded one becomes a false
+statement in a document a presenter relies on when something has already gone wrong.
+
+**Suggested fix (framework):** give `bugs_consolidated` an artifact check of the same kind
+`security_hardening` and `legal_review` already have — the UAT session directory has
+`agent-results/*.md` on one side and `BUGS.md` on the other, and the step should require a written
+reconciliation naming every reported finding and its disposition (entered as BUG-N / duplicate of /
+rejected because). A step that consolidates should have to show its arithmetic.
+
+**Related:** ISSUE-018 (UAT remediation gets no re-audit) and ISSUE-032 (checklist steps that accept
+completion with no evidence). This is the same family, with the sharpest consequence yet.
+
+**Twelfth instance of the walk's dominant pattern.** And a PROJECT finding as much as a framework
+one: the framework let me mark it, and I marked it.

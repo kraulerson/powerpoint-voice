@@ -91,8 +91,16 @@ codesign --verify --deep --strict powerpoint_voice.app
 Tracked in `BUGS.md` and attested at the Phase 2→3 gate (`APPROVAL_LOG.md`, 2026-08-09):
 
 - **Isolated near-miss speech can match a command** (measured 60/102 fragments; 0/6 natural
-  sentences). Mitigations: "pause presentation" suspends voice for discussion, and the keyboard drives
-  every command independently of the speech engine.
+  sentences). Mitigations: "pause presentation" suspends voice **navigation** for discussion, and the
+  keyboard drives every command independently of the speech engine.
+- **Pausing does not stop the microphone, and the un-pause phrase is the weakest one** (BUG-88).
+  While paused the gate keeps listening — it must, to hear "continue presentation" — and ignores
+  every command except that one. That one is the corpus's worst performer: *"continue presenting"*,
+  *"consume the presentation"*, *"presume the presentation"* and *"resume presenting"* each fired for
+  **2-3 of 3 voices**. So an audience phrase can end a pause, restoring full voice control without
+  the presenter noticing. Karl was offered a double-confirm mitigation on 2026-08-06 and chose to
+  leave it (recorded in `false-trigger-measurement.md`); what was wrong until 2026-08-10 was the
+  documentation, which told the presenter pausing "removes the risk entirely".
 - **A logout or restart event quits without confirmation** (BUG-44) — correct for a real shutdown, a
   hazard if a system prompt fires mid-talk.
 - Four further SEV-3 items: BUG-33, 39, 54, 55.

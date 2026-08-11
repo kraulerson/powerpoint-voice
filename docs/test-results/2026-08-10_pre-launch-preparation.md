@@ -48,7 +48,7 @@ failure can stop the deck, and `B: while paused, the KEYBOARD still drives the d
 |---|---|
 | Voice does not respond | Arrow keys. Check the on-screen message |
 | An audience phrase moves the deck | "previous slide", or ← |
-| Taking questions | **P**, or "pause presentation" — confirm "Paused — voice control is off" is on screen |
+| Taking questions | **Say "pause presentation"** — repeatable and always safe, it cannot un-pause you. The mic stays on and an audience phrase resembling "resume the presentation" can end the pause (BUG-88); the tell is a slide moving on its own, NOT the banner disappearing (BUG-92). **Do not press P to re-pause** — it is a toggle and will make you live |
 | Deck on the wrong screen | **⌃⇧D** |
 | Something on screen shouldn't be | **Esc** blanks the projector |
 | The app misbehaves entirely | **⌘Q**, relaunch, reopen the deck. Pre-render is ~300 ms |
@@ -56,7 +56,10 @@ failure can stop the deck, and `B: while paused, the KEYBOARD still drives the d
 ## Known limits the presenter has been told about
 
 - Isolated near-miss phrases can trigger a command: **60 of 102** fragments, **0 of 6** natural
-  sentences. Pausing during discussion removes it.
+  sentences. Pausing during discussion blocks all of them **except the un-pause phrase itself**,
+  which is the corpus's worst performer (BUG-88).
+- **Voice failing to start is SILENT** — no on-screen message, because the reason string is never
+  rendered (BUG-89). The presenter finds out by saying "next slide" and watching.
 - EMF/WMF images draw as a grey box with a cross; a converted `-png` deck avoids it.
 - Tables, charts and SmartArt draw as labelled placeholder boxes.
 - Animations and transitions are not run.

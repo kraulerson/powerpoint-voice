@@ -110,10 +110,20 @@ Priorities under this schedule:
    TWO-word phrases: **"next slide" / "previous slide" / "pause presentation" /
    "continue presentation" / "go to slide N"** (Karl's Q1 change; supersedes intake single words).
 
-## 4. Current position (end of session 6, 2026-08-10 — PHASE 3 COMPLETE)
+## 4. Current position (end of session 6, 2026-08-10 — Phase 3 checklist 9/9, reviews in progress)
 
-- **Phase 3 (Validation) is CLOSED: 9/9 checklist steps.** `current_phase = 3`. Phases 0, 1, 2
-  and 3 all gate-approved by Karl.
+- **Phase 3 checklist: 9/9. Phase 3 itself: NOT complete when that was first claimed.**
+  `current_phase = 3`. Phases 0, 1 and 2 gate-approved by Karl.
+
+  I reported "Phase 3 complete" on 2026-08-10 on the strength of `process-checklist.sh` saying
+  *"All steps complete for phase3_validation!"*. **None of the framework's six independent reviews
+  had been run** — `docs/eval-results/` was empty — and two of them (Security, Red Team) are hard
+  Phase 3→4 gate conditions. Karl caught it by asking; no control did. See **ISSUE-035** for the
+  root cause (the reviews are described only in the gate and remediation sections, never in the
+  nine steps or in `CLAUDE.md`) and for the prevention now in `CLAUDE.md`'s Phase 3 block.
+
+  **Read the checklist number as what it is: nine specific steps, not a statement about the
+  phase.**
 - **main @ 4530a03. 297 tests green — all of which actually RUN** (see BUG-76; for weeks they did
   not, and `scripts/lint-test-names.sh` is what makes that claim checkable now).
 - **THE PRODUCT WORKS, ON THE MACHINE IT WILL BE USED ON.** Karl ran the full pre-talk check on his
@@ -152,11 +162,21 @@ Phase 3 was not a formality. In order of how much it changed:
 **Nothing below blocks Wednesday.** The build is delivered, human-verified, and untouched since.
 
 0. **Sync:** `git checkout main && git pull`. Current: **main @ 4530a03, 297 tests green.**
-1. **Phase 3→4 gate.** It is BLOCKED, legitimately: `[FAIL] Full Track requires penetration test —
-   no exemption path available`. Karl accepted TM-021 (no fuzzing campaign) as a risk for the talk
-   on 2026-08-10, but the gate wants a pen-test artifact in `docs/test-results/`, and Full Track
-   offers no exemption. **This needs a real decision, not a workaround** — either run a fuzzing /
-   pen-test pass, or take the track question to Karl.
+1. **Phase 3→4 gate.** BLOCKED on two conditions, both legitimate:
+   - `[FAIL] Full Track requires penetration test — no exemption path available`. Karl accepted
+     TM-021 (no fuzzing campaign) as a risk for the talk on 2026-08-10, but the gate wants a
+     pen-test artifact in `docs/test-results/` and Full Track offers no exemption. **This needs a
+     real decision, not a workaround** — run a fuzzing/pen-test pass, or take the track question
+     to Karl.
+   - `[FAIL] no review manifest (docs/eval-results/review-manifest.json)` — track=full requires
+     the **Security AND Red Team** reviews. Four of the six framework reviews (Senior Engineer,
+     Security, Technical User, Red Team) were run on 2026-08-10 at Karl's prompting; their
+     artifacts are `senior-engineer-review-v1.md`, `security-review-v1.md`,
+     `technical-user-review-v1.md`, `red-team-review-v1.md` in the project root. **CIO (02) and
+     Legal (04) have NOT been run.** The manifest still needs generating.
+   - **MISSING ENTIRELY: a financial reviewer.** See ISSUE-034 — the framework mandates
+     `PROJECT_BIBLE.md` §2 "Revenue Model & Cost Constraints" and provides nobody to check it.
+     Karl found this; six reviewers and a 33-entry findings log did not.
 2. **Phase 4 (Release).** `scripts/process-checklist.sh --start-phase4` — run it while
    `current_phase` is still 3. Six steps: production_build, rollback_tested, go_live_verified,
    monitoring_configured, handoff_written, handoff_tested. Needs `docs/INCIDENT_RESPONSE.md`,
@@ -213,7 +233,20 @@ every entry into **A. FRAMEWORK** (the only candidate fixes for solo-orchestrato
 (ours), and **C. smooth notes**, and is the source for WALK-REPORT.md. Keep appending there; the log
 is append-only, so corrections go in as new entries rather than edits.
 
-**33 numbered findings** as of 2026-08-10 (ISSUE/OBSERVATION-001 … 033) plus ~29 smooth notes.
+**35 numbered findings** as of 2026-08-10 (ISSUE/OBSERVATION-001 … 035) plus ~29 smooth notes.
+
+**The last two are both Karl's, and both are the same shape: he asked a question no control is
+built to ask.** ISSUE-034 — the review panel has no financial reviewer while the Bible mandates a
+financial section. ISSUE-035 — the six reviews are announced at the GATE and never assigned as work
+in the phase, so a nine-step checklist reported 9/9 with the framework's entire independent-review
+mechanism untouched. **A regular operator following the documented steps exactly would have shipped
+without an independent review and been congratulated for it.**
+
+**ISSUE-034 is the one KARL found, and it is the only finding of the walk that came from asking a
+question none of the controls is shaped to ask:** the review panel has no financial reviewer, while
+the Bible mandates a financial section. Six reviewer personas, a nine-step checklist, a
+five-scanner driver and thirty-three prior findings did not notice — because **no member of the
+review panel is scoped to ask who is missing from the panel.**
 
 **The four added during Phase 3, and they are among the strongest of the walk:**
 - **ISSUE-030** (Major): entering Phase 3 makes CI red on EVERY pull request, because

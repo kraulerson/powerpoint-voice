@@ -237,6 +237,34 @@ Before moving to Phase 3, verify:
 - **Phase 3 enforcement:** Run `scripts/process-checklist.sh --start-phase3` at the beginning of Phase 3.
   Mark each validation step: `scripts/process-checklist.sh --complete-step phase3_validation:STEP_ID`
   Steps: integration_testing, security_hardening, chaos_testing, accessibility_audit, performance_audit, contract_testing, results_archived, pre_launch_preparation, legal_review.
+- **THE NINE STEPS ARE NOT ALL OF PHASE 3. Run the six independent reviews as well** — they are
+  not in the checklist, they are not in the step list above, and `process-checklist.sh` will
+  report **"All steps complete for phase3_validation!"** without them. It did exactly that on
+  2026-08-10, with none of the six ever run, and the omission was caught by the Orchestrator
+  asking rather than by any control (walk ISSUE-035).
+
+  ```
+  bash evaluation-prompts/Projects/run-reviews.sh desktop-app --compose-only   # writes the prompts
+  # run each composed prompt as an independent reviewer, then:
+  bash evaluation-prompts/Projects/run-reviews.sh desktop-app --assemble-manifest
+  bash scripts/lint-review-manifest.sh docs/eval-results/review-manifest.json
+  ```
+
+  | # | Reviewer | Artifact of record | Enforced? |
+  |---|---|---|---|
+  | 01 | Senior Engineer | `senior-engineer-review-v1.md` | no |
+  | 02 | CIO | `cio-review-v1.md` | no |
+  | 03 | **Security** | `security-review-v1.md` | **Phase 3→4 gate, track=full** |
+  | 04 | Legal | `legal-review-v1.md` | no |
+  | 05 | Technical User | `technical-user-review-v1.md` | no |
+  | 06 | **Red Team** | `red-team-review-v1.md` | **Phase 3→4 gate, track=full** |
+
+  Only two of the six are gate-enforced. **The other four are enforced by nothing**, so if they are
+  skipped, no control anywhere will ever say so. Treat all six as required work of Phase 3, not as
+  Phase 4 entry paperwork — the Phase 3→4 gate mentioning them is a backstop, not the instruction.
+
+  **There is no financial reviewer** (walk ISSUE-034), while `PROJECT_BIBLE.md` §2 mandates a
+  revenue/cost section. Nobody checks that section. Note it when reporting Phase 3 completeness.
 - **Phase 4 enforcement:** Run `scripts/process-checklist.sh --start-phase4` at the beginning of Phase 4.
   Mark each release step: `scripts/process-checklist.sh --complete-step phase4_release:STEP_ID`
   Steps: production_build, rollback_tested, go_live_verified, monitoring_configured, handoff_written, handoff_tested.

@@ -66,6 +66,29 @@ std::optional<Command> matchCommand(const QString& phrase) {
     // [unk]". Stripping both edges there turns narration into a slide change and
     // reopens the audience-false-trigger threat this design exists to close
     // (TM-002/019). Leaving the pair intact makes it reject, which is correct.
+    //
+    // RT-01, and this is where the one-edge rule was WRONG. A red-team reviewer
+    // measured it against the real engine: an [unk] at ONE edge is ALSO a sentence
+    // whenever the command words fall at its start or end. "One more thing before
+    // you continue the presentation" decodes as "[unk] continue the presentation" —
+    // structurally identical to the legitimate "okay, continue the presentation",
+    // and it means the OPPOSITE. Measured: 46 of 48 realistic end-of-Q&A sentences
+    // fired ContinuePresentation; 9 of 9 narration sentences beginning with a
+    // command fired a navigation. The both-edges defence held (0 of 12), so the
+    // defect is asymmetric, not general.
+    //
+    // The two cases cannot be told apart by structure, so they are separated by
+    // CONSEQUENCE instead. ContinuePresentation is the one command that removes the
+    // only gate protecting a live talk, and it is triggered by the audience during
+    // the exact window that gate exists for. It therefore requires a CLEAN
+    // utterance — no [unk] anywhere. The presenter simply says it with a beat either
+    // side, which is what they do anyway; the audience's sentence, which always
+    // carries the rest of itself as [unk], no longer reaches it.
+    //
+    // The other four keep the lenient one-edge behaviour, because their worst case is
+    // a slide moving and the presenter pressing left arrow — and because natural
+    // phrasing on those is what BUG-71 exists to preserve.
+    const bool hadUnk = norm.contains(QStringLiteral("[unk]"));
     {
         const bool leadUnk = norm.startsWith(QStringLiteral("[unk] "));
         const bool trailUnk = norm.endsWith(QStringLiteral(" [unk]"));
@@ -124,6 +147,22 @@ std::optional<Command> matchCommand(const QString& phrase) {
         core == QStringLiteral("resume presentation") ||
         core == QStringLiteral("continue the presentation") ||
         core == QStringLiteral("resume the presentation")) {
+        // RT-01. This is the ONE command that requires a clean utterance: any [unk]
+        // anywhere means there was other speech in the same breath, and for THIS
+        // command that is overwhelmingly a sentence rather than an instruction.
+        //
+        // It is the only command whose false trigger REMOVES a protection instead of
+        // moving a slide. Everything else is undone with the left arrow; this one
+        // hands the room back control of the deck during the exact window the Paused
+        // state exists to protect (TM-002/019), and the presenter has no reliable
+        // on-screen indication that it happened (BUG-92).
+        //
+        // Cost of the strictness, stated: "okay, continue the presentation" no longer
+        // resumes — the presenter says it again with a beat either side, and it works.
+        // Measured benefit: 46 of 48 realistic end-of-Q&A sentences stop resuming.
+        if (hadUnk) {
+            return std::nullopt;
+        }
         return Command{CommandType::ContinuePresentation};
     }
 
