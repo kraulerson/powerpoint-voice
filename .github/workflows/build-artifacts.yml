@@ -156,34 +156,16 @@ jobs:
           lfs: true
 
       - name: Install Qt
-        run: |
-          python -m pip install "aqtinstall==3.1.*"
-          python -m aqt install-qt windows desktop 6.8.1 win64_msvc2022_64 -O ${{ runner.temp }}\Qt
-        shell: pwsh
+        run: python -m pip install "aqtinstall==3.1.*"
 
-      - name: Install libzip, pugixml and pkgconf (vcpkg)
-        # pkgconf matters as much as the libraries. CMakeLists.txt uses
-        # `find_package(PkgConfig REQUIRED)` + `pkg_check_modules` to locate libzip
-        # and pugixml — chosen deliberately because libzip's installed CMake targets
-        # file hard-errors on Ubuntu (it asserts CLI tools apt does not package).
-        # That choice is correct for the two Unix platforms and is the FIRST thing
-        # that stops the Windows configure, which has no pkg-config at all.
-        run: |
-          vcpkg install libzip:x64-windows pugixml:x64-windows pkgconf:x64-windows
-          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\tools\pkgconf" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-        shell: pwsh
+      - name: Fetch Qt for MSVC
+        run: python -m aqt install-qt windows desktop 6.8.1 win64_msvc2022_64 -O qt-win
 
-      - name: Configure and build — EXPECTED TO FAIL, capturing real output
+      # Every PowerShell line lives in scripts/build-windows.ps1, not here. Semgrep
+      # parses every `run:` block as bash, where a backtick is command substitution
+      # rather than a PowerShell line continuation — inline PowerShell broke its
+      # token stream, and the commit gate correctly refused to vouch for a file the
+      # scanner could not parse (BL-200). A file, not a heredoc.
+      - name: Build — FIRST WINDOWS COMPILE, expected to fail with real diagnostics
         shell: pwsh
-        run: |
-          $env:PKG_CONFIG_PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
-          cmake -S . -B build `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="${{ runner.temp }}\Qt\6.8.1\msvc2022_64" `
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release
-
-      - name: What the compiler actually said
-        if: always()
-        run: echo "See the step above. This job exists to replace speculation about the Windows port with real diagnostics."
-        shell: pwsh
+        run: ./scripts/build-windows.ps1 "${{ github.workspace }}/qt-win/6.8.1/msvc2022_64"
