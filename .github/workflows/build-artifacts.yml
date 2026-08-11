@@ -161,13 +161,22 @@ jobs:
           python -m aqt install-qt windows desktop 6.8.1 win64_msvc2022_64 -O ${{ runner.temp }}\Qt
         shell: pwsh
 
-      - name: Install libzip and pugixml (vcpkg)
-        run: vcpkg install libzip:x64-windows pugixml:x64-windows
+      - name: Install libzip, pugixml and pkgconf (vcpkg)
+        # pkgconf matters as much as the libraries. CMakeLists.txt uses
+        # `find_package(PkgConfig REQUIRED)` + `pkg_check_modules` to locate libzip
+        # and pugixml — chosen deliberately because libzip's installed CMake targets
+        # file hard-errors on Ubuntu (it asserts CLI tools apt does not package).
+        # That choice is correct for the two Unix platforms and is the FIRST thing
+        # that stops the Windows configure, which has no pkg-config at all.
+        run: |
+          vcpkg install libzip:x64-windows pugixml:x64-windows pkgconf:x64-windows
+          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\tools\pkgconf" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
         shell: pwsh
 
       - name: Configure and build — EXPECTED TO FAIL, capturing real output
         shell: pwsh
         run: |
+          $env:PKG_CONFIG_PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
           cmake -S . -B build `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
             -DCMAKE_PREFIX_PATH="${{ runner.temp }}\Qt\6.8.1\msvc2022_64" `
